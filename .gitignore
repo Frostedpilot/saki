@@ -1,0 +1,9 @@
+# Upstream reference repos (clones for consultation only — not used by the engine)
+reference/
+
+# Dependencies
+node_modules/
+
+# Logs / OS cruft
+*.log
+.DS_Store

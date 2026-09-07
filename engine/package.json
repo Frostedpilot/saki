@@ -1,0 +1,15 @@
+{
+  "name": "engine",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "node --test tests/ && node game.js --selftest=1"
+  },
+  "keywords": [],
+  "type": "commonjs",
+  "dependencies": {
+    "riichi": "^1.2.0",
+    "syanten": "^1.6.0"
+  }
+}
