@@ -66,24 +66,14 @@ function createKoromoHooks(seat) {
       return 1.5 * mult; // base 1.5 * phase multiplier
     },
 
-    // Phase 2: draw weight hook.
-    onPowerDraw(tile, state, drawSeat) {
+    // Phase 2: draw weight hook — SELF effects (Koromo's own draws only).
+    onPowerDraw(tile, state) {
       const n = norm(tile);
-      const hand = getHand(state, drawSeat);
+      const hand = getHand(state, seat);
       const wallLeft = state.pool ? state.pool.total() : 100;
-      const isKoromo = drawSeat === seat;
-
-      // T4: Submerged Abyss — opponent -80% on shanten-decreasing tiles
-      if (tier4Active && !isKoromo) {
-        const sh = shantenOf(hand);
-        if (sh >= 1) {
-          const after = shantenOf([...hand, tile]);
-          if (after < sh) return ABYSS_OPPONENT_MULT;
-        }
-      }
 
       // T3: Haitei Gravity — Koromo's hand-advancing tiles at 2.5x
-      if (tier3Active && isKoromo && wallLeft <= 20) {
+      if (tier3Active && wallLeft <= 20) {
         const h = hairiOf(hand);
         const waits = h && h.wait ? Object.keys(h.wait) : [];
         if (waits.includes(n)) {
@@ -93,16 +83,28 @@ function createKoromoHooks(seat) {
         }
       }
 
-      // T2: Oceanic Shanten Mire — opponent -40% on shanten-decreasing tiles
-      if (tier2TurnsLeft > 0 && !isKoromo) {
-        const sh = shantenOf(hand);
-        if (sh >= 1) {
-          const after = shantenOf([...hand, tile]);
-          if (after < sh) return OCEANIC_MIRE_MULT;
-        }
-      }
-
       return 1.0;
+    },
+
+    // Phase 2b: Field Enforcer — opponent draw suppression (cross-seat).
+    // Applied by the dispatcher to EVERY drawing seat's weight map. Leaves
+    // Koromo's own turn untouched (no drowning in her own mire).
+    applyFieldAura(drawSeat, weights, state) {
+      if (drawSeat === seat) return weights;
+      const hand = getHand(state, drawSeat);
+      if (!hand || hand.length < 13) return weights; // not a live draw seat yet
+      const sh = shantenOf(hand);
+      if (sh < 1) return weights; // no shanten to decrease this draw
+      const keys = Object.keys(weights);
+      for (const k of keys) {
+        let mult = 1.0;
+        // T2: Oceanic Shanten Mire — -40% on shanten-decreasing tiles
+        if (tier2TurnsLeft > 0 && shantenOf([...hand, k]) < sh) mult *= OCEANIC_MIRE_MULT;
+        // T4: Submerged Abyss — -80% on shanten-decreasing tiles
+        if (tier4Active && shantenOf([...hand, k]) < sh) mult *= ABYSS_OPPONENT_MULT;
+        if (mult !== 1.0) weights[k] = (weights[k] || 1.0) * mult;
+      }
+      return weights;
     },
 
     // Opponent hesitation drain (T1): called per-opponent per-draw.

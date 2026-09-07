@@ -80,12 +80,12 @@ test('T2: oceanic mire — opponent draw weight 0.60 on advancing tiles', () => 
   s.players[1].hand = [...SHANTEN1_HAND]; // 1-shanten
   const hooks = K.createKoromoHooks(0);
   hooks.tryActivateTier2(s, 10);
-  // A bridge tile for seat 1 should get 0.60
+  // A bridge tile for seat 1 should get dampened to 0.60 via the field aura
   const { getOptimalBridges } = require('../powers/trajectoryPlanner');
   const bridges = getOptimalBridges(SHANTEN1_HAND, s.pool, 4);
   if (bridges.length > 0) {
-    const w = hooks.onPowerDraw(bridges[0], s, 1); // drawSeat=1
-    assert.equal(w, 0.60);
+    const w = hooks.applyFieldAura(1, { [bridges[0]]: 1.0 }, s);
+    assert.equal(w[bridges[0]], 0.60);
   }
 });
 
@@ -93,8 +93,8 @@ test('T2: Koromo herself not affected by mire', () => {
   const s = koromoState(TENPAI_HAND, 7, 100);
   const hooks = K.createKoromoHooks(0);
   hooks.tryActivateTier2(s, 10);
-  const w = hooks.onPowerDraw('7s', s, 0); // drawSeat=0 (Koromo)
-  assert.equal(w, 1.0);
+  const w = hooks.applyFieldAura(0, { '7s': 1.0 }, s); // own seat
+  assert.equal(w['7s'], 1.0);
 });
 
 test('T2: turn gate 8–14', () => {
@@ -136,12 +136,12 @@ test('T4: submerged abyss — opponent freeze at -80%', () => {
   s.players[1].hand = [...SHANTEN1_HAND]; // 1-shanten
   const hooks = K.createKoromoHooks(0);
   hooks.tryActivateTier4(s, 10);
-  // A shanten-decreasing tile for seat 1
+  // A shanten-decreasing tile for seat 1 gets dampened to 0.20
   const { getOptimalBridges } = require('../powers/trajectoryPlanner');
   const bridges = getOptimalBridges(SHANTEN1_HAND, s.pool, 4);
   if (bridges.length > 0) {
-    const w = hooks.onPowerDraw(bridges[0], s, 1);
-    assert.equal(w, 0.20);
+    const w = hooks.applyFieldAura(1, { [bridges[0]]: 1.0 }, s);
+    assert.equal(w[bridges[0]], 0.20);
   }
 });
 

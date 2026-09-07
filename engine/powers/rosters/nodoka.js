@@ -119,17 +119,19 @@ function createNodokaHooks(seat) {
     },
 
     // Phase 2: discard hook — flow adjustments based on discard quality.
-    // On legal discard of the max-ukeire tile while in Human Stance, gives
-    // +2.0 flow beside the base 1.5 (net 3.5). Sub-optimal gap > 3 drains 10.
+    // Called with the FULL 14-tile hand (13 + drawn) that still contains the
+    // discarded tile. In Human Stance the max-ukeire discard nets +2.0 flow
+    // beyond the base; a sub-optimal gap > 3 drains 10 flow.
     onDiscard(discard, state) {
-      const hand = getHand(state, seat); // post-discard 13-tile hand
+      const hand = getHand(state, seat); // 14-tile pre-discard hand
       const flow = state.flow ? state.flow.get(seat) : 0;
-      const { tile: optimal, uke: optUke } = findOptimalDiscard([...hand, discard], state.pool);
+      const { tile: optimal, uke: optUke } = findOptimalDiscard(hand, state.pool);
       if (optimal !== null && norm(discard) === optimal) {
         if (isNodocchi(flow)) return { flowDelta: 0 }; // Nodocchi base is already 2.0
         return { flowDelta: OPTIMAL_DISCARD_FLOW - 1.5 }; // +2.0 beyond base 1.5
       }
-      const myUke = ukeire(hand, state.pool);
+      const rest = withoutOne(hand, discard);
+      const myUke = ukeire(rest, state.pool);
       if (optimal !== null && optUke - myUke > SUBOPTIMAL_THRESHOLD) {
         return { flowDelta: SUBOPTIMAL_PENALTY };
       }
@@ -216,6 +218,13 @@ function calculateUkeireGainLocal(hand, tile) {
   const before = ukeire(hand, null);
   const after = ukeire([...hand, tile].slice(-14), null);
   return Math.max(0, after - before);
+}
+
+// Remove one physical copy of `tile` (norm-sensitive) from a hand.
+function withoutOne(hand, tile) {
+  const idx = hand.findIndex(t => norm(t) === norm(tile));
+  if (idx < 0) return [...hand];
+  return [...hand.slice(0, idx), ...hand.slice(idx + 1)];
 }
 
 module.exports = {

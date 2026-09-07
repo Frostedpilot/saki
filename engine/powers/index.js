@@ -41,7 +41,21 @@ class PowerDispatcher {
     const pool = state.pool;
     const kinds = pool ? Object.keys(pool.counts) : [];
     for (const k of kinds) weights[k] = this.drawWeight(seat, k, state, trajectory);
-    return weights;
+    return this.applyAllFieldAuras(seat, weights, state);
+  }
+  // Field Enforcer aggregation (Spec §5.3): every registered hook may dampen
+  // or boost the DRAWING seat's weight map. Weights is a fresh per-draw object,
+  // so plugin mutation is the sanctioned engine-owned channel. Multipliers from
+  // multiple enforcers compose multiplicatively (order-independent).
+  applyAllFieldAuras(drawSeat, weights, state) {
+    let w = weights;
+    for (const [, h] of this.registry) {
+      if (typeof h.applyFieldAura === 'function') {
+        const next = h.applyFieldAura(drawSeat, w, state);
+        if (next) w = next;
+      }
+    }
+    return w;
   }
   onPostDraw(seat, tile, state) {
     const h = this.hooksFor(seat);

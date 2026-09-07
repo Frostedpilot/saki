@@ -8,10 +8,16 @@ class FlowManager {
   constructor(nSeats = 4) {
     this.gauges = Array(nSeats).fill(0);
   }
-  get(seat) { return this.gauges[seat]; }
-  set(seat, v) { this.gauges[seat] = Math.min(MAX, Math.max(MIN, v)); }
-  addFlow(seat, amt) { this.set(seat, this.gauges[seat] + amt); }
-  drainFlow(seat, amt) { this.set(seat, this.gauges[seat] - amt); }
+  // Out-of-range seats (e.g. a 4-player hook draining opponents on a 2-seat
+  // table) are no-ops — never write NaN into an undefined gauge.
+  inRange(seat) { return Number.isInteger(seat) && seat >= 0 && seat < this.gauges.length; }
+  get(seat) { return this.inRange(seat) ? this.gauges[seat] : 0; }
+  set(seat, v) {
+    if (!this.inRange(seat)) return;
+    this.gauges[seat] = Math.min(MAX, Math.max(MIN, v));
+  }
+  addFlow(seat, amt) { this.set(seat, this.get(seat) + amt); }
+  drainFlow(seat, amt) { this.set(seat, this.get(seat) - amt); }
   consume(seat, amt) { this.drainFlow(seat, amt); }
   consumeAll(seat) { this.set(seat, 0); }
   // base income for a legal discard

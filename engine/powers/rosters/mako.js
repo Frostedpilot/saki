@@ -58,26 +58,26 @@ function createMakoHooks(seat) {
       },
     },
 
-    // Phase 2: draw weight hook.
-    onPowerDraw(tile, state, drawSeat) {
+    // Phase 2: draw weight hook (self-effects only).
+    onPowerDraw(tile, state) {
       const n = norm(tile);
       const hand = getHand(state, seat);
 
       // T3: River Mirroring — steal opponent's bridge tiles
-      if (tier3TurnsLeft > 0 && tier3Target >= 0 && drawSeat === seat) {
+      if (tier3TurnsLeft > 0 && tier3Target >= 0) {
         const targetHand = (state.players[tier3Target] && state.players[tier3Target].hand) || [];
         const enemyBridges = getOptimalBridges(targetHand, state.pool, 4);
         if (enemyBridges.includes(n)) return 5.0;
       }
 
       // T2: Flow Reroute — +40% uke-ire boost
-      if (tier2TurnsLeft > 0 && drawSeat === seat) {
+      if (tier2TurnsLeft > 0) {
         const gain = ukeire([...hand, tile].slice(-14), state.pool) - ukeire(hand, state.pool);
         return 1.0 + Math.max(0, gain) * 0.40;
       }
 
       // T4: Omnipresent Recall — winning wait magnet (tenpai only)
-      if (tier4Active && drawSeat === seat) {
+      if (tier4Active) {
         const h = hairiOf(hand);
         const waits = h && h.wait ? Object.keys(h.wait) : [];
         if (waits.includes(n)) return 4.0;
