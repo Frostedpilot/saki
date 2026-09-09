@@ -7,3 +7,5 @@ node_modules/
 # Logs / OS cruft
 *.log
 .DS_Store
+# Build output
+dist/
