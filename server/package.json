@@ -1,0 +1,17 @@
+{
+  "name": "saki-bridge-server",
+  "version": "0.1.0",
+  "private": true,
+  "description": "WebSocket bridge: riichi_mahjong_rs protocol v6 client <-> the saki engine (powers included)",
+  "main": "index.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node index.js",
+    "test": "node --test test/"
+  },
+  "dependencies": {
+    "riichi": "1.2.0",
+    "syanten": "1.6.0",
+    "ws": "^8.18.0"
+  }
+}
