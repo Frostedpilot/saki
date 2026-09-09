@@ -1,0 +1,19 @@
+{
+  "name": "saki-web-client",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "lit-html": "^3.2.1"
+  },
+  "devDependencies": {
+    "sass": "^1.83.4",
+    "typescript": "^5.7.3",
+    "vite": "^6.0.7"
+  }
+}

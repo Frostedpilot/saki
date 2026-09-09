@@ -1,0 +1,170 @@
+:root {
+  --table-size: min(calc(100vh - 60px), calc(100vw - 360px), 840px);
+  --tile-width: calc(var(--table-size) * 0.046);
+  --tile-height: calc(var(--tile-width) * 1.333);
+  --tile-radius: 4px;
+
+  --disc-tile-w: calc(var(--table-size) * 0.038);
+  --disc-tile-h: calc(var(--disc-tile-w) * 1.333);
+
+  --hand-depth: calc(var(--tile-height) + 12px);
+  --disc-pond-w: calc(6 * var(--disc-tile-w) + 6px);
+  --disc-pond-h: calc(3 * var(--disc-tile-h) + 6px);
+  --center-size: calc(6 * var(--disc-tile-w) + 16px);
+}
+
+.mahjong-tile {
+  display: inline-block;
+  width: var(--tile-width);
+  height: var(--tile-height);
+  border-radius: var(--tile-radius);
+  background: #ffffff;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.45), 0 0 1px rgba(0, 0, 0, 0.6);
+  position: relative;
+  user-select: none;
+  flex-shrink: 0;
+  vertical-align: middle;
+  line-height: 0;
+  overflow: hidden;
+
+  svg {
+    width: 100%;
+    height: 100%;
+    display: block;
+  }
+
+  &--back {
+    background: #e8c050;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.5);
+  }
+
+  &--clickable {
+    cursor: pointer;
+    transition: transform 0.12s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.12s ease;
+
+    &:hover {
+      transform: translateY(-8px);
+      box-shadow: 0 8px 16px rgba(0, 0, 0, 0.6), 0 0 10px rgba(78, 204, 163, 0.9);
+    }
+  }
+
+  &--highlight {
+    outline: 2px solid #ffd700;
+    box-shadow: 0 0 12px rgba(255, 215, 0, 0.85);
+  }
+
+  &--grayed {
+    filter: brightness(0.55) grayscale(60%);
+    opacity: 0.5;
+  }
+
+  &--rotated {
+    transform: rotate(90deg);
+  }
+}
+
+/* Hand layout */
+.player-hand {
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  padding: 4px;
+  background: rgba(0, 0, 0, 0.35);
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
+
+  &__drawn-gap {
+    margin-left: 12px;
+  }
+}
+
+/* Opponent Hand (concealed) */
+.opponent-hand {
+  display: flex;
+  gap: 1.5px;
+  align-items: center;
+
+  .mahjong-tile {
+    width: calc(var(--tile-width) * 0.72);
+    height: calc(var(--tile-height) * 0.72);
+  }
+
+  &--vertical {
+    flex-direction: column;
+  }
+}
+
+/* Discard Ponds (The Rivers) */
+.discard-pond {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  width: var(--disc-pond-w);
+  height: var(--disc-pond-h);
+  box-sizing: border-box;
+
+  &__row {
+    display: flex;
+    gap: 1px;
+    height: var(--disc-tile-h);
+  }
+
+  &__tile-wrapper {
+    width: var(--disc-tile-w);
+    height: var(--disc-tile-h);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    .mahjong-tile {
+      width: var(--disc-tile-w);
+      height: var(--disc-tile-h);
+    }
+
+    &.is-riichi {
+      width: var(--disc-tile-h);
+      .mahjong-tile {
+        transform: rotate(90deg);
+        margin: calc((var(--disc-tile-h) - var(--disc-tile-w)) / 2);
+      }
+    }
+  }
+
+  &--top {
+    grid-area: top-disc;
+  }
+
+  &--bottom {
+    grid-area: bottom-disc;
+  }
+
+  &--left {
+    grid-area: left-disc;
+  }
+
+  &--right {
+    grid-area: right-disc;
+  }
+}
+
+/* Open Melds (Chi / Pon / Kan) */
+.meld-container {
+  display: flex;
+  gap: 4px;
+  align-items: flex-end;
+}
+
+.meld-set {
+  display: flex;
+  align-items: flex-end;
+  gap: 1px;
+  background: rgba(0, 0, 0, 0.4);
+  padding: 2px;
+  border-radius: 4px;
+
+  .mahjong-tile {
+    width: calc(var(--disc-tile-w) * 0.95);
+    height: calc(var(--disc-tile-h) * 0.95);
+  }
+}
