@@ -18,8 +18,11 @@
 //        bots always riichi when able; default play unchanged)
 //        [--demo-abort=NAME] fires the abortive-draw settlement once, after
 //        the next clean discard (demo rare rulings on demand)
-const Riichi = require('riichi');
 const syanten = require('syanten');
+const { KINDS, norm, same, toCounts, toHandStr, DORA_NEXT } = require('./tiles');
+const { scoreHand, meldStr } = require('./scoring');
+const { createRNG } = require('./rng');
+const { parseDiscardIndex } = require('./input');
 
 const POWERS = ['none', 'saki', 'kuro', 'koromo', 'toki', 'yuuki', 'hisa', 'teru'];
 const args = Object.fromEntries(
@@ -39,18 +42,12 @@ const RIICHI_ALWAYS = args['riichi-always'] === '1' || args['riichi-always'] ===
 // --demo-abort=NAME fires the shared abortive-draw settlement after the next
 // clean discard (demo rare rulings on demand; trigger conditions unit-tested)
 const DEMO_ABORT = args['demo-abort'] || null;
-if (args.seed) { // deterministic RNG for tests
-  let s = parseInt(args.seed, 10);
-  Math.random = () => (s = (s * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff;
+if (args.seed) { // deterministic RNG for tests (mulberry32 via engine/rng.js)
+  const rng = createRNG(parseInt(args.seed, 10));
+  Math.random = () => rng.next();
 }
 
-// ---------- tiles ----------
-const KINDS = [];
-for (const s of ['m', 'p', 's']) for (let n = 1; n <= 9; n++) KINDS.push(n + s);
-for (let n = 1; n <= 7; n++) KINDS.push(n + 'z');
-const akaToFive = t => (t[0] === '0' ? '5' + t[1] : t);
-const norm = akaToFive;
-const same = (a, b) => norm(a) === norm(b);
+// ---------- tiles (shared: engine/tiles.js) ----------
 function buildWall() {
   const w = [];
   for (const k of KINDS) for (let i = 0; i < 4; i++) w.push(k);
@@ -58,53 +55,12 @@ function buildWall() {
   for (let i = w.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1));[w[i], w[j]] = [w[j], w[i]]; }
   return w;
 }
-const DORA_NEXT = t => { // indicator -> actual dora
-  t = norm(t);
-  const n = parseInt(t[0], 10), s = t[1];
-  if (s === 'z') return (n === 7 ? '1z' : (n + 1) + 'z');
-  if (s === 'm' || s === 'p' || s === 's') return (n === 9 ? '1' + s : (n + 1) + s);
-  return t;
-};
-function toCounts(hand) {
-  const c = [Array(9).fill(0), Array(9).fill(0), Array(9).fill(0), Array(7).fill(0)];
-  for (const t of hand) {
-    const n = t[0] === '0' ? 5 : parseInt(t[0], 10);
-    if (t[1] === 'm') c[0][n - 1]++;
-    else if (t[1] === 'p') c[1][n - 1]++;
-    else if (t[1] === 's') c[2][n - 1]++;
-    else c[3][n - 1]++;
-  }
-  return c;
-}
+// DORA_NEXT + toCounts: shared from engine/tiles.js
 const shantenOf = h => { try { return syanten(toCounts(h)); } catch { return 99; } };
 const hairiOf = h => { try { return syanten.hairi(toCounts(h)); } catch { return {}; } };
-function toHandStr(hand) {
-  const g = { m: [], p: [], s: [], z: [] };
-  for (const t of hand) g[t[1]].push(t[0]);
-  return ['m', 'p', 's', 'z'].filter(s => g[s].length).map(s => g[s].sort().join('') + s).join('');
-}
-function meldStr(m) { return toHandStr(m.tiles); }
+// toHandStr + meldStr: shared from engine/tiles.js + engine/scoring.js
 
-// ---------- scoring via riichi lib (full extra flags) ----------
-// ctx: {dora[], bakaze, jikaze, riichi, doubleRiichi, ippatsu, kanFlag(k),
-//       lastFlag(h), tenhou(t)}
-function scoreHand(closed, melds, winTile, isTsumo, ctx) {
-  let str = toHandStr(closed);
-  for (const m of melds) str += '+' + meldStr(m);
-  if (!isTsumo) str += '+' + norm(winTile);
-  if (ctx.dora.length) str += '+d' + ctx.dora.map(norm).join('');
-  let ex = '';
-  if (ctx.tenhou) ex += 't';
-  ex += ctx.doubleRiichi ? 'w' : (ctx.riichi ? 'r' : '');
-  if (ctx.ippatsu) ex += 'i';
-  if (ctx.kanFlag) ex += 'k';   // rinshan tsumo / chankan ron
-  if (ctx.lastFlag) ex += 'h';  // haitei tsumo / houtei ron
-  ex += `${ctx.bakaze}${ctx.jikaze}`;
-  str += '+' + ex;
-  const inst = new Riichi(str);
-  inst.disableHairi(); // we use syanten directly; lib hairi is ~7000x slower
-  return inst.calc();
-}
+// scoring via shared engine/scoring.js (same signature + flags).
 
 // All tiles of the 136 accounted for (for 5th-copy exclusion in waits)
 function countVisible(tile, players, dead) {
@@ -217,12 +173,14 @@ function countYaochuu(hand) {
   return hand.filter(t => { const k = norm(t); return k[1] === 'z' || k[0] === '1' || k[0] === '9'; }).length;
 }
 // suufon-renda: first-lap discards, all four the same wind (1z-4z)?
+// Canonical copy for tests/server: server/helpers.js isSuufonRenda (keep in sync).
 function isSuufonRenda(discards) {
   if (discards.length !== 4) return false;
   const w = discards.map(norm);
   return ['1z', '2z', '3z', '4z'].includes(w[0]) && w.every(x => x === w[0]);
 }
 // suukaikan: 4+ kans abort unless one player declared them all
+// Canonical copy for tests/server: server/helpers.js isSuukaikanAbort (keep in sync).
 function isSuukaikanAbort(kansBy) {
   const total = kansBy.reduce((a, b) => a + b, 0);
   if (total < 4) return false;
@@ -251,11 +209,13 @@ function waitsSetEq(a, b) {
   const s = new Set(a);
   return b.every(x => s.has(x));
 }
-// ankan after riichi is legal only if waits are unchanged (else chombo)
+// ankan after riichi is legal only if waits are unchanged (else chombo).
+// Fail closed like server/helpers.js: unknown waits or missing copies
+// means "changing", so callers reject instead of corrupting state.
 function ankanKeepsWaits(pl, kanTile) {
-  if (!pl.riichiWaits) return true;
+  if (!pl.riichiWaits) return false;
   const rest = [...pl.hand];
-  for (let c = 0; c < 4; c++) { const i = rest.findIndex(x => same(x, kanTile)); rest.splice(i, 1); }
+  for (let c = 0; c < 4; c++) { const i = rest.findIndex(x => same(x, kanTile)); if (i < 0) return false; rest.splice(i, 1); }
   const kanMeld = { tiles: pl.hand.filter(x => same(x, kanTile)), open: false, type: 'kan' };
   const after = getWaits({ hand: rest, melds: [...pl.melds, kanMeld] }, [], [], { dora: [], bakaze: 1, jikaze: 1 });
   return waitsSetEq([...pl.riichiWaits].sort(), [...after].sort());
@@ -284,6 +244,7 @@ function applyOkaUma(scores) {
   return rows.sort((a, b) => b.total - a.total || a.seat - b.seat);
 }
 // nagashi mangan: fully closed hand (ankan ok), every discard terminal/honor
+// Canonical copy for tests/server: server/helpers.js isNagashi (keep in sync).
 function isNagashi(pl) {
   if (!pl.discards.length) return false;
   if (!pl.melds.every(m => !m.open)) return false;
@@ -552,7 +513,9 @@ async function main() {
     while (wallFull.length > 0 && draws < 200) {
       draws++; drawsThisKyoku++;
       const me = P[turn];
-      me.tempFuriten = false; // clears on own draw
+      // Permanent riichi furiten: a riichi passer stays furiten for the
+      // remainder of the kyoku, so the flag must NOT clear on their draws.
+      if (!me.riichi && !me.doubleRiichi) me.tempFuriten = false;
       ctx.jikaze = jikazeOf(turn);
       const isLastDraw = wallFull.length === 1;
       const t = powerDraw(wallFull, me.hand, me.power, ctx);
@@ -692,8 +655,7 @@ async function main() {
         const myWaits = getWaits(me, P, dead, { dora: [], bakaze, jikaze: 1 });
         if (myWaits.length && me.discards.some(d => myWaits.includes(norm(d)))) console.log('  *** YOU ARE FURITEN (ron blocked) ***');
         const a = (await ask('  discard? (tile or index): ')).trim();
-        di = me.hand.findIndex(x => x === a || norm(x) === a);
-        if (di < 0) { const nn = parseInt(a, 10); di = isNaN(nn) ? me.hand.length - 1 : nn; }
+        di = parseDiscardIndex(a, me.hand);
         if (!me.riichi && me.melds.every(m => !m.open) && shantenOf(me.hand.filter((_, i) => i !== di)) === 0) {
           const q = (await ask('  declare riichi? (y/n): ')).trim();
           if (q.toLowerCase().startsWith('y') && canRiichi(scores[turn], wallFull.length)) {

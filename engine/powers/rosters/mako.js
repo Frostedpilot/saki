@@ -135,7 +135,8 @@ function createMakoHooks(seat) {
     tryActivateTier2(state, turn) {
       const flow = state.flow;
       if (!flow || !flow.canAfford(seat, TIER2_COST)) return { ok: false, reason: 'insufficient-flow' };
-      if (turn < 7 || turn > 12) return { ok: false, reason: 'turn-gate' };
+      const curTurn = turn !== undefined ? turn : ((state.players && state.players[seat] && state.players[seat].discards) ? state.players[seat].discards.length + 1 : 1);
+      if (curTurn < 7 || curTurn > 12) return { ok: false, reason: 'turn-gate' };
       flow.consume(seat, TIER2_COST);
       tier2TurnsLeft = 3;
       return { ok: true, event: { type: 'FLOW_REROUTE', tier: 2 } };
@@ -145,13 +146,14 @@ function createMakoHooks(seat) {
     tryActivateTier3(state, targetSeat) {
       const flow = state.flow;
       if (!flow || !flow.canAfford(seat, TIER3_COST)) return { ok: false, reason: 'insufficient-flow' };
-      if (targetSeat === undefined || targetSeat === seat || targetSeat < 0 || targetSeat > 3) {
+      const curTarget = targetSeat !== undefined ? targetSeat : (seat + 1) % 4;
+      if (curTarget === undefined || curTarget === seat || curTarget < 0 || curTarget > 3) {
         return { ok: false, reason: 'invalid-target' };
       }
       flow.consume(seat, TIER3_COST);
       tier3TurnsLeft = 4;
-      tier3Target = targetSeat;
-      return { ok: true, target: targetSeat, event: { type: 'RIVER_MIRRORING', tier: 3, target: targetSeat } };
+      tier3Target = curTarget;
+      return { ok: true, target: curTarget, event: { type: 'RIVER_MIRRORING', tier: 3, target: curTarget } };
     },
 
     // T4: Omnipresent Recall — tenpai wait knowledge + win alignment.
@@ -160,7 +162,8 @@ function createMakoHooks(seat) {
       if (!flow || !flow.canAfford(seat, TIER4_COST)) return { ok: false, reason: 'insufficient-flow' };
       const hand = getHand(state, seat);
       if (shantenOf(hand) !== 0) return { ok: false, reason: 'precondition' };
-      if (turn < 8 || turn > 16) return { ok: false, reason: 'turn-gate' };
+      const curTurn = turn !== undefined ? turn : ((state.players && state.players[seat] && state.players[seat].discards) ? state.players[seat].discards.length + 1 : 1);
+      if (curTurn < 8 || curTurn > 16) return { ok: false, reason: 'turn-gate' };
       flow.consume(seat, TIER4_COST);
       tier4Active = true;
       // Compute opponent wait info
@@ -171,6 +174,51 @@ function createMakoHooks(seat) {
         waitsBySeat[i] = h && h.wait ? Object.keys(h.wait) : [];
       }
       return { ok: true, waitsBySeat, event: { type: 'OMNIPRESENT_RECALL', tier: 4, waitsBySeat } };
+    },
+
+    getTierInfo(state) {
+      const flow = state.flow ? state.flow.get(seat) : 0;
+      const turn = (state.players && state.players[seat] && state.players[seat].discards) ? state.players[seat].discards.length + 1 : 1;
+      const hand = getHand(state, seat);
+
+      const t1Pre = true;
+      const t2Pre = turn >= 7 && turn <= 12;
+      const t3Pre = true;
+      const t4Pre = shantenOf(hand) === 0 && turn >= 8 && turn <= 16;
+
+      return [
+        { tier: 1, name: 'Match Recognition', cost: TIER1_COST, canAfford: flow >= TIER1_COST, canActivate: flow >= TIER1_COST && t1Pre },
+        { tier: 2, name: 'Flow Reroute', cost: TIER2_COST, canAfford: flow >= TIER2_COST, canActivate: flow >= TIER2_COST && t2Pre },
+        { tier: 3, name: 'River Mirroring', cost: TIER3_COST, canAfford: flow >= TIER3_COST, canActivate: flow >= TIER3_COST && t3Pre },
+        { tier: 4, name: 'Omnipresent Recall', cost: TIER4_COST, canAfford: flow >= TIER4_COST, canActivate: flow >= TIER4_COST && t4Pre },
+      ];
+    },
+
+    activateTier(state, tier, extraArg) {
+      switch (tier) {
+        case 1: return this.tryActivateTier1(state);
+        case 2: return this.tryActivateTier2(state, extraArg);
+        case 3: return this.tryActivateTier3(state, extraArg);
+        case 4: return this.tryActivateTier4(state, extraArg);
+        default: return { ok: false, reason: 'invalid-tier' };
+      }
+    },
+
+    onTurnStart(state, { armedTier = 0 } = {}) {
+      if (armedTier === 0) return { activated: false, reason: 'conserve' };
+      if (armedTier === 'auto') {
+        for (const t of [4, 3, 2, 1]) {
+          const r = this.activateTier(state, t);
+          if (r && r.ok) return { activated: true, tier: t, result: r };
+        }
+        return { activated: false, reason: 'no-tier-eligible' };
+      }
+      if (armedTier >= 1 && armedTier <= 4) {
+        const r = this.activateTier(state, armedTier);
+        if (r && r.ok) return { activated: true, tier: armedTier, result: r };
+        return { activated: false, reason: (r && r.reason) || 'activation-failed' };
+      }
+      return { activated: false, reason: 'invalid-tier' };
     },
 
     // Lifecycle: decrement durations.

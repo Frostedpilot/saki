@@ -32,8 +32,11 @@ test('DORA_NEXT wraps suits and honors', () => {
   assert.equal(DORA_NEXT('9m'), '1m');
   assert.equal(DORA_NEXT('1m'), '2m');
   assert.equal(DORA_NEXT('9s'), '1s');
-  assert.equal(DORA_NEXT('7z'), '1z');
-  assert.equal(DORA_NEXT('4z'), '5z');
+  // Winds cycle 1z->2z->3z->4z->1z; dragons cycle 5z->6z->7z->5z.
+  assert.equal(DORA_NEXT('3z'), '4z');
+  assert.equal(DORA_NEXT('4z'), '1z');
+  assert.equal(DORA_NEXT('6z'), '7z');
+  assert.equal(DORA_NEXT('7z'), '5z');
   assert.equal(DORA_NEXT('0m'), '6m'); // aka -> five -> next
 });
 

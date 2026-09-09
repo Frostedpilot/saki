@@ -3,6 +3,7 @@
 // Primary Window: Row 1 (Turns 1–6) in East Rounds.
 const { norm, isSimple, DORA_NEXT } = require('../../tiles');
 const { shantenOf, hairiOf, getOptimalBridges } = require('../trajectoryPlanner');
+const { scalePassiveWeight } = require('../awakening');
 
 const TIER1_COST = 25;
 const TIER2_COST = 50;
@@ -89,7 +90,13 @@ function createYuukiHooks(seat) {
 
       // Passive: East round speed tile affinity
       if (isEastRound(state)) {
-        if (isSpeedTile(tile)) return SPEED_AFFINITY;
+        if (isSpeedTile(tile)) {
+          if (state && state.enableAwakening) {
+            const flow = state.flow ? state.flow.get(seat) : 0;
+            return scalePassiveWeight(SPEED_AFFINITY, flow, state, seat);
+          }
+          return SPEED_AFFINITY;
+        }
       }
 
       return 1.0;
@@ -119,7 +126,8 @@ function createYuukiHooks(seat) {
     tryActivateTier1(state, turn) {
       const flow = state.flow;
       if (!flow || !flow.canAfford(seat, TIER1_COST)) return { ok: false, reason: 'insufficient-flow' };
-      if (turn > 5) return { ok: false, reason: 'turn-gate' };
+      const curTurn = turn !== undefined ? turn : ((state.players && state.players[seat] && state.players[seat].discards) ? state.players[seat].discards.length + 1 : 1);
+      if (curTurn > 5) return { ok: false, reason: 'turn-gate' };
       flow.consume(seat, TIER1_COST);
       tier1TurnsLeft = 1; // affects next draw only
       return { ok: true, event: { type: 'QUICK_BITE', tier: 1 } };
@@ -137,11 +145,12 @@ function createYuukiHooks(seat) {
     },
 
     // T3: East Wind Onslaught — East wind + Dora at 3.0x (East round dealer only).
-    tryActivateTier3(state, isDealer = false) {
+    tryActivateTier3(state, isDealer) {
       const flow = state.flow;
       if (!flow || !flow.canAfford(seat, TIER3_COST)) return { ok: false, reason: 'insufficient-flow' };
       if (!isEastRound(state)) return { ok: false, reason: 'not-east' };
-      if (!isDealer) return { ok: false, reason: 'not-dealer' };
+      const curDealer = isDealer !== undefined ? isDealer : (state.dealer === seat);
+      if (!curDealer) return { ok: false, reason: 'not-dealer' };
       flow.consume(seat, TIER3_COST);
       tier3Active = true;
       return { ok: true, event: { type: 'EAST_WIND_ONSLAUGHT', tier: 3 } };
@@ -152,10 +161,56 @@ function createYuukiHooks(seat) {
       const flow = state.flow;
       if (!flow || !flow.canAfford(seat, TIER4_COST)) return { ok: false, reason: 'insufficient-flow' };
       if (!isEastRound(state)) return { ok: false, reason: 'not-east' };
-      if (turn !== 1) return { ok: false, reason: 'turn-gate' };
+      const curTurn = turn !== undefined ? turn : ((state.players && state.players[seat] && state.players[seat].discards) ? state.players[seat].discards.length + 1 : 1);
+      if (curTurn !== 1) return { ok: false, reason: 'turn-gate' };
       flow.consume(seat, TIER4_COST);
       tier4TurnsLeft = 4;
       return { ok: true, event: { type: 'ULTIMATE_FIESTA', tier: 4 } };
+    },
+
+    getTierInfo(state) {
+      const flow = state.flow ? state.flow.get(seat) : 0;
+      const turn = (state.players && state.players[seat] && state.players[seat].discards) ? state.players[seat].discards.length + 1 : 1;
+      const isDealer = state.dealer === seat;
+
+      const t1Pre = turn <= 5;
+      const t2Pre = isSouthRound(state);
+      const t3Pre = isEastRound(state) && isDealer;
+      const t4Pre = isEastRound(state) && turn === 1;
+
+      return [
+        { tier: 1, name: 'Quick Bite', cost: TIER1_COST, canAfford: flow >= TIER1_COST, canActivate: flow >= TIER1_COST && t1Pre },
+        { tier: 2, name: 'Spicy Defense', cost: TIER2_COST, canAfford: flow >= TIER2_COST, canActivate: flow >= TIER2_COST && t2Pre },
+        { tier: 3, name: 'East Wind Onslaught', cost: TIER3_COST, canAfford: flow >= TIER3_COST, canActivate: flow >= TIER3_COST && t3Pre },
+        { tier: 4, name: 'Ultimate Fiesta', cost: TIER4_COST, canAfford: flow >= TIER4_COST, canActivate: flow >= TIER4_COST && t4Pre },
+      ];
+    },
+
+    activateTier(state, tier, extraArg) {
+      switch (tier) {
+        case 1: return this.tryActivateTier1(state, extraArg);
+        case 2: return this.tryActivateTier2(state);
+        case 3: return this.tryActivateTier3(state, extraArg);
+        case 4: return this.tryActivateTier4(state, extraArg);
+        default: return { ok: false, reason: 'invalid-tier' };
+      }
+    },
+
+    onTurnStart(state, { armedTier = 0 } = {}) {
+      if (armedTier === 0) return { activated: false, reason: 'conserve' };
+      if (armedTier === 'auto') {
+        for (const t of [4, 3, 2, 1]) {
+          const r = this.activateTier(state, t);
+          if (r && r.ok) return { activated: true, tier: t, result: r };
+        }
+        return { activated: false, reason: 'no-tier-eligible' };
+      }
+      if (armedTier >= 1 && armedTier <= 4) {
+        const r = this.activateTier(state, armedTier);
+        if (r && r.ok) return { activated: true, tier: armedTier, result: r };
+        return { activated: false, reason: (r && r.reason) || 'activation-failed' };
+      }
+      return { activated: false, reason: 'invalid-tier' };
     },
 
     // Lifecycle: decrement durations.

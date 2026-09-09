@@ -25,6 +25,24 @@ class PowerDispatcher {
     if (h.onWallSetup) return h.onWallSetup(ctx);
     return null;
   }
+
+  getTierInfo(seat, state) {
+    const h = this.hooksFor(seat);
+    if (typeof h.getTierInfo === 'function') return h.getTierInfo(state);
+    return [];
+  }
+
+  onTurnStart(seat, state, opts) {
+    const h = this.hooksFor(seat);
+    if (typeof h.onTurnStart === 'function') return h.onTurnStart(state, opts);
+    return { activated: false, reason: 'no-hook' };
+  }
+
+  onKanDeclared(seat, state, opts) {
+    const h = this.hooksFor(seat);
+    if (typeof h.onKanDeclared === 'function') return h.onKanDeclared(state, opts);
+    return { activated: false, reason: 'no-hook' };
+  }
   // Phase 2: per-tile weight. Must return >= 0. Default 1.0.
   drawWeight(seat, tile, state, trajectory) {
     const h = this.hooksFor(seat);

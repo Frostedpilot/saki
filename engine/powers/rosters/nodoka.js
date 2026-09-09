@@ -4,6 +4,8 @@
 // Pattern: READS state, RETURNS weights/events. Never mutates directly.
 const { norm } = require('../../tiles');
 const { shantenOf, hairiOf, ukeire, getOptimalBridges } = require('../trajectoryPlanner');
+const { getEvaluator } = require('../mjaiAdapter');
+const { evaluateNodokaHand } = require('../nodokaEval');
 
 const TIER1_COST = 25;
 const TIER2_COST = 50;
@@ -98,8 +100,17 @@ function createNodokaHooks(seat) {
         return 1.0;
       }
 
-      // T3: Machine Shanten Compression — bridge tiles get 15.0
+      // T3: Machine Shanten Compression — evaluator decides optimal discard;
+      // bridge tiles preserving that optimal line get 15.0
       if (tier3TurnsLeft > 0) {
+        if (hand.length >= 14) {
+          const evalRes = getEvaluator().evaluate(state, seat);
+          if (evalRes && evalRes.discard) {
+            const keptHand = withoutOne(hand, evalRes.discard);
+            const bridges = getOptimalBridges(keptHand, state.pool, 2);
+            if (bridges.includes(n)) return 15.0;
+          }
+        }
         const bridges = getOptimalBridges(hand, state.pool, 2);
         if (bridges.includes(n)) return 15.0;
       }
@@ -179,6 +190,51 @@ function createNodokaHooks(seat) {
       return { ok: true, event: { type: 'EV_SINGULARITY', tier: 4 } };
     },
 
+    getTierInfo(state) {
+      const flow = state.flow ? state.flow.get(seat) : 0;
+      const hand = getHand(state, seat);
+      const sh = shantenOf(hand);
+
+      const t1Pre = true;
+      const t2Pre = true;
+      const t3Pre = sh >= 1 && sh <= 2;
+      const t4Pre = sh === 0;
+
+      return [
+        { tier: 1, name: 'Statistical Filter', cost: TIER1_COST, canAfford: flow >= TIER1_COST, canActivate: flow >= TIER1_COST && t1Pre },
+        { tier: 2, name: 'Optimal Discard Matrix', cost: TIER2_COST, canAfford: flow >= TIER2_COST, canActivate: flow >= TIER2_COST && t2Pre },
+        { tier: 3, name: 'Shanten Compression', cost: TIER3_COST, canAfford: flow >= TIER3_COST, canActivate: flow >= TIER3_COST && t3Pre },
+        { tier: 4, name: 'EV Singularity', cost: TIER4_COST, canAfford: flow >= TIER4_COST, canActivate: flow >= TIER4_COST && t4Pre },
+      ];
+    },
+
+    activateTier(state, tier) {
+      switch (tier) {
+        case 1: return this.tryActivateTier1(state);
+        case 2: return this.tryActivateTier2(state);
+        case 3: return this.tryActivateTier3(state);
+        case 4: return this.tryActivateTier4(state);
+        default: return { ok: false, reason: 'invalid-tier' };
+      }
+    },
+
+    onTurnStart(state, { armedTier = 0 } = {}) {
+      if (armedTier === 0) return { activated: false, reason: 'conserve' };
+      if (armedTier === 'auto') {
+        for (const t of [4, 3, 2, 1]) {
+          const r = this.activateTier(state, t);
+          if (r && r.ok) return { activated: true, tier: t, result: r };
+        }
+        return { activated: false, reason: 'no-tier-eligible' };
+      }
+      if (armedTier >= 1 && armedTier <= 4) {
+        const r = this.activateTier(state, armedTier);
+        if (r && r.ok) return { activated: true, tier: armedTier, result: r };
+        return { activated: false, reason: (r && r.reason) || 'activation-failed' };
+      }
+      return { activated: false, reason: 'invalid-tier' };
+    },
+
     // Lifecycle: decrement tier durations per turn.
     onTurnEnd(state) {
       if (tier1TurnsLeft > 0) tier1TurnsLeft--;
@@ -193,6 +249,12 @@ function createNodokaHooks(seat) {
         if (state.flow) state.flow.consumeAll(seat);
       }
       tier2Active = false;
+    },
+
+    // HUD Advice channel: real-time expected value recommendation
+    getHudAdvice(state) {
+      const evalRes = getEvaluator().evaluate(state, seat);
+      return (evalRes && evalRes.summary) ? evalRes.summary : 'Nodocchi: Awaiting draw';
     },
 
     // Expose internal state for testing

@@ -9,7 +9,7 @@
   "keywords": [],
   "type": "commonjs",
   "dependencies": {
-    "riichi": "^1.2.0",
-    "syanten": "^1.6.0"
+    "riichi": "1.2.0",
+    "syanten": "1.6.0"
   }
 }

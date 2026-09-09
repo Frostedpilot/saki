@@ -43,7 +43,13 @@ function toHandStr(hand) {
 const DORA_NEXT = t => {
   t = norm(t);
   const n = parseInt(t[0], 10), s = t[1];
-  if (s === 'z') return (n === 7 ? '1z' : (n + 1) + 'z');
+  // Winds cycle 1z->2z->3z->4z->1z; dragons cycle 5z->6z->7z->5z.
+  // (A naive (n+1) would map North 4z to Haku 5z.)
+  if (s === 'z') {
+    if (n === 4) return '1z';
+    if (n === 7) return '5z';
+    return (n + 1) + 'z';
+  }
   return (n === 9 ? '1' + s : (n + 1) + s);
 };
 

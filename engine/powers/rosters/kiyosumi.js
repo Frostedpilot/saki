@@ -10,6 +10,7 @@
 // Sampling itself always happens engine-side and stays deterministic.
 const { norm, DORA_NEXT, KINDS } = require('../../tiles');
 const { shantenOf, hairiOf } = require('../trajectoryPlanner');
+const { scalePassiveWeight } = require('../awakening');
 
 const START_SCORE = 25000;
 const EQUILIBRIUM_BAND = 1500;
@@ -252,7 +253,12 @@ function createSakiHooks(seat) {
 
     // Phase 2: Trajectory Shaper — pure weight, no mutation.
     onPowerDraw(tile, state) {
-      return passiveWeight(tile, getHand(state, seat), getScore(state, seat));
+      const base = passiveWeight(tile, getHand(state, seat), getScore(state, seat));
+      if (state && state.enableAwakening) {
+        const flow = state.flow ? state.flow.get(seat) : 0;
+        return scalePassiveWeight(base, flow, state, seat);
+      }
+      return base;
     },
 
     // Tier 1 entry point. Engine calls this on Kan declaration; it checks
@@ -348,6 +354,57 @@ function createSakiHooks(seat) {
       if (completer !== null) exchangeDeadWallSlot(state, 2, completer);
       flow.consume(seat, TIER4_COST);
       return { ok: true, branch: 'fallback', pins, dora, rinshanSlot2: completer, waits: [], event: { type: 'RINSHAN_RESONANCE_TRIGGER', tier: 4 } };
+    },
+
+    getTierInfo(state) {
+      const flow = state.flow ? state.flow.get(seat) : 0;
+      const hand = getHand(state, seat);
+      const trips = closedTriplets(hand);
+      const pairs = closedPairs(hand);
+
+      const t1Pre = true;
+      const t2Pre = trips.length >= 2;
+      const t3Pre = trips.length >= 2 && pairs.length >= 1;
+      const t4Pre = trips.length >= 3;
+
+      return [
+        { tier: 1, name: 'Ridge Glimmer', cost: TIER1_COST, canAfford: flow >= TIER1_COST, canActivate: flow >= TIER1_COST && t1Pre },
+        { tier: 2, name: 'Twin Ridges', cost: TIER2_COST, canAfford: flow >= TIER2_COST, canActivate: flow >= TIER2_COST && t2Pre },
+        { tier: 3, name: 'Triple Summit', cost: TIER3_COST, canAfford: flow >= TIER3_COST, canActivate: flow >= TIER3_COST && t3Pre },
+        { tier: 4, name: 'Suukantsu Climax', cost: TIER4_COST, canAfford: flow >= TIER4_COST, canActivate: flow >= TIER4_COST && t4Pre },
+      ];
+    },
+
+    activateTier(state, tier, kanCount = 1) {
+      switch (tier) {
+        case 1: return this.tryActivateTier1(state);
+        case 2: return this.tryActivateTier2(state);
+        case 3: return this.tryActivateTier3(state, kanCount);
+        case 4: return this.tryActivateTier4(state, kanCount);
+        default: return { ok: false, reason: 'invalid-tier' };
+      }
+    },
+
+    onKanDeclared(state, { armedTier = 0, kanCount = 1 } = {}) {
+      if (armedTier === 0) return { activated: false, reason: 'conserve' };
+      if (armedTier === 'auto') {
+        for (const t of [4, 3, 2, 1]) {
+          const r = this.activateTier(state, t, kanCount);
+          if (r && r.ok) return { activated: true, tier: t, result: r };
+        }
+        return { activated: false, reason: 'no-tier-eligible' };
+      }
+      if (armedTier >= 1 && armedTier <= 4) {
+        const r = this.activateTier(state, armedTier, kanCount);
+        if (r && r.ok) return { activated: true, tier: armedTier, result: r };
+        return { activated: false, reason: (r && r.reason) || 'activation-failed' };
+      }
+      return { activated: false, reason: 'invalid-tier' };
+    },
+
+    onTurnStart(state, opts) {
+      // Saki is a Kan-reactive specialist; turn-start triggers are inactive
+      return { activated: false, reason: 'kan-only' };
     },
 
     // Phase 3: Settlement Modifier hook — consumes all flow on rinshan win.

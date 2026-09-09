@@ -3,6 +3,7 @@
 // Primary Window: Row 2–3 (Turns 9–16) — Hell-Waits.
 const { norm } = require('../../tiles');
 const { shantenOf, hairiOf, ukeire } = require('../trajectoryPlanner');
+const { scalePassiveWeight } = require('../awakening');
 
 const TIER1_COST = 25;
 const TIER2_COST = 50;
@@ -87,14 +88,19 @@ function createHisaHooks(seat) {
       }
 
       // Passive: wait-based multiplier
-      if (waitInfo.type === 'ryanmen') {
-        if (waitInfo.waits.includes(n)) return RYANMEN_PENALTY;
+      let base = 1.0;
+      if (waitInfo.type === 'ryanmen' && waitInfo.waits.includes(n)) {
+        base = RYANMEN_PENALTY;
+      } else if ((waitInfo.type === 'hell' || waitInfo.type === 'ugly') && waitInfo.waits.includes(n)) {
+        base = HELL_WAIT_BOOST;
       }
-      if (waitInfo.type === 'hell') {
-        if (waitInfo.waits.includes(n)) return HELL_WAIT_BOOST;
-      }
-      if (waitInfo.type === 'ugly') {
-        if (waitInfo.waits.includes(n)) return HELL_WAIT_BOOST;
+
+      if (base !== 1.0) {
+        if (state && state.enableAwakening) {
+          const flow = state.flow ? state.flow.get(seat) : 0;
+          return scalePassiveWeight(base, flow, state, seat);
+        }
+        return base;
       }
 
       return 1.0;
@@ -134,7 +140,8 @@ function createHisaHooks(seat) {
     tryActivateTier1(state, turn) {
       const flow = state.flow;
       if (!flow || !flow.canAfford(seat, TIER1_COST)) return { ok: false, reason: 'insufficient-flow' };
-      if (turn < 7 || turn > 12) return { ok: false, reason: 'turn-gate' };
+      const curTurn = turn !== undefined ? turn : ((state.players && state.players[seat] && state.players[seat].discards) ? state.players[seat].discards.length + 1 : 1);
+      if (curTurn < 7 || curTurn > 12) return { ok: false, reason: 'turn-gate' };
       const hand = getHand(state, seat);
       if (shantenOf(hand) !== 1) return { ok: false, reason: 'precondition' };
       flow.consume(seat, TIER1_COST);
@@ -175,11 +182,59 @@ function createHisaHooks(seat) {
       const hand = getHand(state, seat);
       const waitInfo = classifyWait(hand, state.pool);
       if (waitInfo.type !== 'hell') return { ok: false, reason: 'precondition' };
-      if (wallLeft === undefined || wallLeft > 25) return { ok: false, reason: 'wall-gate' };
+      const curWall = wallLeft !== undefined ? wallLeft : (state.pool ? state.pool.total() : 0);
+      if (curWall > 25) return { ok: false, reason: 'wall-gate' };
       flow.consume(seat, TIER4_COST);
       tier4Active = true;
       tier4TurnsLeft = 3;
       return { ok: true, event: { type: 'HELL_DOMINANCE', tier: 4 } };
+    },
+
+    getTierInfo(state) {
+      const flow = state.flow ? state.flow.get(seat) : 0;
+      const turn = (state.players && state.players[seat] && state.players[seat].discards) ? state.players[seat].discards.length + 1 : 1;
+      const wallLeft = state.pool ? state.pool.total() : 0;
+      const hand = getHand(state, seat);
+      const waitInfo = classifyWait(hand, state.pool);
+
+      const t1Pre = turn >= 7 && turn <= 12 && shantenOf(hand) === 1;
+      const t2Pre = waitInfo.type === 'hell';
+      const t3Pre = waitInfo.type === 'hell' || waitInfo.type === 'ugly';
+      const t4Pre = waitInfo.type === 'hell' && wallLeft <= 25;
+
+      return [
+        { tier: 1, name: 'Phantom Intimidation', cost: TIER1_COST, canAfford: flow >= TIER1_COST, canActivate: flow >= TIER1_COST && t1Pre },
+        { tier: 2, name: 'Jigoku Trap Forge', cost: TIER2_COST, canAfford: flow >= TIER2_COST, canActivate: flow >= TIER2_COST && t2Pre },
+        { tier: 3, name: 'Chaos Slap', cost: TIER3_COST, canAfford: flow >= TIER3_COST, canActivate: flow >= TIER3_COST && t3Pre },
+        { tier: 4, name: 'Hell Dominance', cost: TIER4_COST, canAfford: flow >= TIER4_COST, canActivate: flow >= TIER4_COST && t4Pre },
+      ];
+    },
+
+    activateTier(state, tier, extraArg) {
+      switch (tier) {
+        case 1: return this.tryActivateTier1(state, extraArg);
+        case 2: return this.tryActivateTier2(state);
+        case 3: return this.tryActivateTier3(state);
+        case 4: return this.tryActivateTier4(state, extraArg);
+        default: return { ok: false, reason: 'invalid-tier' };
+      }
+    },
+
+    onTurnStart(state, { armedTier = 0 } = {}) {
+      if (armedTier === 0) return { activated: false, reason: 'conserve' };
+      if (armedTier === 'auto') {
+        for (const t of [4, 3, 2, 1]) {
+          const r = this.activateTier(state, t);
+          if (r && r.ok) return { activated: true, tier: t, result: r };
+        }
+        return { activated: false, reason: 'no-tier-eligible' };
+      }
+      if (armedTier >= 1 && armedTier <= 4) {
+        const r = this.activateTier(state, armedTier);
+        if (r && r.ok) return { activated: true, tier: armedTier, result: r };
+        return { activated: false, reason: (r && r.reason) || 'activation-failed' };
+      }
+      return { activated: false, reason: 'invalid-tier' };
     },
 
     // Lifecycle: decrement durations.
