@@ -24,7 +24,14 @@ export interface RenderTileOptions {
   grayed?: boolean;
   highlight?: boolean;
   clickable?: boolean;
+  isHoverMatch?: boolean;
+  isDora?: boolean;
+  isAkaDora?: boolean;
+  isRiichiCandidate?: boolean;
+  isLastDiscard?: boolean;
   onClick?: () => void;
+  onMouseEnter?: () => void;
+  onMouseLeave?: () => void;
 }
 
 export function renderTile(tile: ProtocolTile | TileFace, options: RenderTileOptions = {}): TemplateResult {
@@ -38,12 +45,19 @@ export function renderTile(tile: ProtocolTile | TileFace, options: RenderTileOpt
   if (options.grayed) classes.push('mahjong-tile--grayed');
   if (options.highlight) classes.push('mahjong-tile--highlight');
   if (options.clickable) classes.push('mahjong-tile--clickable');
+  if (options.isHoverMatch) classes.push('mahjong-tile--hover-match');
+  if (options.isDora) classes.push('mahjong-tile--dora');
+  if (options.isAkaDora) classes.push('mahjong-tile--aka-dora');
+  if (options.isRiichiCandidate) classes.push('mahjong-tile--riichi-candidate');
+  if (options.isLastDiscard) classes.push('mahjong-tile--last-discard');
 
   if (show === 'back') {
     return html`
       <span
         class="${classes.join(' ')}"
         @click=${options.onClick || null}
+        @mouseenter=${options.onMouseEnter || null}
+        @mouseleave=${options.onMouseLeave || null}
         .innerHTML=${backSvg}
       ></span>
     `;
@@ -53,11 +67,16 @@ export function renderTile(tile: ProtocolTile | TileFace, options: RenderTileOpt
     <span
       class="${classes.join(' ')}"
       @click=${options.onClick || null}
-      title="${face}"
+      @mouseenter=${options.onMouseEnter || null}
+      @mouseleave=${options.onMouseLeave || null}
+      title="${face}${options.isDora ? ' (Dora)' : ''}${options.isAkaDora ? ' (Red 5)' : ''}"
     >
       ${svg`<svg width="100%" height="100%" viewBox="0 0 300 400" aria-label="${face}">
         <use href="#tile-${face}"/>
       </svg>`}
+      ${options.isDora ? html`<span class="mahjong-tile__dora-badge" title="Dora">★</span>` : ''}
+      ${options.isAkaDora && !options.isDora ? html`<span class="mahjong-tile__aka-badge" title="Aka Dora">●</span>` : ''}
+      ${options.isLastDiscard ? html`<span class="mahjong-tile__last-pip"></span>` : ''}
     </span>
   `;
 }

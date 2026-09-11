@@ -246,6 +246,95 @@
   z-index: 50;
 }
 
+.player-hand-wrapper {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  position: relative;
+}
+
+.hand-waits-hint {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(14, 22, 34, 0.94);
+  border: 1.5px solid #38bdf8;
+  border-radius: 20px;
+  padding: 4px 14px;
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.75), 0 0 12px rgba(56, 189, 248, 0.35);
+  backdrop-filter: blur(8px);
+  white-space: nowrap;
+  z-index: 60;
+  pointer-events: none;
+  animation: fadeInHint 0.15s ease-out;
+
+  &--riichi {
+    border-color: #f59e0b;
+    box-shadow: 0 4px 18px rgba(0, 0, 0, 0.75), 0 0 14px rgba(245, 158, 11, 0.45);
+    .hand-waits-hint__label {
+      color: #fbbf24;
+    }
+  }
+
+  &__label {
+    font-size: 0.75rem;
+    font-weight: 800;
+    color: #38bdf8;
+    letter-spacing: 0.5px;
+    white-space: nowrap;
+  }
+
+  &__list {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  &__item {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+
+    .mahjong-tile {
+      width: 22px !important;
+      height: 29px !important;
+      max-width: 22px !important;
+      max-height: 29px !important;
+      min-width: 22px !important;
+      min-height: 29px !important;
+      border-radius: 2px !important;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.5) !important;
+      flex-shrink: 0;
+    }
+  }
+
+  &__count {
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: #f1f5f9;
+    white-space: nowrap;
+
+    &.is-empty {
+      color: #ef4444;
+    }
+  }
+}
+
+@keyframes fadeInHint {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 .zone-left-hand {
   grid-area: left-hand;
   place-self: center;
@@ -508,6 +597,19 @@
         color: #ffffff;
       }
     }
+  }
+
+  &--riichi-mode {
+    border-color: #f59e0b;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.8), 0 0 16px rgba(245, 158, 11, 0.6);
+  }
+
+  &__prompt {
+    color: #fbbf24;
+    font-size: 0.85rem;
+    font-weight: 700;
+    letter-spacing: 0.3px;
+    white-space: nowrap;
   }
 }
 

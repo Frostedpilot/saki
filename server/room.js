@@ -1465,6 +1465,7 @@ class Table {
     qp.melds.push({ tiles, open: true, type: kind === 'daiminkan' ? 'kan' : 'pon' });
     this.broadcast(P.evPlayerCalled({
       player: P.seatWind(q, ctx.dealer),
+      fromPlayer: P.seatWind(from, ctx.dealer),
       callType: kind === 'daiminkan' ? 'Daiminkan' : 'Pon',
       calledTile: P.sakiToTile(tile),
       tiles: P.tilesToProtocol(tiles),
@@ -1542,6 +1543,7 @@ class Table {
     qp.melds.push({ tiles, open: true, type: 'chi' });
     this.broadcast(P.evPlayerCalled({
       player: P.seatWind(q, ctx.dealer),
+      fromPlayer: P.seatWind(from, ctx.dealer),
       callType: 'Chi',
       calledTile: P.sakiToTile(tile),
       tiles: P.tilesToProtocol(tiles),

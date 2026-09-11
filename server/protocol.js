@@ -135,6 +135,7 @@ function evPlayerCalled(opts) {
       call_type: opts.callType || opts.call_type,
       called_tile: opts.calledTile !== undefined ? opts.calledTile : opts.called_tile,
       tiles: opts.tiles,
+      from_player: opts.fromPlayer !== undefined ? opts.fromPlayer : opts.from_player,
     },
   };
 }

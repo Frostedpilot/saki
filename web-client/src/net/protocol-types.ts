@@ -72,6 +72,7 @@ export interface PlayerCalledEvent {
   call_type: string;
   called_tile: ProtocolTile;
   tiles: ProtocolTile[];
+  from_player?: number | string;
 }
 
 export interface DoraIndicatorsUpdatedEvent {

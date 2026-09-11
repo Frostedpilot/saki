@@ -15,7 +15,17 @@ import {
   TileDiscardedEvent,
   TileDrawnEvent,
 } from '../net/protocol-types';
-import { areTilesEqual, getKuikaeBannedIndices, sortTiles, tileToFace } from '../tiles/tile-utils';
+import {
+  areTilesEqual,
+  getKuikaeBannedIndices,
+  sortTiles,
+  tileToFace,
+  TileFace,
+  normFace,
+  getDoraFromIndicator,
+  hairiOfTiles,
+  shantenOfTiles,
+} from '../tiles/tile-utils';
 
 export interface ToastMessage {
   id: number;
@@ -46,8 +56,10 @@ export interface PlayerDiscards {
 
 export interface MeldInfo {
   callType: string;
-  calledTile: ProtocolTile;
+  calledTile?: ProtocolTile;
   tiles: ProtocolTile[];
+  calledIndex?: number;
+  fromSeat?: number;
 }
 export type PlayerMeld = MeldInfo;
 export type { TierInfo };
@@ -159,6 +171,12 @@ export class GameStore {
   ];
 
   public kuikaeBannedIndices: number[] = [];
+  public isRiichiMode = false;
+  public riichiCandidateIndices: Set<number> = new Set();
+  public hoveredTileKind: string | null = null;
+  public lastDiscard: { seat: number; index: number } | null = null;
+  public hoveredDiscardWaitHint: Array<{ face: string; count: number }> | null = null;
+
   public toast: ToastMessage | null = null;
   private toastTimer: number | null = null;
 
@@ -305,34 +323,170 @@ export class GameStore {
     this.socket.send({ StartGame: {} });
   }
 
+  public computeRiichiCandidates(): void {
+    this.riichiCandidateIndices.clear();
+    const allTiles = [...this.hand, ...(this.drawnTile ? [this.drawnTile] : [])];
+    for (let i = 0; i < allTiles.length; i++) {
+      const remaining = allTiles.filter((_, idx) => idx !== i);
+      if (shantenOfTiles(remaining) === 0) {
+        this.riichiCandidateIndices.add(i);
+      }
+    }
+  }
+
+  public enterRiichiMode(): void {
+    this.isRiichiMode = true;
+    this.computeRiichiCandidates();
+    this.notify();
+  }
+
+  public cancelRiichiMode(): void {
+    this.isRiichiMode = false;
+    this.riichiCandidateIndices.clear();
+    this.notify();
+  }
+
+  public resetTurnActions(): void {
+    this.actions.can_discard = false;
+    this.actions.can_riichi = false;
+    this.actions.can_tsumo = false;
+    this.actions.can_kan = false;
+    this.isRiichiMode = false;
+    this.riichiCandidateIndices.clear();
+    this.hoveredDiscardWaitHint = null;
+  }
+
   public discard(tile: ProtocolTile): void {
+    if (this.isRiichiMode) {
+      this.callRiichi(tile);
+      return;
+    }
     if (this.kuikaeBannedIndices.includes(tile.index)) {
       this.handleBannedTileClick(tile);
       return;
     }
-    this.actions.can_discard = false;
+    this.resetTurnActions();
     this.socket.send({
       Action: { Discard: { tile } },
     });
+    this.notify();
   }
 
   public passAction(): void {
     this.resetCalls();
+    this.resetTurnActions();
     this.socket.send({ Action: 'Pass' });
     this.notify();
   }
 
   public callRiichi(tile?: ProtocolTile): void {
     const discardTile = tile || this.drawnTile || this.hand[this.hand.length - 1];
+    this.resetTurnActions();
     this.socket.send({ Action: { Riichi: { tile: discardTile } } });
+    this.notify();
   }
 
   public callTsumo(): void {
+    this.resetTurnActions();
     this.socket.send({ Action: 'Tsumo' });
+    this.notify();
   }
 
   public callRon(): void {
+    this.resetCalls();
     this.socket.send({ Action: 'Ron' });
+    this.notify();
+  }
+
+  // --- Mahjong Soul QoL Helpers ---
+  public setHoveredTile(tile: ProtocolTile | TileFace | null): void {
+    if (!tile) {
+      this.hoveredTileKind = null;
+    } else {
+      const face = typeof tile === 'string' ? tile : tileToFace(tile);
+      this.hoveredTileKind = normFace(face);
+    }
+    this.notify();
+  }
+
+  public setHoveredDiscardTile(handIdx: number | null): void {
+    if (handIdx === null || !this.actions.can_discard) {
+      this.hoveredDiscardWaitHint = null;
+    } else {
+      this.hoveredDiscardWaitHint = this.getWaitsIfDiscard(handIdx);
+    }
+    this.notify();
+  }
+
+  public isTileHoveredMatch(tile: ProtocolTile | TileFace): boolean {
+    if (!this.hoveredTileKind) return false;
+    const face = typeof tile === 'string' ? tile : tileToFace(tile);
+    return normFace(face) === this.hoveredTileKind;
+  }
+
+  public getActiveDoraKinds(): string[] {
+    return (this.doraIndicators || []).map((ind) => getDoraFromIndicator(ind));
+  }
+
+  public isTileDora(tile: ProtocolTile | TileFace): boolean {
+    const face = typeof tile === 'string' ? tile : tileToFace(tile);
+    return this.getActiveDoraKinds().includes(normFace(face));
+  }
+
+  public isTileAkaDora(tile: ProtocolTile | TileFace): boolean {
+    if (typeof tile !== 'string' && tile.red_dora) return true;
+    const face = typeof tile === 'string' ? tile : tileToFace(tile);
+    return face[0] === '0';
+  }
+
+  public isTileLastDiscard(seat: number, tileIdx: number): boolean {
+    return Boolean(this.lastDiscard && this.lastDiscard.seat === seat && this.lastDiscard.index === tileIdx);
+  }
+
+  public getTenpaiWaits(handTiles?: ProtocolTile[]): Array<{ face: string; count: number }> {
+    const tiles = handTiles || this.hand;
+    const h = hairiOfTiles(tiles);
+    if (h.now !== 0 || !h.wait) return [];
+
+    const waits: Array<{ face: string; count: number }> = [];
+    const waitFaces = Object.keys(h.wait);
+
+    for (const wf of waitFaces) {
+      const normW = normFace(wf);
+      let visible = 0;
+      for (const t of this.hand) {
+        if (normFace(tileToFace(t)) === normW) visible++;
+      }
+      if (this.drawnTile && normFace(tileToFace(this.drawnTile)) === normW) visible++;
+      for (const seatDiscards of this.discards) {
+        for (const d of seatDiscards) {
+          if (normFace(tileToFace(d.tile)) === normW) visible++;
+        }
+      }
+      for (const seatMelds of this.melds) {
+        for (const m of seatMelds) {
+          for (const t of m.tiles) {
+            if (normFace(tileToFace(t)) === normW) visible++;
+          }
+        }
+      }
+      for (const ind of this.doraIndicators) {
+        if (normFace(tileToFace(ind)) === normW) visible++;
+      }
+
+      const remaining = Math.max(0, 4 - visible);
+      waits.push({ face: wf, count: remaining });
+    }
+
+    return waits.sort((a, b) => b.count - a.count);
+  }
+
+  public getWaitsIfDiscard(tileIndexInHand: number): Array<{ face: string; count: number }> | null {
+    const allTiles = [...this.hand, ...(this.drawnTile ? [this.drawnTile] : [])];
+    if (tileIndexInHand < 0 || tileIndexInHand >= allTiles.length) return null;
+    const remainingHand = allTiles.filter((_, i) => i !== tileIndexInHand);
+    const waits = this.getTenpaiWaits(remainingHand);
+    return waits.length > 0 ? waits : null;
   }
 
   public callChi(chosenTiles?: ProtocolTile[]): void {
@@ -520,7 +674,9 @@ export class GameStore {
       this.kuikaeBannedIndices = [];
       this.actions.can_discard = true;
       this.actions.can_tsumo = td.can_tsumo;
-      this.actions.can_riichi = td.can_riichi;
+      this.actions.can_riichi = Boolean(td.can_riichi && !this.riichiDeclared[this.yourSeat]);
+      this.isRiichiMode = false;
+      this.riichiCandidateIndices.clear();
 
       // Check for own-turn Kan (Ankan 4 of a kind or Kakan pon upgrade)
       const allTiles = [...this.hand, td.tile];
@@ -556,7 +712,8 @@ export class GameStore {
       const seat = this.playerToSeat(op.player);
       this.currentTurn = seat;
       this.remainingTiles = op.remaining_tiles;
-      this.actions.can_discard = false;
+      this.resetTurnActions();
+      this.resetCalls();
       this.drawnTile = null;
       this.opponentTileCounts[seat] = (this.opponentTileCounts[seat] || 13) + 1;
       this.addLog('turn', `${this.getSeatName(seat)} drew a tile. (Wall: ${op.remaining_tiles})`);
@@ -574,6 +731,9 @@ export class GameStore {
         tile: td.tile,
         is_riichi: isRiichiTile,
       });
+      this.lastDiscard = { seat, index: this.discards[seat].length - 1 };
+
+      this.resetTurnActions();
 
       if (seat === this.yourSeat) {
         this.kuikaeBannedIndices = [];
@@ -588,7 +748,6 @@ export class GameStore {
             this.hand = sortTiles(this.hand);
           }
         }
-        this.actions.can_discard = false;
       } else {
         this.opponentTileCounts[seat] = Math.max(0, (this.opponentTileCounts[seat] || 1) - 1);
       }
@@ -611,23 +770,23 @@ export class GameStore {
       this.actions.pon_options = [];
 
       const callTypes: string[] = [];
-      for (const c of ca.calls || []) {
-        if (c === 'Ron') {
-          this.actions.can_ron = true;
-          callTypes.push('Ron');
-        } else if (c === 'Daiminkan' || c === 'Kan') {
-          this.actions.can_kan = true;
-          callTypes.push('Kan');
-        } else if (typeof c === 'object' && c !== null) {
-          if ('Pon' in c) {
-            this.actions.can_pon = true;
-            this.actions.pon_options = (c as any).Pon?.options || [];
-            callTypes.push('Pon');
+      if (Array.isArray(ca.calls)) {
+        for (const c of ca.calls) {
+          if (typeof c === 'string') {
+            if (c === 'Ron') { this.actions.can_ron = true; callTypes.push('Ron'); }
+            if (c === 'Kan') { this.actions.can_kan = true; callTypes.push('Kan'); }
           }
-          if ('Chi' in c) {
-            this.actions.can_chi = true;
-            this.actions.chi_options = (c as any).Chi?.options || [];
-            callTypes.push('Chi');
+          if (typeof c === 'object' && c !== null) {
+            if ('Pon' in c) {
+              this.actions.can_pon = true;
+              this.actions.pon_options = (c as any).Pon?.options || [];
+              callTypes.push('Pon');
+            }
+            if ('Chi' in c) {
+              this.actions.can_chi = true;
+              this.actions.chi_options = (c as any).Chi?.options || [];
+              callTypes.push('Chi');
+            }
           }
         }
       }
@@ -644,16 +803,71 @@ export class GameStore {
     if ('PlayerCalled' in ev) {
       const pc: PlayerCalledEvent = ev.PlayerCalled;
       const callerSeat = this.playerToSeat(pc.player);
+      const fromSeat = pc.from_player !== undefined ? this.playerToSeat(pc.from_player) : this.lastDiscarderSeat;
 
-      this.melds[callerSeat].push({
-        callType: pc.call_type,
-        calledTile: pc.called_tile,
-        tiles: pc.tiles,
-      });
+      const rel = fromSeat >= 0 ? (fromSeat - callerSeat + 4) % 4 : 3;
+      const isAnkan = pc.call_type === 'Ankan' || pc.call_type === 'ClosedKan';
+      const isKakan = pc.call_type === 'Kakan';
+
+      let calledIdx = -1;
+      let orderedTiles: ProtocolTile[] = [];
+
+      if (isAnkan) {
+        calledIdx = -1;
+        orderedTiles = [...(pc.tiles || [])];
+      } else if (isKakan) {
+        const existingMeld = this.melds[callerSeat].find(
+          (m) => (m.callType === 'Pon' || m.callType === 'pon') && m.tiles[0]?.index === pc.called_tile?.index
+        );
+        if (existingMeld) {
+          existingMeld.callType = 'Kakan';
+          if (pc.tiles && pc.tiles.length === 4) {
+            existingMeld.tiles = pc.tiles;
+          } else if (pc.called_tile) {
+            existingMeld.tiles.push(pc.called_tile);
+          }
+          orderedTiles = existingMeld.tiles;
+          calledIdx = existingMeld.calledIndex ?? 1;
+        } else {
+          orderedTiles = [...(pc.tiles || [])];
+          calledIdx = 1;
+        }
+      } else {
+        const totalCount = pc.tiles?.length || 3;
+        if (rel === 3) {
+          calledIdx = 0; // Kamicha (left)
+        } else if (rel === 2) {
+          calledIdx = 1; // Toimen (across)
+        } else if (rel === 1) {
+          calledIdx = totalCount - 1; // Shimocha (right)
+        } else {
+          calledIdx = 0;
+        }
+
+        const pool = [...(pc.tiles || [])];
+        const matchIdx = pool.findIndex((t) => areTilesEqual(t, pc.called_tile));
+        const calledTile = matchIdx >= 0 ? pool.splice(matchIdx, 1)[0] : pc.called_tile;
+        pool.sort((a, b) => a.index - b.index);
+        pool.splice(calledIdx, 0, calledTile);
+        orderedTiles = pool;
+      }
+
+      if (!isKakan) {
+        this.melds[callerSeat].push({
+          callType: pc.call_type,
+          calledTile: pc.called_tile,
+          tiles: orderedTiles,
+          calledIndex: calledIdx,
+          fromSeat,
+        });
+      }
 
       // Remove the called tile from the discarder's river
       if (this.lastDiscarderSeat >= 0 && this.discards[this.lastDiscarderSeat]?.length > 0) {
         this.discards[this.lastDiscarderSeat].pop();
+        if (this.lastDiscard && this.lastDiscard.seat === this.lastDiscarderSeat) {
+          this.lastDiscard = null;
+        }
       }
 
       if (callerSeat === this.yourSeat) {
@@ -665,7 +879,7 @@ export class GameStore {
         }
       }
 
-      const tileFaces = (pc.tiles || []).map(tileToFace).join(', ');
+      const tileFaces = (orderedTiles || []).map(tileToFace).join(', ');
       this.addLog(
         'call',
         `${callerSeat === this.yourSeat ? 'You' : this.getSeatName(callerSeat)} called ${pc.call_type} on ${tileToFace(pc.called_tile)}! [${tileFaces}]`
@@ -673,6 +887,7 @@ export class GameStore {
 
       this.currentTurn = callerSeat;
       this.resetCalls();
+      this.resetTurnActions();
       this.notify();
       return;
     }
@@ -683,6 +898,11 @@ export class GameStore {
       this.riichiDeclared[seat] = true;
       this.scores = pr.scores;
       this.riichiSticks = pr.riichi_sticks;
+      if (seat === this.yourSeat) {
+        this.actions.can_riichi = false;
+        this.isRiichiMode = false;
+        this.riichiCandidateIndices.clear();
+      }
       this.addLog('call', `${seat === this.yourSeat ? 'You' : this.getSeatName(seat)} declared RIICHI! 1,000 pt stick placed on center.`);
       this.notify();
       return;
@@ -729,6 +949,7 @@ export class GameStore {
         winningTile: rw.winning_tile,
       };
       this.resetCalls();
+      this.resetTurnActions();
 
       const isTsumo = !rw.loser;
       const yakuNames = (rw.yaku_list || []).map((y) => `${y.name} (${y.han} han)`).join(', ');
@@ -757,6 +978,7 @@ export class GameStore {
         scores: rd.scores,
       };
       this.resetCalls();
+      this.resetTurnActions();
 
       const tenpaiNames = tenpaiSeats.map((s: number) => this.getSeatName(s)).join(', ');
       this.addLog('turn', `Round ended in ${rd.reason} Draw (Ryuukyoku). Tenpai: [${tenpaiNames || 'None'}]`);

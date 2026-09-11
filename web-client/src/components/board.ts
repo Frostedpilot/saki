@@ -111,7 +111,7 @@ export function renderBoard(store: GameStore): TemplateResult {
         <main class="board-table">
           <!-- Top Melds (Left corner of top player) -->
           <div class="zone-top-melds">
-            ${renderMelds(store.melds[2])}
+            ${renderMelds(store.melds[2], store)}
           </div>
 
           <!-- Top Hand (Opponent 2) -->
@@ -121,7 +121,7 @@ export function renderBoard(store: GameStore): TemplateResult {
 
           <!-- Right Melds (Top corner of right player) -->
           <div class="zone-right-melds">
-            ${renderMelds(store.melds[1])}
+            ${renderMelds(store.melds[1], store)}
           </div>
 
           <!-- Left Hand (Opponent 3) -->
@@ -130,10 +130,10 @@ export function renderBoard(store: GameStore): TemplateResult {
           </div>
 
           <!-- TOP RIVER (Seat 2 Discards) -->
-          ${renderDiscards(store.discards[2], 'top')}
+          ${renderDiscards(store.discards[2], 'top', store, 2)}
 
           <!-- LEFT RIVER (Seat 3 Discards) -->
-          ${renderDiscards(store.discards[3], 'left')}
+          ${renderDiscards(store.discards[3], 'left', store, 3)}
 
           <!-- CENTER COMPASS (Scores, Dora, Wall, Honba) -->
           ${renderCenterInfo({
@@ -148,10 +148,12 @@ export function renderBoard(store: GameStore): TemplateResult {
             dealerSeat: store.dealerSeat,
             yourSeat: store.yourSeat,
             riichiSeats: store.riichiDeclared,
+            onTileHover: (tile) => store.setHoveredTile(tile),
+            isHoverMatch: (tile) => store.isTileHoveredMatch(tile),
           })}
 
           <!-- RIGHT RIVER (Seat 1 Discards) -->
-          ${renderDiscards(store.discards[1], 'right')}
+          ${renderDiscards(store.discards[1], 'right', store, 1)}
 
           <!-- Right Hand (Opponent 1) -->
           <div class="zone-right-hand">
@@ -160,11 +162,11 @@ export function renderBoard(store: GameStore): TemplateResult {
 
           <!-- Left Melds (Bottom corner of left player) -->
           <div class="zone-left-melds">
-            ${renderMelds(store.melds[3])}
+            ${renderMelds(store.melds[3], store)}
           </div>
 
           <!-- BOTTOM RIVER (Your Discards) -->
-          ${renderDiscards(store.discards[0], 'bottom')}
+          ${renderDiscards(store.discards[0], 'bottom', store, 0)}
 
           <!-- Bottom Hand & Action Bar (Player 0) -->
           <div class="zone-bottom-hand">
@@ -175,6 +177,7 @@ export function renderBoard(store: GameStore): TemplateResult {
               drawnTile: store.drawnTile,
               canDiscard: store.actions.can_discard,
               bannedIndices: store.kuikaeBannedIndices,
+              store,
               onDiscard: (tile) => store.discard(tile),
               onBannedClick: (tile) => store.handleBannedTileClick(tile),
             })}
@@ -182,7 +185,7 @@ export function renderBoard(store: GameStore): TemplateResult {
 
           <!-- Bottom Melds (Right corner of your hand) -->
           <div class="zone-bottom-melds">
-            ${renderMelds(store.melds[0])}
+            ${renderMelds(store.melds[0], store)}
           </div>
         </main>
 

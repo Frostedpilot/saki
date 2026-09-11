@@ -1,8 +1,8 @@
 import { html, TemplateResult } from 'lit-html';
-import { PlayerMeld } from '../state/store';
+import { GameStore, PlayerMeld } from '../state/store';
 import { renderTile } from '../tiles/svg-tiles';
 
-export function renderMelds(melds: PlayerMeld[]): TemplateResult {
+export function renderMelds(melds: PlayerMeld[], store?: GameStore): TemplateResult {
   if (!melds || melds.length === 0) {
     return html``;
   }
@@ -11,17 +11,31 @@ export function renderMelds(melds: PlayerMeld[]): TemplateResult {
     <div class="meld-container">
       ${melds.map((meld) => {
         const isAnkan = meld.callType === 'Ankan' || meld.callType === 'ClosedKan';
+        const calledIdx = meld.calledIndex ?? -1;
         return html`
-          <div class="meld-set">
+          <div class="meld-set ${meld.callType === 'Kakan' ? 'meld-set--kakan' : ''}">
             ${meld.tiles.map((t, idx) => {
               if (isAnkan && (idx === 0 || idx === 3)) {
-                return renderTile(t, { show: 'back' });
+                return html`
+                  <div class="meld-set__slot">
+                    ${renderTile(t, { show: 'back' })}
+                  </div>
+                `;
               }
-              const isCalled = meld.calledTile && t.index === meld.calledTile.index;
-              return renderTile(t, {
-                show: 'face',
-                rotated: Boolean(isCalled),
-              });
+              const isRotated = !isAnkan && idx === calledIdx;
+              return html`
+                <div class="meld-set__slot ${isRotated ? 'is-rotated' : ''}">
+                  ${renderTile(t, {
+                    show: 'face',
+                    rotated: isRotated,
+                    isHoverMatch: store ? store.isTileHoveredMatch(t) : false,
+                    isDora: store ? store.isTileDora(t) : false,
+                    isAkaDora: store ? store.isTileAkaDora(t) : false,
+                    onMouseEnter: store ? () => store.setHoveredTile(t) : undefined,
+                    onMouseLeave: store ? () => store.setHoveredTile(null) : undefined,
+                  })}
+                </div>
+              `;
             })}
           </div>
         `;

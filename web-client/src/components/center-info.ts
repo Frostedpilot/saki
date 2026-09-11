@@ -14,6 +14,8 @@ export interface CenterInfoProps {
   dealerSeat: number;
   yourSeat: number;
   riichiSeats?: boolean[];
+  onTileHover?: (tile: ProtocolTile | null) => void;
+  isHoverMatch?: (tile: ProtocolTile) => boolean;
 }
 
 const WIND_KANJI: Record<string, string> = {
@@ -74,7 +76,14 @@ export function renderCenterInfo(props: CenterInfoProps): TemplateResult {
 
         <div class="board-center__dora">
           <div class="board-center__dora-tiles">
-            ${props.doraIndicators.map((t) => renderTile(t, { show: 'face' }))}
+            ${props.doraIndicators.map((t) =>
+              renderTile(t, {
+                show: 'face',
+                isHoverMatch: props.isHoverMatch ? props.isHoverMatch(t) : false,
+                onMouseEnter: props.onTileHover ? () => props.onTileHover!(t) : undefined,
+                onMouseLeave: props.onTileHover ? () => props.onTileHover!(null) : undefined,
+              })
+            )}
             ${Array.from({ length: Math.max(0, 5 - props.doraIndicators.length) }).map(() =>
               renderTile({ index: 0 }, { show: 'back' })
             )}
