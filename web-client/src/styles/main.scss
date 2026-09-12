@@ -246,6 +246,44 @@ button {
     }
   }
 
+  &__yaku-total {
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+    padding-top: 6px;
+    margin-top: 4px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  &__yaku-total-row {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.95rem;
+    color: #cbd5e1;
+
+    span:last-child {
+      font-weight: 700;
+      color: #ffd700;
+    }
+  }
+
+  &__yaku-fu-line {
+    font-size: 0.8rem;
+    color: #94a3b8;
+    font-family: 'JetBrains Mono', monospace;
+  }
+
+  &__yaku-extras {
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: #4ecca3;
+    font-family: 'JetBrains Mono', monospace;
+  }
+
+  &--agari {
+    max-width: 640px;
+  }
+
   &__btn {
     align-self: center;
     background: #ffd700;
@@ -275,5 +313,78 @@ button {
   to {
     opacity: 1;
     transform: scale(1);
+  }
+}
+
+/* Mahjong Soul style agari hand display */
+.agari-hand {
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+
+  &__tiles {
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    gap: 2px;
+    flex-wrap: wrap;
+  }
+
+  &__gap {
+    width: 12px;
+  }
+
+  &__win-tile {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    margin-left: 4px;
+    padding-left: 8px;
+    border-left: 1px solid rgba(255, 215, 0, 0.4);
+  }
+
+  &__win-label {
+    font-size: 0.6rem;
+    font-weight: 800;
+    letter-spacing: 1px;
+    color: #ffd700;
+    background: rgba(255, 215, 0, 0.15);
+    padding: 1px 6px;
+    border-radius: 3px;
+  }
+
+  &__melds {
+    display: flex;
+    gap: 8px;
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+
+  &__meld {
+    display: flex;
+    align-items: flex-end;
+    gap: 2px;
+    background: rgba(255, 255, 255, 0.05);
+    padding: 3px 6px;
+    border-radius: 4px;
+    position: relative;
+    padding-bottom: 14px;
+  }
+
+  &__meld-tag {
+    position: absolute;
+    bottom: 1px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 0.58rem;
+    font-weight: 700;
+    color: #94a3b8;
+    letter-spacing: 0.5px;
+    white-space: nowrap;
   }
 }

@@ -64,11 +64,25 @@
   }
 
   &--dora {
-    box-shadow: 0 0 8px rgba(245, 158, 11, 0.8), inset 0 0 4px rgba(251, 191, 36, 0.6);
+    outline: 2.5px solid #fbbf24;
+    outline-offset: 0;
+    // Outer halo sits outside the tile so the face stays fully visible.
+    box-shadow:
+      0 0 0 1.5px rgba(251, 191, 36, 0.9),
+      0 0 14px 2px rgba(251, 191, 36, 0.85),
+      0 2px 5px rgba(0, 0, 0, 0.45);
+    // Warm tint applied to the tile background, not as an overlay element.
+    background: #fff8e1;
   }
 
   &--aka-dora {
-    box-shadow: 0 0 8px rgba(239, 68, 68, 0.8), inset 0 0 4px rgba(248, 113, 113, 0.6);
+    outline: 2.5px solid #ef4444;
+    outline-offset: 0;
+    box-shadow:
+      0 0 0 1.5px rgba(239, 68, 68, 0.9),
+      0 0 14px 2px rgba(239, 68, 68, 0.85),
+      0 2px 5px rgba(0, 0, 0, 0.45);
+    background: #fef2f2;
   }
 
   &--riichi-candidate {
@@ -80,7 +94,14 @@
   }
 
   &--last-discard {
-    box-shadow: 0 0 10px rgba(249, 115, 22, 0.9);
+    outline: 3px solid #22d3ee;
+    outline-offset: 1px;
+    box-shadow:
+      0 0 0 1.5px rgba(34, 211, 238, 0.9),
+      0 0 18px 3px rgba(34, 211, 238, 0.95),
+      0 2px 5px rgba(0, 0, 0, 0.45);
+    transform: scale(1.08);
+    z-index: 5;
   }
 
   &--grayed {
@@ -90,42 +111,6 @@
 
   &--rotated {
     transform: rotate(90deg);
-  }
-
-  &__dora-badge {
-    position: absolute;
-    top: 1px;
-    right: 2px;
-    font-size: 8px;
-    color: #f59e0b;
-    line-height: 1;
-    text-shadow: 0 0 3px #000, 0 0 5px rgba(245, 158, 11, 0.8);
-    pointer-events: none;
-    font-weight: 900;
-  }
-
-  &__aka-badge {
-    position: absolute;
-    top: 2px;
-    right: 3px;
-    font-size: 7px;
-    color: #ef4444;
-    line-height: 1;
-    text-shadow: 0 0 3px #000;
-    pointer-events: none;
-  }
-
-  &__last-pip {
-    position: absolute;
-    top: 1px;
-    left: 50%;
-    transform: translateX(-50%);
-    width: 6px;
-    height: 6px;
-    background: #f97316;
-    border-radius: 50%;
-    box-shadow: 0 0 6px #f97316, 0 0 2px #ffffff;
-    pointer-events: none;
   }
 }
 
@@ -228,6 +213,27 @@
   display: flex;
   gap: 4px;
   align-items: flex-end;
+  transform-origin: center center;
+
+  // Bottom seat faces north: upright for the viewer.
+  &--bottom {
+    transform: none;
+  }
+
+  // Top seat faces south: rotate so tiles read upright from that side.
+  &--top {
+    transform: rotate(180deg);
+  }
+
+  // Left seat (west) faces east: tile-top points east.
+  &--left {
+    transform: rotate(90deg);
+  }
+
+  // Right seat (east) faces west: tile-top points west.
+  &--right {
+    transform: rotate(-90deg);
+  }
 }
 
 .meld-set {

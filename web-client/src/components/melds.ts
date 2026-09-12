@@ -2,13 +2,15 @@ import { html, TemplateResult } from 'lit-html';
 import { GameStore, PlayerMeld } from '../state/store';
 import { renderTile } from '../tiles/svg-tiles';
 
-export function renderMelds(melds: PlayerMeld[], store?: GameStore): TemplateResult {
+export type MeldPlacement = 'bottom' | 'top' | 'left' | 'right';
+
+export function renderMelds(melds: PlayerMeld[], store?: GameStore, placement: MeldPlacement = 'bottom'): TemplateResult {
   if (!melds || melds.length === 0) {
     return html``;
   }
 
   return html`
-    <div class="meld-container">
+    <div class="meld-container meld-container--${placement}">
       ${melds.map((meld) => {
         const isAnkan = meld.callType === 'Ankan' || meld.callType === 'ClosedKan';
         const calledIdx = meld.calledIndex ?? -1;

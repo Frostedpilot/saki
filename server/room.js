@@ -279,6 +279,10 @@ class Table {
     this.powerSeats = room.powerSeats;
     this.armedTiers = [0, 0, 0, 0];
     this.persistentPowerState = [{}, {}, {}, {}];
+    // Flow Gauge Economy (Spec §6): gauges persist across hands in a match.
+    // Initialized once so Tier 1 is reachable in East-only demo; afterwards
+    // playOneHand restores/saves instead of resetting to 50.
+    this.flowGauges = [50, 50, 50, 50];
     this.phase = PHASE.LOBBY;
     this.activeSeat = -1;
   }
@@ -592,12 +596,12 @@ class Table {
         try { state.powers.register(s, ROSTERS[power](s, this.persistentPowerState[s])); } catch { /* ignore */ }
       }
       // Normal-type powers live outside the Flow economy (Spec §6.1): their
-      // gauge is pinned to 0 and every flow op is a no-op. Only flow seats
-      // start with the usual 50%-Flow hand opening.
+      // gauge is pinned to 0 and every flow op is a no-op. Flow seats restore
+      // the persisted gauge across hands (Spec §6).
       if (state.flow) {
         const type = state.powers.powerTypeOf(s);
         state.flow.setMode(s, type);
-        if (type === 'flow') state.flow.set(s, 50);
+        if (type === 'flow') state.flow.set(s, this.flowGauges[s] ?? 50);
       }
     }
     state.scores = this.scores;
@@ -677,6 +681,13 @@ class Table {
     }
 
     await this.finishHand(winner, winBy);
+
+    // Carry flow over to the next hand (Spec §6). Settlement hooks
+    // (e.g. Saki rinshan burn) and tier consumes already mutated
+    // ctx.state.flow, so snapshot it before rotating dealer/kyoku.
+    if (ctx.state && ctx.state.flow) {
+      for (let s = 0; s < 4; s++) this.flowGauges[s] = ctx.state.flow.get(s);
+    }
 
     if (this.scores.some((s) => s < 0)) {
       const loser = this.scores.findIndex((s) => s < 0);
