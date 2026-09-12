@@ -866,7 +866,7 @@ export class GameStore {
         for (const c of ca.calls) {
           if (typeof c === 'string') {
             if (c === 'Ron') { this.actions.can_ron = true; callTypes.push('Ron'); }
-            if (c === 'Kan') { this.actions.can_kan = true; callTypes.push('Kan'); }
+            if (c === 'Kan' || c === 'Daiminkan') { this.actions.can_kan = true; callTypes.push('Kan'); }
           }
           if (typeof c === 'object' && c !== null) {
             if ('Pon' in c) {

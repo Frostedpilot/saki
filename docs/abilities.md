@@ -69,14 +69,16 @@ Every roster power carries a `meta.type`, and both types coexist on the same tab
 - Strategic Impact: If Saki takes a massive lead or falls into a deep deficit, this passive shuts off. Saki players balance early scores near zero to bank meter for an endgame dead-wall blow.
 **Active Skill: Ridge Resonance (Rinshan Kaihou)**
 
-*Consumes Flow Gauge upon declaring any Kan (closed or open).*
+*Consumes Flow Gauge upon declaring any Kan (closed or open). Every tier
+guarantees the on-deck rinshan: exact live winning wait (scoreHand-validated,
+Rinshan-legal) when one exists, else the best live advancing/ukeire tile —
+never an exhausted kind. Kan-dora is always seeded to the most useful held
+tile (most copies, wait-preferring).*
 
-- Tier 1 (25% Flow) – Ridge Glimmer: The replacement tile drawn from the dead wall (Rinshan) has its probability of being a winning tile boosted by +45% (if that tile exists in the unseen wall). If not a win, it guarantees an effective tile (Uke-ire) that preserves Tenpai.
-- Tier 2 (50% Flow) – Twin Ridges: Guarantees that the first dead-wall draw contains a tile completing an immediate second Kan. The second dead-wall draw receives a +50% chance to hit Rinshan Kaihou.
-- Tier 3 (100% Flow) – Triple Summit (San Kantsu): Guarantees 3 consecutive Kans. On the 3rd dead-wall draw, the Rinshan Kaihou win rate is 80%. Revealed dead-wall Dora indicators are prioritized to match tiles already in Saki’s hand.
-- Tier 4 (150% Overdrive) – Suukantsu Bounded Climax: Executes up to 4 consecutive Kans. To maintain 14-tile Wanpai engine integrity without buffer overflow, the 4th Rinshan replacement tile is deterministic:
-  - If the required winning tile exists in the unseen wall, it is dynamically mapped to become the 4th Rinshan tile, delivering the legal Yakuman (Suukantsu + Rinshan Kaihou) simultaneously on draw.
-  - If the winning tile has already been fully exposed in discard rivers or opponent melds, the sequence terminates safely at the 3rd Kan with a guaranteed San Kantsu + Rinshan Kaihou Baiman (8 Han) win, preventing dead-wall exhaustion.
+- Tier 1 (25% Flow) – Ridge Glimmer: Pins the guaranteed rinshan above (`win` branch at tenpai with live wait, else `advance`). Keeps 10x/3x weights for audit compat.
+- Tier 2 (50% Flow) – Twin Ridges: Guarantees current rinshan as above, plus chains the NEXT slot with the 4th copy of triplet #2 for an immediate second Kan. Exhausted chain tile no longer refunds — the guarantee still costs full 50.
+- Tier 3 (100% Flow) – Triple Summit (San Kantsu): Guarantees current rinshan, chains next slots with 4th copies, best-useful dora. Keeps 80% weight for compat.
+- Tier 4 (150% Overdrive) – Suukantsu Bounded Climax: Guarantees current rinshan via exact wait; far slot pinned to live wait when possible (double yakuman path), else best completer (San Kantsu Baiman path). Requires 3 closed triplets.
 
 #### 2. Nodoka Haramura
 

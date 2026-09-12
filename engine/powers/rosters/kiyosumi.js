@@ -11,6 +11,7 @@
 const { norm, DORA_NEXT, KINDS } = require('../../tiles');
 const { shantenOf, hairiOf } = require('../trajectoryPlanner');
 const { scalePassiveWeight } = require('../awakening');
+const { scoreHand } = require('../../scoring');
 
 const START_SCORE = 25000;
 const EQUILIBRIUM_BAND = 1500;
@@ -152,23 +153,123 @@ function winProbabilityWeights(sakiHand, pool, p) {
   return { waits, weight: w, weightOf: t => (boosted.has(norm(t)) ? w : 1.0) };
 }
 
-// Kan-dora seeding (T3/T4): swap the kan-dora indicator at
-// deadWall[4 + kanCount*2] with an unseen pool tile whose Dora points at a
-// tile Saki already holds. Conservation-preserving swap; null when no
-// candidate (engine keeps the dealt indicator).
+// Kan-dora seeding: swap the kan-dora indicator at
+// deadWall[4 + kanCount*2] with the BEST unseen pool tile whose Dora points at
+// a tile Saki already holds. Best = most copies held (triplet > pair > single),
+// tie-break by wait membership then kind order. Conservation-preserving swap;
+// null when no candidate (engine keeps the dealt indicator).
 function seedKanDora(state, kanCount = 1, seat = 0) {
   const idx = 4 + kanCount * 2;
-  if (!state.deadWall || idx >= state.deadWall.length) return null;
-  const handNorms = new Set(getHand(state, seat).map(norm));
-  if (!handNorms.size) return null;
+  if (!state.deadWall || idx >= state.deadWall.length || !state.pool) return null;
+  const hand = getHand(state, seat);
+  if (!hand.length) return null;
+  const counts = kindCounts(hand);
+  let h = null;
+  try { h = hairiOf(hand); } catch { h = null; }
+  const waitSet = new Set(h && h.wait ? Object.keys(h.wait).map(norm) : []);
+  let best = null;
+  let bestScore = -Infinity;
   for (const key of Object.keys(state.pool.counts)) {
-    if (handNorms.has(norm(DORA_NEXT(key)))) {
-      const old = state.deadWall[idx];
-      state.pool.decrement(key);
-      state.deadWall[idx] = key;
-      state.pool.counts[old] = (state.pool.counts[old] || 0) + 1;
-      return { index: idx, from: old, to: key, dora: norm(DORA_NEXT(key)) };
+    if ((state.pool.get(key) || 0) <= 0) continue;
+    const dora = norm(DORA_NEXT(key));
+    const held = counts[dora] || 0;
+    if (held <= 0) continue;
+    const score = held * 10 + (waitSet.has(dora) ? 5 : 0);
+    if (score > bestScore || (score === bestScore && (best === null || key < best))) {
+      bestScore = score;
+      best = key;
     }
+  }
+  if (best === null) return null;
+  const old = state.deadWall[idx];
+  state.pool.decrement(best);
+  state.deadWall[idx] = best;
+  state.pool.counts[old] = (state.pool.counts[old] || 0) + 1;
+  return { index: idx, from: old, to: best, dora: norm(DORA_NEXT(best)) };
+}
+
+// --- Guaranteed-rinshan helpers (all tiers pin win-if-live else best ukeire) ---
+function defaultScoreCtx(state, seat) {
+  const p = state.players[seat] || {};
+  return {
+    dora: (state.doraIndicators || state.doraInd || []).map(DORA_NEXT),
+    bakaze: state.bakaze || 1,
+    jikaze: p.wind || state.jikaze || 1,
+    riichi: !!p.riichi,
+    doubleRiichi: !!p.doubleRiichi,
+    ippatsu: false,
+    kanFlag: true, // Rinshan Kaihou covers a yakuless shape
+    lastFlag: false,
+    tenhou: false,
+  };
+}
+
+// Exact live winning waits (scoreHand-validated, rinshan-legal).
+function winningWaitsExact(state, seat) {
+  const p = state.players[seat];
+  const hand = (p && p.hand) || [];
+  const melds = (p && p.melds) || [];
+  const pool = state.pool;
+  const ctx = defaultScoreCtx(state, seat);
+  const out = [];
+  for (const k of KINDS) {
+    if (!isLive(pool, k)) continue;
+    try {
+      const r = scoreHand([...hand, k], melds, k, true, ctx);
+      if (r && r.isAgari && (r.yakuman > 0 || r.han >= 1)) out.push(k);
+    } catch { /* not this kind */ }
+  }
+  return out.sort();
+}
+
+// Live tiles that reduce shanten (deterministic: strongest gain, then kind).
+function advancingTilesExact(state, seat) {
+  const p = state.players[seat] || {};
+  const hand = (p.hand || []);
+  const melds = (p.melds || []);
+  const tiles = [...hand];
+  for (const m of melds) {
+    if (Array.isArray(m.tiles)) tiles.push(...m.tiles.slice(0, 4).map(norm));
+  }
+  const analysis = tiles.slice(0, 14);
+  let before = 99;
+  try { before = shantenOf(analysis); } catch { return []; }
+  let h = null;
+  try { h = hairiOf(analysis); } catch { h = null; }
+  const candidates = h && h.wait ? Object.keys(h.wait) : [];
+  const hits = [];
+  for (const kind of candidates) {
+    const copy = physicalCopy(state.pool, kind);
+    if (!copy) continue;
+    let after = 99;
+    try { after = shantenOf([...analysis, kind]); } catch { continue; }
+    if (after < before && after >= 0) hits.push({ kind, copy, gain: before - after });
+  }
+  hits.sort((a, b) => (b.gain - a.gain) || (a.kind < b.kind ? -1 : a.kind > b.kind ? 1 : 0));
+  return hits;
+}
+
+// Pin the on-deck rinshan slot: exact live win if any, else best live
+// advancing/ukeire tile, never an exhausted kind. Returns {pin, branch} or null.
+function guaranteeRinshanSlot(state, seat, rinshanIdx) {
+  const slotIdx = Number.isInteger(rinshanIdx) ? rinshanIdx : 0;
+  if (!state.deadWall || slotIdx < 0 || slotIdx >= state.deadWall.length) return null;
+  const { exchangeDeadWallSlot } = require('../../core');
+  const waits = winningWaitsExact(state, seat);
+  const live = waits.filter(w => isLive(state.pool, w));
+  if (live.length) {
+    const pin = physicalCopy(state.pool, live[0]);
+    if (pin !== null && exchangeDeadWallSlot(state, slotIdx, pin)) {
+      return { pin, branch: 'win', slotIdx };
+    }
+  }
+  const advances = advancingTilesExact(state, seat);
+  if (advances.length && exchangeDeadWallSlot(state, slotIdx, advances[0].copy)) {
+    return { pin: advances[0].copy, branch: 'advance', slotIdx };
+  }
+  const uke = firstLiveUkeire(getHand(state, seat), state.pool);
+  if (uke !== null && exchangeDeadWallSlot(state, slotIdx, uke)) {
+    return { pin: uke, branch: 'advance', slotIdx };
   }
   return null;
 }
@@ -262,99 +363,126 @@ function createSakiHooks(seat) {
       return base;
     },
 
-    // Tier 1 entry point. Engine calls this on Kan declaration; it checks
-    // flow, computes weights via helpers, consumes flow. Returns weights +
-    // branch for the engine's rinshan sample. Never draws itself.
-    tryActivateTier1(state) {
+    // Tier 1 entry point. Guarantees rinshan: exact live winning wait pinned
+    // to the on-deck slot when possible, else best live ukeire tile. Also
+    // seeds a maximally useful kan-dora. weightOf kept for compat/audit.
+    tryActivateTier1(state, kanCount = 1, rinshanIdx = 0) {
       const flow = state.flow;
       if (!flow || !flow.canAfford(seat, TIER1_COST)) return { ok: false, reason: 'insufficient-flow' };
       const hand = getHand(state, seat);
-      const { branch, weightOf, waits } = rinshanWeights(hand, state.pool);
+      const { branch: wBranch, weightOf, waits } = rinshanWeights(hand, state.pool);
+      const deck = Number.isInteger(rinshanIdx) ? rinshanIdx : 0;
+      const g = guaranteeRinshanSlot(state, seat, deck);
+      const dora = seedKanDora(state, Number.isInteger(kanCount) ? kanCount : 1, seat);
       flow.consume(seat, TIER1_COST);
-      return { ok: true, branch, waits, weightOf, event: { type: 'RINSHAN_RESONANCE_TRIGGER', tier: 1 } };
+      if (g) {
+        return { ok: true, branch: g.branch, waits, weightOf, event: { type: 'RINSHAN_RESONANCE_TRIGGER', tier: 1 }, pin: g.pin, slotIdx: g.slotIdx, pinned: true, dora };
+      }
+      return { ok: true, branch: wBranch, waits, weightOf, event: { type: 'RINSHAN_RESONANCE_TRIGGER', tier: 1 }, pinned: false, dora };
     },
 
-    // Tier 2 (50): Twin Ridges. Pins the 4th copy of triplet #2 into
-    // deadWall[0] (Kan #2 tile), then weighted-samples deadWall[1] with a 5x
-    // winning-wait boost. Exhausted 4th copy -> Tier 1 fallback + 20% refund.
-    tryActivateTier2(state) {
+    // Tier 2 (50): Twin Ridges. Guarantees the CURRENT rinshan (win if live,
+    // else best ukeire) and chains the NEXT slot with the 4th copy of triplet
+    // #2 when available. Exhausted chain tile -> Tier 1 fallback + 20% refund.
+    tryActivateTier2(state, kanCount = 1, rinshanIdx = 0) {
       const flow = state.flow;
       if (!flow || !flow.canAfford(seat, TIER2_COST)) return { ok: false, reason: 'insufficient-flow' };
       const hand = getHand(state, seat);
       const trips = closedTriplets(hand);
       if (trips.length < 2) return { ok: false, reason: 'precondition' };
       const { exchangeDeadWallSlot, sampleRinshan } = require('../../core');
-      const pin = physicalCopy(state.pool, trips[1]);
-      if (pin === null) {
+      const deck = Number.isInteger(rinshanIdx) ? rinshanIdx : 0;
+      const kCount = Number.isInteger(kanCount) ? kanCount : 1;
+      const g = guaranteeRinshanSlot(state, seat, deck);
+      const dora = seedKanDora(state, kCount, seat);
+      const nextIdx = deck + 1;
+      let kanTile = null;
+      if (state.deadWall && nextIdx < state.deadWall.length) {
+        const pin = physicalCopy(state.pool, trips[1]);
+        if (pin !== null && exchangeDeadWallSlot(state, nextIdx, pin)) kanTile = pin;
+      }
+      if (g === null && kanTile === null) {
         // Fallback: Tier 1 behavior, 20% of the T2 cost refunded (net 40).
         const { branch, weightOf, waits } = rinshanWeights(hand, state.pool);
         flow.consume(seat, TIER2_COST - TIER2_REFUND);
-        return { ok: true, fallback: 'tier1', branch, waits, weightOf, event: { type: 'RINSHAN_RESONANCE_TRIGGER', tier: 2 } };
+        return { ok: true, fallback: 'tier1', branch, waits, weightOf, event: { type: 'RINSHAN_RESONANCE_TRIGGER', tier: 2 }, pinned: false, dora };
       }
-      exchangeDeadWallSlot(state, 0, pin);
       const { weightOf, waits } = waitBoostWeights(hand, state.pool, TWIN_WAIT_WEIGHT);
-      const placed = sampleRinshan(state, 1, weightOf);
+      // Keep a weighted sample only on the chained NEXT slot when it was not
+      // deterministically pinned; never overwrite the guaranteed current slot.
+      let rinshanSlot1 = kanTile;
+      if (kanTile === null && state.deadWall && nextIdx < state.deadWall.length) {
+        rinshanSlot1 = sampleRinshan(state, nextIdx, weightOf);
+      }
       flow.consume(seat, TIER2_COST);
-      return { ok: true, kanTile: pin, rinshanSlot1: placed, waits, weightOf, event: { type: 'RINSHAN_RESONANCE_TRIGGER', tier: 2 } };
+      return { ok: true, kanTile, rinshanSlot1, waits, weightOf, event: { type: 'RINSHAN_RESONANCE_TRIGGER', tier: 2 }, pin: g ? g.pin : null, slotIdx: g ? g.slotIdx : deck, branch: g ? g.branch : 'chain', pinned: !!g, dora };
     },
 
-    // Tier 3 (100): Triple Summit. Pins 4th copies of triplets #2/#3 into
-    // deadWall[0..1], seeds kan-dora indicators toward held tiles, and places
-    // deadWall[2] under an 80%-win-probability weight for the winning wait.
-    tryActivateTier3(state, kanCount = 1) {
+    // Tier 3 (100): Triple Summit. Guarantees CURRENT rinshan (win if live,
+    // else best ukeire), chains next slots with 4th copies, and seeds the BEST
+    // kan-dora (most copies held). Keeps 80% weight for compat.
+    tryActivateTier3(state, kanCount = 1, rinshanIdx = 0) {
       const flow = state.flow;
       if (!flow || !flow.canAfford(seat, TIER3_COST)) return { ok: false, reason: 'insufficient-flow' };
       const hand = getHand(state, seat);
       const trips = closedTriplets(hand);
       const pairs = closedPairs(hand);
       if (trips.length < 2 || pairs.length < 1) return { ok: false, reason: 'precondition' };
-      const { exchangeDeadWallSlot, sampleRinshan } = require('../../core');
+      const { exchangeDeadWallSlot } = require('../../core');
+      const deck = Number.isInteger(rinshanIdx) ? rinshanIdx : 0;
+      const kCount = Number.isInteger(kanCount) ? kanCount : 1;
+      const g = guaranteeRinshanSlot(state, seat, deck);
       const pins = [];
-      for (const idx of [0, 1]) {
-        const kind = trips[(idx + 1) % trips.length];
+      if (g) pins.push(g.pin);
+      for (let o = 1; o <= 2; o++) {
+        const idx = deck + o;
+        if (!state.deadWall || idx >= state.deadWall.length) break;
+        const kind = trips[o % trips.length];
         const copy = physicalCopy(state.pool, kind);
-        if (copy !== null && exchangeDeadWallSlot(state, idx, copy)) pins.push(copy);
+        if (copy !== null && exchangeDeadWallSlot(state, idx, copy) && !pins.includes(copy)) pins.push(copy);
       }
-      const dora = seedKanDora(state, kanCount, seat);
+      const dora = seedKanDora(state, kCount, seat);
       const { weightOf, waits } = winProbabilityWeights(hand, state.pool, SUMMIT_WIN_PROBABILITY);
-      const placed = sampleRinshan(state, 2, weightOf);
       flow.consume(seat, TIER3_COST);
-      return { ok: true, pins, dora, rinshanSlot2: placed, waits, weightOf, event: { type: 'RINSHAN_RESONANCE_TRIGGER', tier: 3 } };
+      return { ok: true, pins, dora, rinshanSlot2: pins[1] || null, waits, weightOf, event: { type: 'RINSHAN_RESONANCE_TRIGGER', tier: 3 }, pin: g ? g.pin : null, slotIdx: deck, branch: g ? g.branch : 'chain', pinned: !!g };
     },
 
     // Tier 4 (150): Suukantsu Bounded Climax. Requires 3 closed triplets.
-    // Branch A (wait live): winning wait pinned into deadWall[3] (double
-    // yakuman path). Branch B (wait exhausted): stops at Kan #3 with a live
-    // sequence-completer in deadWall[2] (San Kantsu Baiman path).
-    tryActivateTier4(state, kanCount = 1) {
+    // Guarantees CURRENT rinshan via exact scoreHand-validated wait; dora is
+    // best-useful; far slot pinned to live wait when possible (double yakuman
+    // path), else best completer (San Kantsu Baiman path).
+    tryActivateTier4(state, kanCount = 1, rinshanIdx = 0) {
       const flow = state.flow;
       if (!flow || !flow.canAfford(seat, TIER4_COST)) return { ok: false, reason: 'insufficient-flow' };
       const hand = getHand(state, seat);
       const trips = closedTriplets(hand);
       if (trips.length < 3) return { ok: false, reason: 'precondition' };
-      const { exchangeDeadWallSlot, sampleRinshan } = require('../../core');
+      const { exchangeDeadWallSlot } = require('../../core');
+      const deck = Number.isInteger(rinshanIdx) ? rinshanIdx : 0;
+      const kCount = Number.isInteger(kanCount) ? kanCount : 1;
+      const g = guaranteeRinshanSlot(state, seat, deck);
       const pins = [];
-      for (const idx of [0, 1]) {
-        const copy = physicalCopy(state.pool, trips[(idx + 1) % trips.length]);
-        if (copy !== null && exchangeDeadWallSlot(state, idx, copy)) pins.push(copy);
+      if (g) pins.push(g.pin);
+      for (let o = 1; o <= 2; o++) {
+        const idx = deck + o;
+        if (!state.deadWall || idx >= state.deadWall.length) break;
+        const copy = physicalCopy(state.pool, trips[o % trips.length]);
+        if (copy !== null && exchangeDeadWallSlot(state, idx, copy) && !pins.includes(copy)) pins.push(copy);
       }
-      const dora = seedKanDora(state, kanCount, seat);
-      const h = hairiOf(hand);
-      const waits = h && h.wait ? Object.keys(h.wait) : [];
-      const liveWaits = waits.filter(w => isLive(state.pool, w));
-      if (liveWaits.length) {
-        const w = liveWaits[0];
-        const copy = physicalCopy(state.pool, w);
-        exchangeDeadWallSlot(state, 3, copy);
+      const dora = seedKanDora(state, kCount, seat);
+      const liveExact = winningWaitsExact(state, seat);
+      if (liveExact.length) {
+        const farIdx = Math.min(deck + 3, state.deadWall.length - 1);
+        const copy = physicalCopy(state.pool, liveExact[0]);
+        if (copy !== null) exchangeDeadWallSlot(state, farIdx, copy);
         const mid = winProbabilityWeights(hand, state.pool, SUMMIT_WIN_PROBABILITY);
-        const placed = sampleRinshan(state, 2, mid.weightOf);
         flow.consume(seat, TIER4_COST);
-        return { ok: true, branch: 'win', pins, dora, rinshanSlot2: placed, haiteiSlot3: copy, waits: liveWaits, weightOf: mid.weightOf, event: { type: 'RINSHAN_RESONANCE_TRIGGER', tier: 4 } };
+        return { ok: true, branch: 'win', pins, dora, rinshanSlot2: pins[1] || null, haiteiSlot3: copy, waits: liveExact, weightOf: mid.weightOf, event: { type: 'RINSHAN_RESONANCE_TRIGGER', tier: 4 }, pin: g ? g.pin : null, slotIdx: deck, pinned: !!g };
       }
       const completer = firstLiveUkeire(hand, state.pool) || firstLivePoolTile(state.pool);
-      if (completer !== null) exchangeDeadWallSlot(state, 2, completer);
+      if (completer !== null && state.deadWall && deck + 2 < state.deadWall.length) exchangeDeadWallSlot(state, deck + 2, completer);
       flow.consume(seat, TIER4_COST);
-      return { ok: true, branch: 'fallback', pins, dora, rinshanSlot2: completer, waits: [], event: { type: 'RINSHAN_RESONANCE_TRIGGER', tier: 4 } };
+      return { ok: true, branch: g ? g.branch : 'fallback', pins, dora, rinshanSlot2: completer, waits: [], event: { type: 'RINSHAN_RESONANCE_TRIGGER', tier: 4 }, pin: g ? g.pin : null, slotIdx: deck, pinned: !!g };
     },
 
     getTierInfo(state) {
@@ -376,27 +504,27 @@ function createSakiHooks(seat) {
       ];
     },
 
-    activateTier(state, tier, kanCount = 1) {
+    activateTier(state, tier, kanCount = 1, rinshanIdx = 0) {
       switch (tier) {
-        case 1: return this.tryActivateTier1(state);
-        case 2: return this.tryActivateTier2(state);
-        case 3: return this.tryActivateTier3(state, kanCount);
-        case 4: return this.tryActivateTier4(state, kanCount);
+        case 1: return this.tryActivateTier1(state, kanCount, rinshanIdx);
+        case 2: return this.tryActivateTier2(state, kanCount, rinshanIdx);
+        case 3: return this.tryActivateTier3(state, kanCount, rinshanIdx);
+        case 4: return this.tryActivateTier4(state, kanCount, rinshanIdx);
         default: return { ok: false, reason: 'invalid-tier' };
       }
     },
 
-    onKanDeclared(state, { armedTier = 0, kanCount = 1 } = {}) {
+    onKanDeclared(state, { armedTier = 0, kanCount = 1, rinshanIdx = 0 } = {}) {
       if (armedTier === 0) return { activated: false, reason: 'conserve' };
       if (armedTier === 'auto') {
         for (const t of [4, 3, 2, 1]) {
-          const r = this.activateTier(state, t, kanCount);
+          const r = this.activateTier(state, t, kanCount, rinshanIdx);
           if (r && r.ok) return { activated: true, tier: t, result: r };
         }
         return { activated: false, reason: 'no-tier-eligible' };
       }
       if (armedTier >= 1 && armedTier <= 4) {
-        const r = this.activateTier(state, armedTier, kanCount);
+        const r = this.activateTier(state, armedTier, kanCount, rinshanIdx);
         if (r && r.ok) return { activated: true, tier: armedTier, result: r };
         return { activated: false, reason: (r && r.reason) || 'activation-failed' };
       }
@@ -429,6 +557,9 @@ module.exports = {
   weightForProbability,
   winProbabilityWeights,
   seedKanDora,
+  winningWaitsExact,
+  advancingTilesExact,
+  guaranteeRinshanSlot,
   firstLiveUkeire,
   shapeSakiStartingHand,
   createSakiHooks,

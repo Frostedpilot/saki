@@ -71,14 +71,17 @@ test('dispatcher integration: pair-completer weighted 1.35 via computeDrawWeight
   assert.equal(d.drawWeight(1, '7p', s, traj), 1.0); // other seats unaffected
 });
 
-// --- Tier 1: Ridge Glimmer ---
-test('T1 tenpai branch: 10.0 on live waits, consumes 25 flow', () => {
+// --- Tier 1: Ridge Glimmer (guaranteed rinshan) ---
+test('T1 tenpai branch: pins exact live win, consumes 25 flow', () => {
   const s = sakiState(10, 25000, TENPAI_13);
   s.flow.set(0, 100);
   const hooks = S.createSakiHooks(0);
   const res = hooks.tryActivateTier1(s);
   assert.equal(res.ok, true);
-  assert.equal(res.branch, 'wait');
+  assert.equal(res.branch, 'win');
+  assert.equal(res.pinned, true);
+  assert.ok(res.pin, 'must pin a tile');
+  assert.equal(s.deadWall[0], res.pin, 'on-deck slot holds the pinned win');
   assert.ok(res.waits.length > 0);
   assert.equal(res.weightOf('3p'), 10.0);
   assert.equal(res.weightOf('1z'), 1.0);
@@ -86,13 +89,15 @@ test('T1 tenpai branch: 10.0 on live waits, consumes 25 flow', () => {
   assert.deepEqual(res.event, { type: 'RINSHAN_RESONANCE_TRIGGER', tier: 1 });
 });
 
-test('T1 fallback: non-tenpai -> 3.0 on ukeire tiles', () => {
+test('T1 fallback: non-tenpai -> pins best ukeire tile', () => {
   const hand = ['2m', '3m', '5m', '6m', '2p', '4p', '6p', '7p', '3s', '5s', '7s', '1z', '2z'];
   const s = sakiState(11, 25000, hand);
   s.flow.set(0, 50);
   const res = S.createSakiHooks(0).tryActivateTier1(s);
   assert.equal(res.ok, true);
-  assert.equal(res.branch, 'ukeire');
+  assert.equal(res.branch, 'advance');
+  assert.equal(res.pinned, true);
+  assert.equal(s.deadWall[0], res.pin, 'on-deck slot holds best ukeire');
   // every boosted tile is a genuine ukeire tile; non-ukeire stays 1.0
   const { hairiOf } = require('../powers/trajectoryPlanner');
   const uke = new Set(Object.keys(hairiOf(hand).wait || {}).map(t => (t[0] === '0' ? '5' + t[1] : t)));

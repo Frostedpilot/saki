@@ -300,12 +300,15 @@ test('C1: Saki T3 dead-wall pins + Koromo slot reservation coexist, conservation
 
   const r = hooks.get(0).tryActivateTier3(state, 1);
   assert.equal(r.ok, true);
-  assert.deepEqual(r.pins, ['3s', '7p']);
+  assert.equal(r.pinned, true);
+  // Guaranteed current rinshan + chained 4th copies coexist with Koromo slot.
+  assert.ok(r.pins.includes('3s') && r.pins.includes('7p'));
+  assert.equal(state.deadWall[0], r.pin);
 
   // wanpai stays exactly 14 tiles, swaps only
   assert.equal(state.deadWall.length, 14);
-  assert.equal(state.deadWall[0], '3s');
-  assert.equal(state.deadWall[1], '7p');
+  assert.ok(['3s', '7p'].includes(state.deadWall[1]));
+  assert.ok(['3s', '7p'].includes(state.deadWall[2]));
   assert.equal(state.pool.slots.LAST_LIVE_TILE, '7s');
   // nothing lost, nothing duplicated across all four accounting buckets
   assert.deepEqual(sim.auditProblems(state), []);
@@ -324,8 +327,9 @@ test('C2: Saki T2 fallback when the 4th copy sits in another character\u2019s ha
 
   const r = hooks.get(0).tryActivateTier2(state);
   assert.equal(r.ok, true);
-  assert.equal(r.fallback, 'tier1'); // pin exhausted -> Tier 1 behavior
-  assert.equal(state.flow.get(0), 50 - (SAKI.TIER2_COST - SAKI.TIER2_REFUND)); // net 40 spent
+  assert.equal(r.pinned, true, 'current rinshan still guaranteed despite exhausted chain');
+  assert.equal(r.kanTile, null);
+  assert.equal(state.flow.get(0), 0); // 50 - 50 full cost (guarantee succeeded, no refund)
   assert.deepEqual(sim.auditProblems(state), []);
   assert.equal(sim.sumTiles(state), 136);
 });

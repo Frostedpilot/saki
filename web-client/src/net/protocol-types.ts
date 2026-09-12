@@ -64,7 +64,7 @@ export interface TileDiscardedEvent {
 export interface CallAvailableEvent {
   tile: ProtocolTile;
   discarder: number;
-  calls: string[]; // e.g. ['Chi', 'Pon', 'Kan', 'Ron']
+  calls: string[]; // e.g. ['Chi', { Pon: ... }, 'Daiminkan', 'Ron'] ('Daiminkan' = open Kan)
 }
 
 export interface PlayerCalledEvent {

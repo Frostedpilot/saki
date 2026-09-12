@@ -1266,14 +1266,14 @@ class Table {
 
     let activation = null;
     if (typeof hooks.onKanDeclared === 'function') {
-      activation = hooks.onKanDeclared(this.ctx.state, { armedTier, kanCount });
+      activation = hooks.onKanDeclared(this.ctx.state, { armedTier, kanCount, rinshanIdx: this.ctx.rinshanIdx });
     } else {
       const order = armedTier === 'auto' ? [4, 3, 2, 1] : [armedTier];
       for (const t of order) {
         const name = `tryActivateTier${t}`;
         if (typeof hooks[name] === 'function') {
           try {
-            const r = hooks[name].call(hooks, this.ctx.state, kanCount);
+            const r = hooks[name].call(hooks, this.ctx.state, kanCount, this.ctx.rinshanIdx);
             if (r && r.ok) {
               activation = { activated: true, tier: t, result: r };
               break;
@@ -1286,7 +1286,10 @@ class Table {
     if (activation && activation.activated) {
       const r = activation.result;
       const tier = activation.tier;
-      if (r && r.weightOf && typeof core.sampleRinshan === 'function' && this.ctx.rinshanIdx < 4) {
+      // Saki tiers now deterministically pin the on-deck slot (win if live,
+      // else best ukeire). Only fall back to weighted sampling when the hook
+      // did NOT pin — never overwrite a guaranteed slot.
+      if (r && !r.pinned && r.weightOf && typeof core.sampleRinshan === 'function' && this.ctx.rinshanIdx < 4) {
         core.sampleRinshan(this.ctx.state, this.ctx.rinshanIdx, r.weightOf);
       }
       console.log(`[bridge] ${power} tier ${tier} activated (kan ${kanCount})`);

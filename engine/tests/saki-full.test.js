@@ -49,16 +49,19 @@ test('physicalCopy prefers exact kind, then aka, then null', () => {
   assert.equal(S.physicalCopy(s.pool, '9z-nope'), null);
 });
 
-// --- Tier 2 ---
-test('T2 success: pins 4th copy of triplet #2 into deadWall[0], flow 50 consumed', () => {
+// --- Tier 2 (guaranteed current rinshan + chained next kan) ---
+test('T2 success: guarantees current rinshan and chains 4th copy into deadWall[1], flow 50 consumed', () => {
   const s = sakiState(T2_HAND, 2, 25000, ['7p']);
   assert.deepEqual(S.closedTriplets(T2_HAND), ['3s', '7p']); // trips[1] = 7p
   s.flow.set(0, 100);
   const res = S.createSakiHooks(0).tryActivateTier2(s);
   assert.equal(res.ok, true);
   assert.equal(res.fallback, undefined);
-  assert.ok(res.kanTile === '7p');
-  assert.equal(s.deadWall[0], '7p'); // 4th copy pinned -> Kan #2 tile
+  assert.equal(res.pinned, true);
+  assert.ok(res.pin, 'current rinshan guaranteed');
+  assert.equal(s.deadWall[0], res.pin, 'on-deck slot holds guaranteed rinshan');
+  assert.ok(res.kanTile === '7p', 'next kan chained');
+  assert.equal(s.deadWall[1], '7p'); // 4th copy chained -> Kan #2 tile
   assert.equal(s.deadWall.length, 14);
   assert.equal(s.flow.get(0), 50);
   assert.deepEqual(s.pool.audit(auditParts(s)), []);
@@ -74,7 +77,7 @@ test('T2 slot1 carries 5x wait boost', () => {
   assert.equal(res.weightOf('9z-nope-kind'), 1.0);
 });
 
-test('T2 fallback: 4th copy exhausted -> Tier 1 weights + 20% refund (net 40)', () => {
+test('T2 fallback: exhausted chain still guarantees current (no refund when win live)', () => {
   const s = sakiState(T2_HAND, 4, 25000, ['7p']);
   // exhaust the protected 4th 7p: last copy goes to an opponent's hand (accounted)
   assert.equal(s.pool.get('7p'), 1);
@@ -84,9 +87,11 @@ test('T2 fallback: 4th copy exhausted -> Tier 1 weights + 20% refund (net 40)', 
   s.flow.set(0, 100);
   const res = S.createSakiHooks(0).tryActivateTier2(s);
   assert.equal(res.ok, true);
-  assert.equal(res.fallback, 'tier1');
-  assert.ok(['wait', 'ukeire'].includes(res.branch));
-  assert.equal(s.flow.get(0), 60); // 100 - (50 - 10)
+  // Chain tile unavailable, but current rinshan still guaranteed -> full cost.
+  assert.equal(res.kanTile, null);
+  assert.equal(res.pinned, true);
+  assert.equal(s.deadWall[0], res.pin);
+  assert.equal(s.flow.get(0), 50); // 100 - 50 (no refund; guarantee succeeded)
   assert.deepEqual(s.pool.audit(auditParts(s)), []);
 });
 
@@ -99,23 +104,27 @@ test('T2 precondition: <2 triplets rejected, flow untouched', () => {
   assert.equal(s.flow.get(0), 100);
 });
 
-test('T2 kan chain: drawing deadWall[0] completes the quad', () => {
+test('T2 kan chain: chained deadWall[1] completes the quad', () => {
   const s = sakiState(T2_HAND, 6, 25000, ['7p']);
   s.flow.set(0, 100);
   const res = S.createSakiHooks(0).tryActivateTier2(s);
-  const drawn = s.deadWall[0];
+  assert.equal(res.kanTile, '7p');
+  const drawn = s.deadWall[1];
+  assert.equal(drawn, '7p');
   s.players[0].hand.push(drawn);
   const n = s.players[0].hand.filter(t => t === '7p' || t === '0m').length;
   assert.equal(n, 4); // Kan #2 declarable
 });
 
-// --- Tier 3 ---
-test('T3 success: 2 pins + dora seeded to hand + 80% slot2', () => {
+// --- Tier 3 (guaranteed current + chained pins + best dora) ---
+test('T3 success: current guaranteed + chain pins + dora seeded to hand + 80% weights', () => {
   const s = sakiState(T3_HAND, 7, 25000, ['7p', '3s']);
   s.flow.set(0, 150);
   const res = S.createSakiHooks(0).tryActivateTier3(s, 1);
   assert.equal(res.ok, true);
-  assert.equal(res.pins.length, 2);
+  assert.equal(res.pinned, true);
+  assert.equal(s.deadWall[0], res.pin, 'on-deck slot is guaranteed rinshan');
+  assert.ok(res.pins.length >= 2);
   assert.equal(s.deadWall.length, 14);
   // dora indicator points at a held tile (or null when no candidate)
   if (res.dora !== null) {
