@@ -67,7 +67,8 @@ export type { TierInfo };
 export interface SuperpowerState {
   power: string;
   active: boolean;
-  gauge?: number;
+  type?: 'flow' | 'normal';
+  gauge?: number | null; // null for normal-type powers (no meter, passive pill)
   description?: string;
   armedTier?: number;
   availableTiers?: TierInfo[];
@@ -164,10 +165,10 @@ export class GameStore {
   public isGameOver = false;
 
   public powers: SuperpowerState[] = [
-    { power: 'saki', active: false, gauge: 33, description: 'Flow: 50 / 150' },
-    { power: 'nodoka', active: false, gauge: 33, description: 'Flow: 50 / 150' },
-    { power: 'koromo', active: false, gauge: 33, description: 'Flow: 50 / 150' },
-    { power: 'yuuki', active: false, gauge: 33, description: 'Flow: 50 / 150' },
+    { power: 'saki', active: false, type: 'flow', gauge: 33, description: 'Flow: 50 / 150' },
+    { power: 'nodoka', active: false, type: 'flow', gauge: 33, description: 'Flow: 50 / 150' },
+    { power: 'koromo', active: false, type: 'flow', gauge: 33, description: 'Flow: 50 / 150' },
+    { power: 'yuuki', active: false, type: 'flow', gauge: 33, description: 'Flow: 50 / 150' },
   ];
 
   public kuikaeBannedIndices: number[] = [];
@@ -991,7 +992,9 @@ export class GameStore {
       const spi: SuperpowerIndicatorEvent = ev.SuperpowerIndicator;
       if (this.powers[spi.seat]) {
         this.powers[spi.seat].active = spi.active;
-        if (spi.gauge !== undefined) this.powers[spi.seat].gauge = spi.gauge;
+        if (spi.type) this.powers[spi.seat].type = spi.type;
+        if (spi.type === 'normal') delete this.powers[spi.seat].gauge;
+        else if (spi.gauge !== undefined && spi.gauge !== null) this.powers[spi.seat].gauge = spi.gauge;
         if (spi.description) this.powers[spi.seat].description = spi.description;
         if (spi.power) this.powers[spi.seat].power = spi.power;
         if (spi.armed_tier !== undefined) this.powers[spi.seat].armedTier = spi.armed_tier;

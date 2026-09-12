@@ -73,6 +73,7 @@ function createNodokaHooks(seat) {
   return {
     seat,
     meta: {
+      type: 'flow',
       name: 'Nodoka Haramura',
       school: 'Kiyosumi',
       tiers: {

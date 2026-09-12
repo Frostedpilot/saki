@@ -213,3 +213,53 @@ test('full bridge match (1 human + 3 CPU) completes with GameOver', { timeout: 9
     server.child.kill();
   }
 });
+
+test('normal-type powers on the wire: yuu/saki-normal report passive pills, koromo stays flow', { timeout: 90000 }, async () => {
+  const server = await startServer();
+  let client;
+  try {
+    client = new MockClient(`ws://127.0.0.1:${server.port}/ws`);
+    await client.opened;
+    client.send({ Hello: { protocol_version: 6, session_token: null, display_name: 'PowersTester' } });
+    await client.nextWhere((m) => m.Welcome);
+
+    client.send({ CreateRoom: { length: 'EastOnly', rules: {} } });
+    await client.nextWhere((m) => m.RoomState);
+
+    // Host sets a mixed table: two normal-type (yuu, saki-normal), one flow.
+    client.send({ SetPowers: { power_seats: ['yuu', 'saki-normal', 'koromo', 'none'] } });
+    client.send({ StartGame: {} });
+    await client.nextWhere((m) => m.Event && m.Event.GameStarted);
+
+    // Watch the SuperpowerIndicator stream until every seat has been seen once.
+    const seen = new Map(); // seat -> indicator
+    const deadline = Date.now() + 60000;
+    while (seen.size < 3) {
+      if (Date.now() > deadline) throw new Error('did not see all three power indicators');
+      const m = await client.nextWhere((x) => x.Event && x.Event.SuperpowerIndicator);
+      const spi = m.Event.SuperpowerIndicator;
+      if (!seen.has(spi.seat)) seen.set(spi.seat, spi);
+    }
+
+    const yuu = seen.get(0);
+    const sakiNormal = seen.get(1);
+    const koromo = seen.get(2);
+
+    assert.equal(yuu.power, 'yuu');
+    assert.equal(yuu.type, 'normal');
+    assert.equal(yuu.gauge, null, 'normal-type powers must report a null gauge');
+    assert.equal(yuu.available_tiers.length, 0);
+
+    assert.equal(sakiNormal.power, 'saki-normal');
+    assert.equal(sakiNormal.type, 'normal');
+    assert.equal(sakiNormal.gauge, null);
+
+    assert.equal(koromo.power, 'koromo');
+    assert.equal(koromo.type, 'flow');
+    assert.equal(koromo.available_tiers.length, 4, 'flow seat keeps its tier ladder');
+    assert.ok(typeof koromo.gauge === 'number', 'flow seat keeps its gauge');
+  } finally {
+    if (client) client.close();
+    server.child.kill();
+  }
+});

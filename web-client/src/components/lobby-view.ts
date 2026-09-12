@@ -3,7 +3,9 @@ import { GameStore } from '../state/store';
 import { renderSakiCard } from './saki-card';
 
 const AVAILABLE_CHARACTERS = [
-  { id: 'saki', name: 'Saki Miyanaga (Rinshan Kaihou)' },
+  { id: 'saki', name: 'Saki Miyanaga (Rinshan Kaihou) [Flow]' },
+  { id: 'saki-normal', name: 'Saki Miyanaga — Ridge Resonance [Normal]' },
+  { id: 'yuu', name: 'Yuu Matsumi (Hot Dams) [Normal]' },
   { id: 'nodoka', name: 'Nodoka Haramura (Digital Mahjong)' },
   { id: 'koromo', name: 'Koromo Amae (Haitei Raoyue / Darkness)' },
   { id: 'yuuki', name: 'Yuuki Kataoka (East Wind Blitz / Tacos)' },

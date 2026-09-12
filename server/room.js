@@ -27,6 +27,8 @@ try { ROSTERS.koromo = require('../engine/powers/rosters/koromo').createKoromoHo
 try { ROSTERS.yuuki = require('../engine/powers/rosters/yuuki').createYuukiHooks; } catch { /* roster missing */ }
 try { ROSTERS.mako = require('../engine/powers/rosters/mako').createMakoHooks; } catch { /* roster missing */ }
 try { ROSTERS.nodoka = require('../engine/powers/rosters/nodoka').createNodokaHooks; } catch { /* roster missing */ }
+try { ROSTERS['saki-normal'] = require('../engine/powers/rosters/saki-normal').createSakiNormalHooks; } catch { /* roster missing */ }
+try { ROSTERS.yuu = require('../engine/powers/rosters/achiga').createYuuHooks; } catch { /* roster missing */ }
 
 const KIND_ORDER = {};
 KINDS.forEach((k, i) => { KIND_ORDER[k] = i; });
@@ -192,7 +194,7 @@ class Room {
       return;
     }
     if (Array.isArray(powerSeats) && powerSeats.length === 4) {
-      const valid = ['none', 'saki', 'hisa', 'koromo', 'yuuki', 'mako', 'nodoka'];
+      const valid = ['none', 'saki', 'hisa', 'koromo', 'yuuki', 'mako', 'nodoka', 'saki-normal', 'yuu'];
       this.powerSeats = powerSeats.map((p) => valid.includes(p) ? p : 'none');
       if (this.game) this.game.powerSeats = this.powerSeats;
     }
@@ -283,6 +285,11 @@ class Table {
 
   setArmedTier(seat, tier) {
     if (seat >= 0 && seat < 4) {
+      // Normal-type powers are fully automatic — nothing to arm, no cost.
+      if (this.ctx && this.ctx.state && this.ctx.state.powers && this.ctx.state.powers.powerTypeOf(seat) === 'normal') {
+        console.log(`[bridge] seat ${seat} power is normal-type — tier selection ignored`);
+        return;
+      }
       this.armedTiers[seat] = typeof tier === 'number' ? Math.max(0, Math.min(4, Math.floor(tier))) : 0;
       console.log(`[bridge] seat ${seat} armed power tier ${this.armedTiers[seat]}`);
       this.broadcastPowerStatus();
@@ -331,9 +338,35 @@ class Table {
     for (let s = 0; s < 4; s++) {
       const power = this.powerOf(s);
       if (power === 'none') continue;
+      const hooks = state.powers ? state.powers.hooksFor(s) : null;
+      const type = state.powers ? state.powers.powerTypeOf(s) : 'flow';
+
+      // Normal-type powers: passive pill, no meter, no tiers, no arming.
+      if (type === 'normal') {
+        let isActive = false;
+        if (hooks && typeof hooks.isPowerActive === 'function') {
+          try { isActive = !!hooks.isPowerActive(state); } catch { /* ignore */ }
+        }
+        let desc = '';
+        if (hooks && hooks.meta && hooks.meta.passiveName) desc = hooks.meta.passiveName;
+        if (hooks && typeof hooks.getHudAdvice === 'function') {
+          try { desc = hooks.getHudAdvice(state) || desc; } catch { /* ignore */ }
+        }
+        this.broadcast(P.evSuperpowerIndicator({
+          seat: s,
+          active: isActive,
+          type: 'normal',
+          gauge: null,
+          power,
+          description: desc,
+          armedTier: 0,
+          availableTiers: [],
+        }));
+        continue;
+      }
+
       const flowVal = state.flow ? Math.round(state.flow.get(s)) : 50;
       const gauge = Math.min(100, Math.max(0, Math.round((flowVal / 150) * 100)));
-      const hooks = state.powers ? state.powers.hooksFor(s) : null;
       let isActive = false;
       let desc = `Flow: ${flowVal} / 150`;
       if (hooks && typeof hooks._state === 'function') {
@@ -558,7 +591,14 @@ class Table {
       if (power && ROSTERS[power]) {
         try { state.powers.register(s, ROSTERS[power](s, this.persistentPowerState[s])); } catch { /* ignore */ }
       }
-      if (state.flow) state.flow.set(s, 50);
+      // Normal-type powers live outside the Flow economy (Spec §6.1): their
+      // gauge is pinned to 0 and every flow op is a no-op. Only flow seats
+      // start with the usual 50%-Flow hand opening.
+      if (state.flow) {
+        const type = state.powers.powerTypeOf(s);
+        state.flow.setMode(s, type);
+        if (type === 'flow') state.flow.set(s, 50);
+      }
     }
     state.scores = this.scores;
     core.setupDeadWall(state);
@@ -1059,6 +1099,9 @@ class Table {
     H.clearAllIppatsu(ctx.players);
     ctx.kansBy[seat]++;
 
+    if (ctx.state.powers && typeof ctx.state.powers.broadcastPlayerKan === 'function') {
+      ctx.state.powers.broadcastPlayerKan(seat, ctx.state);
+    }
     if (this.powerOf(seat) !== 'none') {
       this.maybeActivateTier(seat, ctx.kansBy[seat]);
     }
@@ -1106,11 +1149,37 @@ class Table {
 
   maybeActivateTurnPower(seat) {
     const power = this.powerOf(seat);
-    if (power === 'saki' || power === 'none') return;
+    if (power === 'none') return;
     const hooks = this.ctx.state.powers ? this.ctx.state.powers.hooksFor(seat) : null;
     if (!hooks) return;
     const ctx = this.ctx;
     const state = ctx.state;
+    const type = state.powers ? state.powers.powerTypeOf(seat) : 'flow';
+
+    // Normal-type powers are fully automatic: no armed tier, no cost, always
+    // at full strength. Fire the onTurnStart condition if it exists.
+    if (type === 'normal') {
+      let activation = null;
+      if (typeof hooks.onTurnStart === 'function') {
+        activation = hooks.onTurnStart(state, { type: 'normal', armedTier: 0 });
+      }
+      if (activation && activation.activated) {
+        const eventType = (activation.event && activation.event.type)
+          || (activation.result && activation.result.event && activation.result.event.type)
+          || 'NORMAL_TRIGGER';
+        console.log(`[bridge] normal power ${power} triggered ${eventType} for seat ${seat}`);
+        this.broadcast(P.evPowerActivated({
+          player: P.seatWind(seat, ctx.dealer),
+          power,
+          tier: 0,
+          eventType,
+        }));
+        this.broadcastPowerStatus();
+      }
+      return;
+    }
+
+    if (power === 'saki') return; // flow Saki is kan-only
 
     // Human player uses explicitly armed tier (0 = conserve/off); CPU defaults to 'auto'
     const armedTier = this.isCpuSeat(seat) ? 'auto' : (this.armedTiers[seat] || 0);
@@ -1153,6 +1222,32 @@ class Table {
     const power = this.powerOf(seat);
     const hooks = this.ctx.state.powers ? this.ctx.state.powers.hooksFor(seat) : null;
     if (!hooks) return;
+    const ctx = this.ctx;
+    const state = ctx.state;
+    const type = state.powers ? state.powers.powerTypeOf(seat) : 'flow';
+
+    // Normal-type powers need no arming and spend nothing: the hook evaluates
+    // its own condition and pins the on-deck replacement slot when it fires.
+    if (type === 'normal') {
+      let activation = null;
+      if (typeof hooks.onKanDeclared === 'function') {
+        activation = hooks.onKanDeclared(state, { kanCount, rinshanIdx: ctx.rinshanIdx, armedTier: 0 });
+      }
+      if (activation && activation.activated) {
+        const eventType = (activation.event && activation.event.type)
+          || (activation.result && activation.result.event && activation.result.event.type)
+          || 'NORMAL_KAN';
+        console.log(`[bridge] normal power ${power} triggered ${eventType} (kan ${kanCount})`);
+        this.broadcast(P.evPowerActivated({
+          player: P.seatWind(seat, ctx.dealer),
+          power,
+          tier: 0,
+          eventType,
+        }));
+        this.broadcastPowerStatus();
+      }
+      return;
+    }
 
     // Human player uses explicitly armed tier (or 'auto' if CPU)
     const armedTier = this.isCpuSeat(seat) ? 'auto' : (this.armedTiers[seat] || 0);
@@ -1481,6 +1576,9 @@ class Table {
     if (kind === 'daiminkan') {
       ctx.kansBy[q]++;
       ctx.revealKanDora();
+      if (ctx.state.powers && typeof ctx.state.powers.broadcastPlayerKan === 'function') {
+        ctx.state.powers.broadcastPlayerKan(q, ctx.state);
+      }
       if (this.powerOf(q) !== 'none') {
         this.maybeActivateTier(q, ctx.kansBy[q]);
       }

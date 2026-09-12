@@ -16,6 +16,10 @@ function createTable({ seed = 1, nSeats, roster = [] } = {}) {
     const h = createFn(seat);
     state.powers.register(seat, h);
     hooks.set(seat, h);
+    // Normal-type powers live outside the Flow economy: pin their gauge at 0.
+    if (state.flow) {
+      state.flow.setMode(seat, h && h.meta && h.meta.type === 'normal' ? 'normal' : 'flow');
+    }
   }
   return { state, hooks, seats: [...Array(seats).keys()] };
 }

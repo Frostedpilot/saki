@@ -13,6 +13,26 @@ class PowerDispatcher {
   clear(seat) { this.registry.delete(seat); }
   hooksFor(seat) { return this.registry.get(seat) || {}; }
 
+  // Power type of a seat: 'flow' (gauge/tier economy) by default, or 'normal'
+  // for self-described passive powers that live entirely outside the Flow
+  // economy (Spec §6.1). Roster meta decides: { type: 'normal' } opts in.
+  powerTypeOf(seat) {
+    const h = this.hooksFor(seat);
+    return h && h.meta && h.meta.type === 'normal' ? 'normal' : 'flow';
+  }
+
+  // Field-wide notification that some seat declared a kan. Feeds the
+  // `onPlayerKan(kanSeat, state)` hook so normal-type powers (e.g. a Saki that
+  // is disrupted by an opponent's kan) can observe every kan on the table.
+  broadcastPlayerKan(kanSeat, state) {
+    if (typeof kanSeat !== 'number') return;
+    for (const [, h] of this.registry) {
+      if (typeof h.onPlayerKan === 'function') {
+        try { h.onPlayerKan(kanSeat, state); } catch { /* aura must not break the game */ }
+      }
+    }
+  }
+
   // Phase 0
   onPreDeal(seat, ctx) {
     const h = this.hooksFor(seat);

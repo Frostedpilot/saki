@@ -130,6 +130,7 @@ function createKoromoHooks(seat, persistent = {}) {
   return {
     seat,
     meta: {
+      type: 'flow',
       name: 'Koromo Amae',
       school: 'Ryuumonbuchi',
       tiers: {

@@ -11,6 +11,8 @@ const { createYuukiHooks } = require('../powers/rosters/yuuki');
 const { createHisaHooks } = require('../powers/rosters/hisa');
 const { createMakoHooks } = require('../powers/rosters/mako');
 const { createSakiHooks } = require('../powers/rosters/kiyosumi');
+const { createSakiNormalHooks } = require('../powers/rosters/saki-normal');
+const { createYuuHooks } = require('../powers/rosters/achiga');
 const { getAwakeningFactor, isOpponentRiichi, getRiichiDamping, scalePassiveWeight } = require('../powers/awakening');
 
 function createMockState(hand = [], flowAmt = 150) {
@@ -222,6 +224,65 @@ test('Hisa awakening curve & riichi table pressure', () => {
   const r = hooks.tryActivateTier3(state);
   assert.equal(r.ok, true);
   assert.equal(hooks.onPowerDraw('7z', state), 12.0);
+});
+
+test('flow rosters declare type flow; normal rosters opt out of tiers', () => {
+  const flowRosters = [createKoromoHooks, createNodokaHooks, createYuukiHooks, createHisaHooks, createMakoHooks, createSakiHooks];
+  for (const createHook of flowRosters) {
+    const hook = createHook(0);
+    assert.equal(hook.meta.type, 'flow', `${hook.meta.name} must declare type flow`);
+    assert.equal(hook.getTierInfo(createMockState()).length, 4);
+  }
+  const normalRosters = [createSakiNormalHooks, createYuuHooks];
+  for (const createHook of normalRosters) {
+    const hook = createHook(0);
+    assert.equal(hook.meta.type, 'normal', `${hook.meta.name} must declare type normal`);
+    assert.deepEqual(hook.getTierInfo(createMockState()), [], `${hook.meta.name} must expose no tiers`);
+  }
+});
+
+test('normal-type seats are locked out of the Flow economy', () => {
+  const flow = new FlowManager(4);
+  flow.setMode(1, 'normal');
+  assert.equal(flow.isNormal(1), true);
+  flow.set(1, 99);
+  flow.addFlow(1, 10);
+  flow.consume(1, 10);
+  flow.onLegalDiscard(1);
+  assert.equal(flow.get(1), 0, 'normal seat must sit at 0 forever');
+  assert.equal(flow.tier(1), 0);
+  assert.equal(flow.canAfford(1, 25), false);
+
+  flow.setMode(0, 'flow');
+  flow.onLegalDiscard(0);
+  assert.ok(flow.get(0) > 0, 'flow seat still banks income');
+});
+
+test('powerTypeOf routes flow vs normal by roster meta', () => {
+  const d = new PowerDispatcher();
+  d.register(0, createSakiHooks(0));
+  d.register(1, createSakiNormalHooks(1));
+  d.register(2, createYuuHooks(2));
+  assert.equal(d.powerTypeOf(0), 'flow');
+  assert.equal(d.powerTypeOf(1), 'normal');
+  assert.equal(d.powerTypeOf(2), 'normal');
+  assert.equal(d.powerTypeOf(3), 'flow', 'unregistered seats default to flow');
+});
+
+test('broadcastPlayerKan fans a kan to every registered hook', () => {
+  const d = new PowerDispatcher();
+  const sn0 = createSakiNormalHooks(0);
+  const sn1 = createSakiNormalHooks(1);
+  d.register(0, sn0);
+  d.register(1, sn1);
+  const state = createMockState([], 0);
+
+  d.broadcastPlayerKan('garbage', state); // non-seat kan must not crash
+  assert.equal(sn0.isPowerActive(state), true);
+
+  d.broadcastPlayerKan(1, state); // seat 1 kans: p0 severed, p1 self unaffected
+  assert.equal(sn0.isPowerActive(state), false);
+  assert.equal(sn1.isPowerActive(state), true);
 });
 
 test('Koromo secret winning anchor: maximizes Han and selects least useful wait for opponents', () => {

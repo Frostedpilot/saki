@@ -246,6 +246,7 @@ function createSakiHooks(seat) {
   return {
     seat,
     meta: {
+      type: 'flow',
       name: 'Saki Miyanaga',
       school: 'Kiyosumi',
       tiers: { passive: 0, ridgeGlimmer: TIER1_COST, twinRidges: TIER2_COST, tripleSummit: TIER3_COST, suukantsu: TIER4_COST },

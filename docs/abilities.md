@@ -1,10 +1,19 @@
 # Saki PvP Mahjong: Complete Character Abilities & Ruleset
 
+## Power Types: Flow Economy vs Normal Passive
+
+Every roster power carries a `meta.type`, and both types coexist on the same table.
+
+- **Flow (default):** The classic economy. Gauge charges 0–150, characters arm Tiers 1–4 and spend gauge to activate tradecraft (draw bias, wall manipulation, dead-wall reroutes). Example: Saki (Ridge Resonance), Koromo, Hisa.
+- **Normal:** Always-on passives that live *outside* the Flow economy. The seat's gauge is pinned at `0`, no tiers can be armed or activated, and the power never drains or banks. It is either active (full strength) or, for special cases like normal-type Saki, disabled for the remainder of the hand by a triggering event. Example: Yuu Matsumi (Thermal Affinity), Saki's normal-type variant (Ridge Bias).
+- The engine routes every hook by type: `powerTypeOf(seat)` reads the roster `meta.type`; normal seats are no-ops against every FlowManager mutation and are ignored by tier-arm commands.
+- The client renders normal-type powers as a **PASSIVE pill** (dashed border, no meter, no Tier console) driven by `evSuperpowerIndicator` events carrying `type: 'normal'` and `gauge: null`.
+
 ## High School Rosters & Core Superpower Overview
 
 ### Kiyosumi High
 
-- **Saki Miyanaga**: score equilibrium + Rinshan Kaihou (wins off dead wall after kan; replacement tile affinity; dead-wall Dora control; bounded 4-Kan climax).
+- **Saki Miyanaga**: score equilibrium + Rinshan Kaihou (wins off dead wall after kan; replacement tile affinity; dead-wall Dora control; bounded 4-Kan climax). *Normal-type variant `saki-normal`: Ridge Bias — always-on 4th-copy kan magnetism, 100% Rinshan at tenpai, disabled by any opponent kan.*
 - **Nodoka Haramura**: Digital / Nodocchi mode (online-speed efficiency, mathematical board sight, absolute immunity to stealth/distortion debuffs).
 - **Yuuki Kataoka**: East-round blitz specialist (dominant early leads in Ton, sugar crash in Nan, fast-hand acceleration).
 - **Mako Someya**: Parlor memory archive (removes glasses to cross-reference table flow against historical parlor records).
@@ -26,7 +35,7 @@
 ### Achiga Girls Academy (Nara - Side-A Protagonists)
 
 - **Kuro Matsumi (Vanguard)**: Dragon Road (dora magnet, severe repulsion curse if any dora is discarded; additive Dragon Force multiplier).
-- **Yuu Matsumi (2nd)**: Thermal affinity (attracts Manzu characters, Red Dragons, and Aka-Dora; wide net waits).
+- **Yuu Matsumi (2nd)**: Thermal affinity (normal-type passive — Manzu/Chun draws biased x1.35, outside the Flow economy; no "chill" debuff in the implemented version).
 - **Shizuno Takakamo (Captain)**: Deep Mountain (suppresses all supernatural abilities and wall manipulation in the deep wall; late-game damage dampener).
 - **Ako Atarashi (Middle)**: Meld conductor (musical calling timing, turn timer choke, tempo theft without violating turn invariants).
 
@@ -138,6 +147,19 @@
   - Any opponent attempting to declare Ron on Hisa's discards suffers a Damage Cap of 1,000 points (Tanyao equivalent), nullifying high-value counter-attacks.
   - Opponents who hold Hisa's winning tile are locked into Temporary Furiten for 2 rotations.
   - Hisa's Haitei (last tile) self-draw rate is set to 90%.
+
+#### 2. Saki Miyanaga (Normal-Type Variant: Ridge Bias)
+
+**Normal-Passive: Ridge Bias / Ridge Resonance**
+
+*Normal-type power: always on at full strength while active, no Flow cost, no tiers, no gauge.*
+
+- **Draw bias:** Whenever Saki holds a triplet (3 copies) of a tile in her concealed hand, the 4th copy draws at **x4.0** weight (`KAN_BIAS_WEIGHT`). Aka-aware: a `0m` copy satisfies a `5m` triplet.
+- **Kan guarantee:** When Saki declares a Kan (closed, added, or open), the dead-wall replacement slot is pinned off-standard:
+  - If she is *tenpai* on the kan, the exact live winning wait is placed on the Rinshan slot — a guaranteed 100% Rinshan Kaihou Tsumo on the next draw (the riichi scoring library validates the wait before pinning).
+  - Otherwise the slot is pinned to an advancing tile that lowers her shanten (or keeps it flat if she is already tenpai on a losing wait), and never an exhausted tile kind.
+- **Weakness (Kan Disable):** A Kan declared by any *other* player disables her power for the rest of that hand — the server fans the event out via `broadcastPlayerKan`. Her own Kan does not disable her.
+- The passive is always full strength regardless of gauge, and she never participates in the Flow economy on this variant.
 
 ### Ryuumonbuchi High
 
@@ -283,20 +305,13 @@
 
 #### 2. Yuu Matsumi (2nd / Deputy)
 
-**Thematic Passive: Thermal Affinity (Warmth of Characters & Dragons)**
+**Normal-Passive: Thermal Affinity (Warmth of Characters & Dragons)**
 
-- Mechanic: Naturally draws "warm-colored" tiles—Manzu (Characters), Red Dragons (Chun), and Aka-Dora:
-Gains a +35% draw-weight bias toward Manzu suit tiles and Red Dragons throughout the hand, excelling at Hon'itsu / Chin'itsu and multi-sided net waits (Ami-machi).
+*Normal-type power: always on at full strength, no Flow cost, no tiers.*
 
-- The Twist: In North seat or during turns where opponents discard consecutive Pinzu/Souzu tiles, Yuu suffers a "chill" debuff, reducing Flow Gauge gain by -20% unless holding at least one pair of Manzu or a Red Dragon.
-**Active Skill: Crimson Convergence (Blazing Meld)**
-
-*Consumes Flow Gauge on draw, call, or Tenpai.*
-
-- Tier 1 (25% Flow) – Chun Attraction: For 2 draws, multiplies the probability of drawing the Red Dragon (Chun) by .
-- Tier 2 (50% Flow) – Manzu Torrent: For 3 consecutive turns, converts her draw pool exclusively to Manzu tiles from the live wall.
-- Tier 3 (100% Flow) – Thermal Net Wait (Creative Trap): When entering Tenpai on a wide wait (3-way or 4-way Manzu sequence trap), masks the threat profile of her river for 3 turns, increasing deal-in probability by +45%.
-- Tier 4 (150% Overdrive) – Inferno Flush (Red Dragon Ascendance): Usable in Tenpai holding a triplet of Red Dragons or an active Manzu flush. For 2 turns, winning draw probability jumps to 80%. Winning adds a flat +2 Han thermal multiplier and burns 30% Flow Gauge from all three opponents.
+- Mechanic: Draw weight is multiplied by **x1.35** on every warm tile — the Manzu (Characters) suit (1m–9m, including Aka-Dora `0m`) and the Red Dragon (Chun, `7z`). All other draws are neutral (`x1.0`).
+- She lives entirely outside the Flow economy: gauge stays pinned at `0`, never accumulates, never drains, and tier commands are ignored for her seat.
+- Contributes to Hon'itsu / Chin'itsu Manzu and Chun waits without any strategic overhead — the twist is that she simply *is* warm: no "chill" debuff or metered tradecraft exists in the implemented version.
 
 #### 3. Shizuno Takakamo (Captain)
 

@@ -47,6 +47,7 @@ function createMakoHooks(seat) {
   return {
     seat,
     meta: {
+      type: 'flow',
       name: 'Mako Someya',
       school: 'Kiyosumi',
       tiers: {

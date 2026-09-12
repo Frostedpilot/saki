@@ -18,7 +18,23 @@ export function renderPowerBadge(
   const activeClass = state.active ? 'power-badge--active' : '';
   const youClass = isYou ? 'power-badge--is-you' : '';
   const charClass = `power-badge--${power.toLowerCase()}`;
-  const gaugePct = state.gauge !== undefined ? Math.min(100, Math.max(0, state.gauge)) : (state.active ? 100 : 33);
+
+  // Normal-type powers are always-on passives outside the Flow economy: render
+  // a passive pill instead of a meter + tier console.
+  if (state.type === 'normal') {
+    return html`
+      <div class="power-badge power-badge--passive ${charClass} ${activeClass} ${youClass}" title="${state.description || `${power} (passive)`}">
+        <div class="power-badge__header">
+          <span class="power-badge__icon">${state.active ? '⚡' : '✦'}</span>
+          <span class="power-badge__name">${power}</span>
+          <span class="power-badge__pct power-badge__pct--passive">PASSIVE</span>
+        </div>
+        ${isYou && state.description ? html`<div class="power-badge__advice" title="${state.description}">${state.description}</div>` : ''}
+      </div>
+    `;
+  }
+
+  const gaugePct = state.gauge !== undefined && state.gauge !== null ? Math.min(100, Math.max(0, state.gauge)) : (state.active ? 100 : 33);
   const armedTier = state.armedTier || 0;
 
   const defaultTiers: TierInfo[] = [

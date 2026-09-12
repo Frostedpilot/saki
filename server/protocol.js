@@ -202,12 +202,13 @@ function evPowerActivated({ player, power, tier, eventType }) {
   };
 }
 
-function evSuperpowerIndicator({ seat, active, gauge, description, power, armedTier, availableTiers }) {
+function evSuperpowerIndicator({ seat, active, gauge, description, power, armedTier, availableTiers, type }) {
   return {
     SuperpowerIndicator: {
       seat,
       active: !!active,
-      gauge: gauge !== undefined ? gauge : 0,
+      type: type || 'flow',
+      gauge: gauge !== undefined && gauge !== null ? gauge : null,
       description: description || '',
       power: power || '',
       armed_tier: armedTier !== undefined ? armedTier : 0,

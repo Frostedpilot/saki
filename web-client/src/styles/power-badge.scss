@@ -82,6 +82,18 @@
     }
   }
 
+  /* Normal-type powers: always-on passive pill, no meter, no tiers. */
+  &--passive {
+    border: 1px dashed rgba(255, 255, 255, 0.35);
+    background: rgba(14, 20, 32, 0.75);
+
+    .power-badge__pct {
+      color: #ffd700;
+      font-size: 0.6rem;
+      letter-spacing: 0.05em;
+    }
+  }
+
   &--saki {
     border-color: rgba(255, 140, 180, 0.7);
   }
@@ -104,6 +116,14 @@
 
   &--mako {
     border-color: rgba(72, 187, 120, 0.7);
+  }
+
+  &--saki-normal {
+    border-color: rgba(255, 140, 180, 0.7);
+  }
+
+  &--yuu {
+    border-color: rgba(250, 112, 60, 0.7);
   }
 
   &--is-you {

@@ -53,6 +53,7 @@ function createYuukiHooks(seat) {
   return {
     seat,
     meta: {
+      type: 'flow',
       name: 'Yuuki Kataoka',
       school: 'Kiyosumi',
       tiers: {

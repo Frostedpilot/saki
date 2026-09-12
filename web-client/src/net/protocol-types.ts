@@ -124,7 +124,8 @@ export interface SuperpowerIndicatorEvent {
   seat: number;
   power: string;
   active: boolean;
-  gauge?: number; // 0..100
+  type?: 'flow' | 'normal';
+  gauge?: number | null; // 0..100, or null for normal-type powers (no meter)
   description?: string;
   armed_tier?: number;
   available_tiers?: TierInfo[];

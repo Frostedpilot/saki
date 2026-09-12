@@ -83,6 +83,20 @@ Supernatural effects hook cleanly into the engine across four lifecycle phases w
 
 ---
 
+## 3.5 The Power Economy: Flow vs Normal
+
+All powers are classified by `meta.type` (`'flow'` default, or `'normal'`), and both types coexist on the same seat grid.
+
+- **Flow seats** participate in the classic gauge economy. Each hand the FlowManager pre-charges flow seats (server convention: 50 base), seats arm Tiers 1–4, and `ActivateTier` spends gauge on tradecraft draws, dead-wall reroutes, and wall manipulation.
+- **Normal seats** are always-on passives *outside* the economy:
+  - `FlowManager.setMode(seat, MODE_NORMAL)` pins the gauge at `0`; every mutation — `addFlow`, `drainFlow`, `consume`, `consumeAll`, `onLegalDiscard` — is a guaranteed no-op for that seat.
+  - `setArmedTier` silently ignores normal seats.
+  - The dispatcher routes hooks by type via `powerTypeOf(seat)`; `maybeActivateTurnPower` (fires `onTurnStart`) and `maybeActivateTier` (fires `onKanDeclared` at kan-commit time) enter short normal-type branches that pass `armedTier: 0` and skip gauge accounting.
+- **Global kan fan-out:** `broadcastPlayerKan(kanSeat, state)` forwards every committed kan to all registered hooks so normal-type weaknesses (e.g. Saki's "an opponent kan disables me for the hand") can react without wiring each table mech.
+- **Wire format:** `evSuperpowerIndicator` gains `type` (default `'flow'`) and sends `gauge: null` + empty tier list for normal seats; the client renders them as **PASSIVE** pills instead of meter + tier consoles.
+
+---
+
 ## 4. The Hand Trajectory DAG & Intent Inference
 
 A hand is modeled as an evolving graph of future winning targets. This system allows the engine to intelligently assist players and predict board states.
@@ -210,11 +224,12 @@ engine/
 ├── scoring.js               # Wrapper around riichi / agari libraries
 ├── powers/
 │   ├── index.js             # Power registry & lifecycle dispatcher
-│   ├── flowManager.js       # Flow gauge accumulation, drain & limits
+│   ├── flowManager.js       # Flow gauge accumulation, drain & limits (MODE_FLOW / MODE_NORMAL seats)
 │   ├── trajectoryPlanner.js # DAG analyzer & bridge tile calculator
 │   ├── dynamicPool.js       # Schrödinger's Wall weighted sampler
 │   └── rosters/
 │       ├── kiyosumi.js      # Saki, Nodoka, Yuuki, Mako, Hisa
+│       ├── saki-normal.js   # Normal-type Saki variant (Ridge Bias)
 │       ├── ryuumonbuchi.js  # Koromo, Touka, Momoko, Hajime
 │       ├── achiga.js        # Kuro, Yuu, Shizuno, Ako
 │       └── shiraitodai.js   # Teru, Sumire, Takami, Awai

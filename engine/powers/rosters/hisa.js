@@ -59,6 +59,7 @@ function createHisaHooks(seat) {
   return {
     seat,
     meta: {
+      type: 'flow',
       name: 'Hisa Takei',
       school: 'Kiyosumi',
       tiers: {

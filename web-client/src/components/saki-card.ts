@@ -9,11 +9,13 @@ export interface SakiCardProps {
 
 const CHAR_ALIAS: Record<string, string> = {
   saki: 'miyanaga-saki',
+  'saki-normal': 'miyanaga-saki',
   nodoka: 'haramura-nodoka',
   koromo: 'amae-koromo',
   yuuki: 'kataoka-yuuki',
   hisa: 'takei-hisa',
   mako: 'someya-mako',
+  yuu: 'matsumi-yuu',
   teru: 'miyanaga-teru',
   toki: 'onjouji-toki',
   kuro: 'matsumi-kuro',
