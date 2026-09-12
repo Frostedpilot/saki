@@ -74,9 +74,6 @@ export function renderTile(tile: ProtocolTile | TileFace, options: RenderTileOpt
       ${svg`<svg width="100%" height="100%" viewBox="0 0 300 400" aria-label="${face}">
         <use href="#tile-${face}"/>
       </svg>`}
-      ${options.isDora ? html`<span class="mahjong-tile__dora-badge" title="Dora">★</span>` : ''}
-      ${options.isAkaDora && !options.isDora ? html`<span class="mahjong-tile__aka-badge" title="Aka Dora">●</span>` : ''}
-      ${options.isLastDiscard ? html`<span class="mahjong-tile__last-pip"></span>` : ''}
     </span>
   `;
 }

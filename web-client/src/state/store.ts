@@ -95,6 +95,15 @@ export interface RoundModalData {
   fu?: number;
   points?: number;
   winningTile?: ProtocolTile;
+  winningHand?: ProtocolTile[];
+  winningMelds?: PlayerMeld[];
+  isTsumo?: boolean;
+  winnerSeat?: number;
+  loserSeat?: number | null;
+  honba?: number;
+  honbaPoints?: number;
+  riichiSticks?: number;
+  rank?: string;
 }
 
 export interface NormalizedSeat {
@@ -441,6 +450,88 @@ export class GameStore {
 
   public isTileLastDiscard(seat: number, tileIdx: number): boolean {
     return Boolean(this.lastDiscard && this.lastDiscard.seat === seat && this.lastDiscard.index === tileIdx);
+  }
+
+  private static readonly YAKU_KIND_LABELS: Record<string, string> = {
+    Riichi: 'Riichi',
+    DoubleRiichi: 'Double Riichi',
+    Unbroken: 'Ippatsu',
+    FullyConcealedHand: 'Menzen Tsumo',
+    Pinfu: 'Pinfu',
+    TwinSequences: 'Iipeikou',
+    AllInside: 'Tanyao',
+    ValueHonourWhiteDragon: 'Haku',
+    ValueHonourGreenDragon: 'Hatsu',
+    ValueHonourRedDragon: 'Chun',
+    ValueHonourRoundWind: 'Round Wind',
+    ValueHonourSeatWind: 'Seat Wind',
+    LastTileDraw: 'Haitei',
+    LastTileClaim: 'Houtei',
+    AfterAQuad: 'Rinshan',
+    RobbingAQuad: 'Chankan',
+    SevenPairs: 'Chiitoitsu',
+    MixedSequences: 'Sanshoku Doujun',
+    FullStraight: 'Ittsuu',
+    CommonEnds: 'Chanta',
+    LittleDragons: 'Shousangen',
+    MixedTriplets: 'Sanshoku Doukou',
+    ThreeQuads: 'Sankantsu',
+    CommonFlush: 'Honitsu',
+    DoubleTwinSequences: 'Ryanpeikou',
+    PerfectEnds: 'Junchan',
+    CommonTerminals: 'Honroutou',
+    PerfectFlush: 'Chinitsu',
+    ThirteenOrphans: 'Kokushi Musou',
+    ThirteenOrphansThirteenWait: 'Kokushi 13-sided',
+    FourConcealedTriplets: 'Suuankou',
+    FourConcealedTripletsPairWait: 'Suuankou Tanki',
+    BigDragons: 'Daisangen',
+    LittleWinds: 'Shousuushi',
+    BigWinds: 'Daisuushi',
+    AllHonours: 'Tsuuiisou',
+    AllGreen: 'Ryuuiisou',
+    PerfectTerminals: 'Chinroutou',
+    FourQuads: 'Suukantsu',
+    NineGates: 'Chuuren Poutou',
+    PureNineGates: 'Pure Chuuren',
+    BlessingOfHeaven: 'Tenhou',
+    BlessingOfEarth: 'Chihou',
+  };
+
+  private static readonly DORA_LABELS: Record<string, string> = {
+    Dora: 'Dora',
+    RedDora: 'Aka Dora',
+    UraDora: 'Ura Dora',
+    PeiDora: 'Nuki Dora',
+  };
+
+  public normalizeYakuList(raw: any): Array<{ name: string; han: number }> {
+    if (!Array.isArray(raw)) return [];
+    return raw
+      .map((entry: any): { name: string; han: number } | null => {
+        // New server shape: [{ Yaku: 'Riichi' } | { Dora: 'Dora' }, han]
+        if (Array.isArray(entry) && entry.length >= 2) {
+          const [item, han] = entry;
+          const hanNum = typeof han === 'number' ? han : parseInt(han, 10) || 0;
+          if (item && typeof item === 'object') {
+            if (typeof (item as any).Yaku === 'string') {
+              const kind = (item as any).Yaku as string;
+              return { name: GameStore.YAKU_KIND_LABELS[kind] || kind, han: hanNum };
+            }
+            if (typeof (item as any).Dora === 'string') {
+              const label = (item as any).Dora as string;
+              return { name: GameStore.DORA_LABELS[label] || label, han: hanNum };
+            }
+          }
+          return null;
+        }
+        // Legacy shape: { name, han }
+        if (entry && typeof entry === 'object' && typeof entry.name === 'string') {
+          return { name: entry.name, han: typeof entry.han === 'number' ? entry.han : 0 };
+        }
+        return null;
+      })
+      .filter((x): x is { name: string; han: number } => x !== null);
   }
 
   public getTenpaiWaits(handTiles?: ProtocolTile[]): Array<{ face: string; count: number }> {
@@ -927,7 +1018,8 @@ export class GameStore {
     if ('RoundWon' in ev) {
       const rw: RoundWonEvent = ev.RoundWon;
       const winnerSeat = this.playerToSeat(rw.winner);
-      const loserSeat = rw.loser ? this.playerToSeat(rw.loser) : null;
+      const loserSeat = rw.loser !== undefined && rw.loser !== null ? this.playerToSeat(rw.loser) : null;
+      const isTsumo = loserSeat === null;
       const isYouWinner = winnerSeat === this.yourSeat;
       const prevScore = this.scores[this.yourSeat];
       this.scores = rw.scores;
@@ -936,23 +1028,49 @@ export class GameStore {
       const winnerName = isYouWinner ? 'You' : (this.seats[winnerSeat]?.name || `CPU ${winnerSeat}`);
       const title = isYouWinner
         ? `Agari! You Won (+${rw.score_points} pts)`
-        : `${winnerName} Won (${loserSeat !== null ? `Ron from ${loserSeat === this.yourSeat ? 'You' : this.seats[loserSeat]?.name || `CPU ${loserSeat}`}` : 'Tsumo'})`;
+        : `${winnerName} Won (${!isTsumo && loserSeat !== null ? `Ron from ${loserSeat === this.yourSeat ? 'You' : this.seats[loserSeat]?.name || `CPU ${loserSeat}`}` : 'Tsumo'})`;
+
+      // Server sends player_hands indexed by absolute seat 0..3.
+      const handInfo = Array.isArray((rw as any).player_hands)
+        ? (rw as any).player_hands[winnerSeat]
+        : undefined;
+      const winningHand: ProtocolTile[] | undefined = handInfo?.hand
+        ? sortTiles([...handInfo.hand])
+        : isYouWinner
+          ? sortTiles([...this.hand, ...(this.drawnTile ? [this.drawnTile] : [])])
+          : undefined;
+      const winningMelds: PlayerMeld[] | undefined = handInfo?.melds
+        ? handInfo.melds.map((m: any) => ({
+            callType: m.call_type || 'Pon',
+            tiles: [...(m.tiles || [])],
+          }))
+        : isYouWinner
+          ? this.melds[winnerSeat]?.map((m) => ({ ...m, tiles: [...m.tiles] }))
+          : undefined;
 
       this.roundEndModal = {
         title,
         delta,
         scores: rw.scores,
-        yakuList: rw.yaku_list,
+        yakuList: this.normalizeYakuList(rw.yaku_list),
         han: rw.han,
         fu: rw.fu,
         points: rw.score_points,
         winningTile: rw.winning_tile,
+        winningHand,
+        winningMelds,
+        isTsumo,
+        winnerSeat,
+        loserSeat,
+        honba: (rw as any).honba,
+        honbaPoints: (rw as any).honba_points,
+        riichiSticks: (rw as any).riichi_sticks,
+        rank: (rw as any).rank,
       };
       this.resetCalls();
       this.resetTurnActions();
 
-      const isTsumo = !rw.loser;
-      const yakuNames = (rw.yaku_list || []).map((y) => `${y.name} (${y.han} han)`).join(', ');
+      const yakuNames = (this.roundEndModal.yakuList || []).map((y) => `${y.name} (${y.han} han)`).join(', ');
       this.addLog(
         'win',
         `🏆 Round Won by ${this.getSeatName(winnerSeat)} via ${isTsumo ? 'TSUMO' : `RON off ${rw.loser}`}! (+${rw.score_points} pts)`,

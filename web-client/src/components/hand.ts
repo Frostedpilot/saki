@@ -56,17 +56,22 @@ export function renderPlayerHand(props: HandProps): TemplateResult {
     });
   };
 
-  // Check wait hints: either hovering discard candidate or in locked Riichi
+  // Check wait hints: hovering a discard candidate, locked Riichi, or
+  // choosing a Riichi discard (show live waits for the hovered candidate,
+  // falling back to current tenpai so the popup is always visible in riichi mode).
   const isRiichi = Boolean(store && store.riichiDeclared[store.yourSeat]);
-  const waitsToShow = store?.hoveredDiscardWaitHint || (isRiichi && store ? store.getTenpaiWaits() : null);
+  const isRiichiMode = Boolean(store?.isRiichiMode);
+  const tenpaiWaits = isRiichi || isRiichiMode ? (store ? store.getTenpaiWaits() : null) : null;
+  const waitsToShow = store?.hoveredDiscardWaitHint || tenpaiWaits;
+  const hintKind = store?.hoveredDiscardWaitHint ? 'discard' : isRiichi ? 'riichi' : isRiichiMode ? 'riichi-mode' : 'discard';
 
   return html`
     <div class="player-hand-wrapper">
       ${waitsToShow && waitsToShow.length > 0
         ? html`
-            <div class="hand-waits-hint ${isRiichi ? 'hand-waits-hint--riichi' : ''}">
+            <div class="hand-waits-hint ${isRiichi || isRiichiMode ? 'hand-waits-hint--riichi' : ''}">
               <span class="hand-waits-hint__label">
-                ${isRiichi ? '立直 (Riichi Waits):' : '聴牌 (Tenpai if discarded):'}
+                ${hintKind === 'discard' ? '聴牌 (Tenpai if discarded):' : hintKind === 'riichi-mode' ? '立直 (Riichi waits in hand):' : '立直 (Riichi Waits):'}
               </span>
               <div class="hand-waits-hint__list">
                 ${waitsToShow.map(

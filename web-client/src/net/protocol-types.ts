@@ -89,19 +89,29 @@ export interface HandUpdatedEvent {
   hand: ProtocolTile[];
 }
 
+export interface PlayerHandInfo {
+  wind: string;
+  hand: ProtocolTile[];
+  melds: Array<{ call_type: string; tiles: ProtocolTile[] }>;
+  pei?: unknown[];
+}
+
 export interface RoundWonEvent {
-  winner: number;
-  loser?: number | null;
+  winner: number | string;
+  loser?: number | string | null;
   winning_tile: ProtocolTile;
   scores: number[];
-  yaku_list: Array<{ name: string; han: number }>;
+  yaku_list: Array<{ name: string; han: number } | [{ Yaku?: string; Dora?: string }, number] | any>;
   han: number;
   fu: number;
   score_points: number;
   rank?: string;
+  has_opened?: boolean;
   uradora_indicators?: ProtocolTile[];
   riichi_sticks?: number;
   honba?: number;
+  honba_points?: number;
+  player_hands?: PlayerHandInfo[];
 }
 
 export interface RoundDrawEvent {

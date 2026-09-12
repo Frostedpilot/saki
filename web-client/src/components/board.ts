@@ -111,7 +111,7 @@ export function renderBoard(store: GameStore): TemplateResult {
         <main class="board-table">
           <!-- Top Melds (Left corner of top player) -->
           <div class="zone-top-melds">
-            ${renderMelds(store.melds[2], store)}
+            ${renderMelds(store.melds[2], store, 'top')}
           </div>
 
           <!-- Top Hand (Opponent 2) -->
@@ -121,7 +121,7 @@ export function renderBoard(store: GameStore): TemplateResult {
 
           <!-- Right Melds (Top corner of right player) -->
           <div class="zone-right-melds">
-            ${renderMelds(store.melds[1], store)}
+            ${renderMelds(store.melds[1], store, 'right')}
           </div>
 
           <!-- Left Hand (Opponent 3) -->
@@ -162,7 +162,7 @@ export function renderBoard(store: GameStore): TemplateResult {
 
           <!-- Left Melds (Bottom corner of left player) -->
           <div class="zone-left-melds">
-            ${renderMelds(store.melds[3], store)}
+            ${renderMelds(store.melds[3], store, 'left')}
           </div>
 
           <!-- BOTTOM RIVER (Your Discards) -->
@@ -185,7 +185,7 @@ export function renderBoard(store: GameStore): TemplateResult {
 
           <!-- Bottom Melds (Right corner of your hand) -->
           <div class="zone-bottom-melds">
-            ${renderMelds(store.melds[0], store)}
+            ${renderMelds(store.melds[0], store, 'bottom')}
           </div>
         </main>
 
