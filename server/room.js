@@ -277,6 +277,10 @@ class Table {
     this.powerSeats = room.powerSeats;
     this.armedTiers = [0, 0, 0, 0];
     this.persistentPowerState = [{}, {}, {}, {}];
+    // Flow Gauge Economy (Spec §6): gauges persist across hands in a match.
+    // Initialized once so Tier 1 is reachable in East-only demo; afterwards
+    // playOneHand restores/saves instead of resetting to 50.
+    this.flowGauges = [50, 50, 50, 50];
     this.phase = PHASE.LOBBY;
     this.activeSeat = -1;
   }
@@ -558,7 +562,7 @@ class Table {
       if (power && ROSTERS[power]) {
         try { state.powers.register(s, ROSTERS[power](s, this.persistentPowerState[s])); } catch { /* ignore */ }
       }
-      if (state.flow) state.flow.set(s, 50);
+      if (state.flow) state.flow.set(s, this.flowGauges[s] ?? 50);
     }
     state.scores = this.scores;
     core.setupDeadWall(state);
@@ -637,6 +641,13 @@ class Table {
     }
 
     await this.finishHand(winner, winBy);
+
+    // Carry flow over to the next hand (Spec §6). Settlement hooks
+    // (e.g. Saki rinshan burn) and tier consumes already mutated
+    // ctx.state.flow, so snapshot it before rotating dealer/kyoku.
+    if (ctx.state && ctx.state.flow) {
+      for (let s = 0; s < 4; s++) this.flowGauges[s] = ctx.state.flow.get(s);
+    }
 
     if (this.scores.some((s) => s < 0)) {
       const loser = this.scores.findIndex((s) => s < 0);
