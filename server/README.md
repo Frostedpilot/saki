@@ -42,12 +42,12 @@ Browser (WASM client)  ←→  WebSocket (JSON, protocol v6)  ←→  index.js (
 
 - **East only** (tonpuusen): 4 rounds (East 1–4)
 - **1 human** (host seat 0) + **3 CPU** seats
-- **Saki power framework**: each seat can be assigned any of the six
-  Saki-character rosters (Saki, Hisa, Koromo, Yuuki, Mako, Nodoka) from a
-  dedicated character screen. It appears as part of room creation — after
-  picking a game mode (Create Room → モード選択 → 東風), the host assigns one
-  character per seat before the room is created — and can be reopened later
-  from the host-only **Characters** button in the lobby.
+- **Saki power framework**: each seat can be assigned any of the **eight**
+  registered Saki-character rosters from a dedicated character screen. It appears
+  as part of room creation — after picking a game mode (Create Room →
+  モード選択 → 東風), the host assigns one character per seat before the room is
+  created — and can be reopened later from the host-only **Characters** button
+  in the lobby.
   Tier activation fires on a sealed kan/rinshan draw; passive/field effects
   react to settlement. Activations are broadcast as `PowerActivated` events
   and rendered as a transient banner plus per-seat board badges.
@@ -55,9 +55,29 @@ Browser (WASM client)  ←→  WebSocket (JSON, protocol v6)  ←→  index.js (
 ## Character powers
 
 The character screen (host only) assigns one character per seat; `None`
-disables powers for that seat. Rosters live in
-`engine/powers/rosters/{kiyosumi,hisa,koromo,yuuki,mako,nodoka}.js`. The
-server broadcasts `RoomState.power_seats` so everyone's lobby shows the
+disables powers for that seat. All eight rosters live in
+`engine/powers/rosters/`:
+
+| Registry key | Roster file | Character | Power type |
+|---|---|---|---|
+| `saki` | `kiyosumi.js` | Saki Miyanaga | flow |
+| `saki-normal` | `saki-normal.js` | Saki Miyanaga ("Ridge Bias / Ridge Resonance") | **normal** |
+| `nodoka` | `nodoka.js` | Nodoka Haramura | flow |
+| `yuuki` | `yuuki.js` | Yuuki Kataoka | flow |
+| `mako` | `mako.js` | Mako Someya | flow |
+| `hisa` | `hisa.js` | Hisa Takei | flow |
+| `koromo` | `koromo.js` | Koromo Amae | flow |
+| `yuu` | `achiga.js` | Yuu Matsumi (Achiga) | **normal** |
+
+Two are **normal-type** passives: they sit outside the Flow economy (gauge pinned
+at 0, no tiers) and the client renders a `PASSIVE` pill instead of a meter. See
+`docs/abilities.md` and `docs/protocol.md`.
+
+Rosters are loaded through `try { … } catch { /* roster missing */ }` blocks, so a
+broken or absent roster **fails silently** — the seat just gets no power. If a
+character is missing from the screen, check the `ROSTERS` block in `room.js` first.
+
+The server broadcasts `RoomState.power_seats` so everyone's lobby shows the
 selections, and `SetPowers` is how the host updates them. When characters are
 chosen before the room exists (via the pre-game screen), the client holds the
 assignment until the room is created and sends `SetPowers` right after, so
@@ -72,21 +92,53 @@ event-type tag (e.g. `RINSHAN_RESONANCE_TRIGGER`, `CHILLING_GAZE`,
 
 ## Excluded features
 
-Abortive draws (kyuushu, suufon-renda, suucha-riichi, suukaikan), nagashi
-mangan, chankan only on kakan, pao/sekinin, 3-player, reconnection/resync,
-turn timers, oka/uma (raw scores in GameOver).
+Abortive draws (all five: kyuushu-kyuuhai, suufon-renda, suucha-riichi,
+suukaikan, triple ron — gated off via `RULES.serverAborts`), nagashi mangan,
+chankan only on kakan, pao/sekinin, 3-player, reconnection/resync, turn timers,
+oka/uma (raw scores in GameOver).
+
+> **Reconnection caveat.** The client *attempts* to reconnect every 2 s
+> (`web-client/src/net/socket.ts`), but the server has no session resume — a new
+> `Hello` mints a fresh anonymous session, so the reconnected client holds a
+> stale `GameStore` and every action returns `InvalidAction`. Reload the page.
+> The offline engine (`engine/game.js`) implements all five aborts and oka/uma.
+
+## Environment variables
+
+Read by `index.js` and `room.js`; see `docs/development.md` §4 for full detail.
+
+| Variable | Default | Effect |
+|---|---|---|
+| `PORT` | `24141` | HTTP + WebSocket port |
+| `SAKI_POWER_SEATS` | `saki,nodoka,koromo,yuuki` | Comma-separated seat indices `0..3` that get `saki`; all others become `none`. Bad values are silently dropped. |
+| `BOT_DELAY_MS` | `1000` (`0` if `NODE_ENV=test`) | Minimum CPU think-time |
+| `NODE_ENV` | unset | `test` only affects the default bot delay |
+| `SAKI_RIICHI_FORCE` | unset | `1` forces bot riichi at a fixed 0.45 probability gate |
 
 ## Human disconnect
 
 If the human WebSocket drops mid-game, the seat is auto-substituted with a CPU
 that finishes the remaining hands.
 
+## Clients
+
+Two clients can talk to this server:
+
+- **`web-client/`** — the active TypeScript/Vite/lit-html client. Use this one for
+  development (`npm run dev` on :3000, proxying `/ws` here).
+- **`server/public/`** — a **vendored, prebuilt WASM client** from upstream
+  `riichi_mahjong_rs`, served at `/`. Nothing in this repo builds it or records
+  which upstream commit it came from; its content-hashed filenames are the only
+  provenance signal. Treat it as an opaque artifact.
+
 ## Testing
 
 ```bash
-node --test test/bridge.test.js
+npm test                        # node --test test/*.test.js
+# or:
+node --test test/*.test.js
 ```
 
-Spins up a headless server, connects a mock protocol v6 client, plays an
-entire 4-hand match to completion, and asserts the full event flow through
-GameOver.
+3 tests. Spins up a headless server, connects a mock protocol v6 client, plays
+an entire 4-hand match to completion, and asserts the full event flow through
+GameOver. Also unit-tests the red-dora tile codec and the Yuu Matsumi passive.

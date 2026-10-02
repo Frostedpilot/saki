@@ -12,7 +12,7 @@ This specification outlines an extensible, deterministic, and balanced game engi
    - **Row 2 (Turns 7–12):** Mid-game efficiency, table reading, and standard Tenpai (Nodoka, Mako).
    - **Row 3 (Turns 13–18):** Deep-wall traps, Haitei miracles, and climactic finishers (Saki, Hisa, Koromo).
 4. **Tile Conservation Law:** Every tile drawn or revealed originates strictly from the standard 136-tile pool. A tile cannot be drawn if its remaining count in the pool is zero ($\text{Weight} = 0$). Ghost tiles, 5th copies, and memory desyncs are mathematically impossible.
-5. **Deterministic Replayability:** Given an initial random seed (e.g., PCG32/xoshiro256) and the sequence of player inputs, every dynamic draw and trajectory calculation is 100% deterministic and reproducible for anticheat verification and match replays.
+5. **Deterministic Replayability:** Given an initial random seed (currently **mulberry32**, in `engine/rng.js`) and the sequence of player inputs, every dynamic draw and trajectory calculation is 100% deterministic and reproducible for anticheat verification and match replays.
 
 ---
 
@@ -201,13 +201,17 @@ To prevent front-loaded imbalances, all supernatural interactions are governed b
 ```
 
 ### 6.1 Meter Rules
-1. **Initial State:** All players start Round 1 at **0% Flow Gauge**.
+1. **Initial State:** All players start Round 1 at **0% Flow Gauge**. **However**, each
+   new hand the `FlowManager` **pre-charges flow seats to 50** (the "server convention")
+   before any discards — so 50 is the effective in-hand starting value, not 0. Normal-type
+   seats are never charged and stay pinned at 0 (§3.5). See `flowManager.js` and the
+   `gauge: 33` / `Flow: 50 / 150` initial indicator the client renders in `store.ts`.
 2. **Turn Generation:** Legal discards yield $+1.5\%$ Flow baseline.
 3. **Thematic Accelerators:**
    * Saki: $+50\%$ bonus meter on successful defensive folds / paying small costs.
-   * Nodoka: Double meter gain when playing mathematical max Uke-ire.
-   * Yuuki: $+50\%$ meter gain in East; $-50\%$ penalty in South.
-   * Mako: $0\%$ meter on Turns 1–6; ramps $+20\%$/turn from Turn 7 onwards.
+   * Nodoka: Double meter gain when playing mathematical max Uke-ire. *(Note: `docs/characters/02_nodoka_haramura.md` revises this to a flat **+3.5%**, not a doubling — the spec wins.)*
+   * Yuuki: $+50\%$ meter gain in East; $-50\%$ penalty in South. *(Note: `docs/characters/03_yuuki_kataoka.md` revises this to **+3.0%** East / **+0.75%** South — the spec wins.)*
+   * Mako: $0\%$ meter on Turns 1–6; ramps from Turn 7 onwards. *(Spec: **+2.5%** at Turn 7, then **+0.5%/turn** — not +20%/turn.)*
    * Kana: $+60\%$ meter acceleration when in 4th place or under 15,000 pts.
 4. **Meter Decay on Mishaps:** Dealing into an opponent's Riichi drains $20\%–30\%$ Flow Gauge.
 5. **Overdrive Ceiling:** Reaching $150\%$ Flow requires accumulating meter across multiple hands, guaranteeing that game-ending super moves occur **at most 1–2 times per Hanchan**.
@@ -216,46 +220,70 @@ To prevent front-loaded imbalances, all supernatural interactions are governed b
 
 ## 7. Implementation Roadmap & Architecture in Code
 
-The following modular structure integrates directly into the existing repository:
+The following modular structure is what actually exists today. Note that rosters are
+**one file per character**, not one file per school:
 
 ```
 engine/
 ├── game.js                  # Core Riichi game loop & state machine
-├── scoring.js               # Wrapper around riichi / agari libraries
-├── powers/
-│   ├── index.js             # Power registry & lifecycle dispatcher
-│   ├── flowManager.js       # Flow gauge accumulation, drain & limits (MODE_FLOW / MODE_NORMAL seats)
-│   ├── trajectoryPlanner.js # DAG analyzer & bridge tile calculator
-│   ├── dynamicPool.js       # Schrödinger's Wall weighted sampler
-│   └── rosters/
-│       ├── kiyosumi.js      # Saki, Nodoka, Yuuki, Mako, Hisa
-│       ├── saki-normal.js   # Normal-type Saki variant (Ridge Bias)
-│       ├── ryuumonbuchi.js  # Koromo, Touka, Momoko, Hajime
-│       ├── achiga.js        # Kuro, Yuu, Shizuno, Ako
-│       └── shiraitodai.js   # Teru, Sumire, Takami, Awai
+├── cli.js                   # eval / play / demo harness
+├── core.js                  # Modular match core (createMatchState, executeDrawStep, ...)
+├── tiles.js                 # 34 kinds -> 37 pool kinds -> 136 tiles
+├── rng.js                   # mulberry32 + RNG wrapper
+├── scoring.js               # Wrapper around the riichi library
+├── rules-config.js          # Rules as data (start score, abort flags, ...)
+├── invariants.js            # Tile-conservation assertions
+├── replay.js                # Deterministic action journal + verifier
+├── input.js                 # Human discard-index parsing
+└── powers/
+    ├── index.js             # Power registry & lifecycle dispatcher (PowerDispatcher)
+    ├── dynamicPool.js       # Schrödinger's Wall weighted sampler (DynamicPool)
+    ├── flowManager.js       # Flow gauge accumulation, drain & limits (MODE_FLOW / MODE_NORMAL seats)
+    ├── trajectoryPlanner.js # DAG analyzer & bridge tile calculator
+    ├── awakening.js         # Awakening Curve + Riichi Table Pressure
+    ├── nodokaEval.js        # "Nodocchi" EV / tenpai evaluator
+    ├── mjaiAdapter.js       # Pluggable evaluator interface (MJAI bot backends)
+    └── rosters/             # one file per character power
+        ├── kiyosumi.js      # Saki Miyanaga (full skill tree)
+        ├── saki-normal.js   # Saki Miyanaga, normal-type variant ("Ridge Resonance")
+        ├── nodoka.js        # Nodoka Haramura
+        ├── yuuki.js         # Yuuki Kataoka
+        ├── mako.js          # Mako Someya
+        ├── hisa.js          # Hisa Takei
+        ├── koromo.js        # Koromo Amae
+        └── achiga.js        # Yuu Matsumi / Achiga Girls Academy (normal-type passive)
 ```
 
+**Coverage:** 8 of ~28 documented characters are implemented. There is no
+`ryuumonbuchi.js` or `shiraitodai.js` — the school groupings in §5 describe *design
+intent* for future rosters, not existing files. See `docs/known-issues.md`.
+
 ### Core Execution Loop Integration
+
+The real code is `engine/core.js` `executeDrawStep(seat, state)`; `DynamicPool` is an
+instance, so `sample` is called **on the pool**, not with the pool as an argument:
+
 ```javascript
-// Inside game.js draw step:
+// engine/core.js
 function executeDrawStep(seat, state) {
   const player = state.players[seat];
-  
+
   // 1. Calculate active trajectory & needed bridges
   const trajectory = TrajectoryPlanner.getActiveTrajectory(player.hand, state.pool);
-  
+
   // 2. Compute dynamic weights for unseen tiles
-  const weights = PowerDispatcher.computeDrawWeights(seat, state, trajectory);
-  
+  const weights = dispatcher.computeDrawWeights(seat, state, trajectory);
+
   // 3. Sample dynamically from the finite pool (Schrödinger's Wall)
-  const drawnTile = DynamicPool.sample(state.pool, weights, state.rng);
-  
+  //    DynamicPool.sample(weights) -- weights is a map or (tile)=>multiplier
+  const drawnTile = state.pool.sample(weights);
+
   // 4. Update hand & pool state
+  //    (sample already decrements the pool's count; conservation holds by construction)
   player.hand.push(drawnTile);
-  state.pool.decrement(drawnTile);
-  
+
   // 5. Post-draw HUD and ability triggers
-  PowerDispatcher.onPostDraw(seat, drawnTile, state);
+  dispatcher.onPostDraw(seat, drawnTile, state);
 }
 ```
 
@@ -265,5 +293,9 @@ function executeDrawStep(seat, state) {
 
 1. **Zero Rule Violations:** No Chombo, no 15-tile hands, no ghost tiles, and no arbitrary score hacks.
 2. **Fluid Counterplay:** Opponents calling Chi/Pon/Kan naturally alters wall counts and timeline progression, mirroring the anime's core tactical interplay.
-3. **Modular & Scalable:** Any new character from the 50+ *Saki* cast can be created by combining the 6 primitive archetypes without touching the core Riichi engine.
+3. **Modular & Scalable:** A new character *can* be created by combining the 6 primitive
+   archetypes without touching the core Riichi engine — see the hook contract in
+   `docs/conventions.md`. **Status: 8 of ~28 documented characters are implemented.** The
+   "50+ cast" figure is the size of the franchise cast, not a roadmap commitment; there
+   is no plan mapping the documented roster to build order.
 4. **Authentic Pacing:** Preserves the authentic tension, defense, and drama of competitive Riichi Mahjong.

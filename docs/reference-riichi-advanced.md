@@ -1,5 +1,18 @@
 # Reference: riichi_advanced — Normal Riichi + Sakicards v1.3
 
+> ### ⚠️ Every path in this document is unresolvable in a fresh clone
+>
+> `reference/` is listed in `.gitignore` as "upstream reference repos (clones for
+> consultation only)". It is **not** committed and **not** present in a clean
+> checkout, so none of the ~60 file paths below resolve for anyone who hasn't
+> manually cloned the upstream repo. The findings and summaries were distilled from
+> that clone and are kept here as research notes — but treat every specific
+> `path:line` citation as **unverified** unless you have the source in front of you.
+>
+> This document is background reading. It is not a spec for anything in this repo, and
+> nothing here is enforced by a test. For how *our* engine actually works, read
+> [`engine-implementation.md`](engine-implementation.md).
+
 Source tree: `reference/riichi_advanced/`.
 This repo contains ~30 rulesets; per request only two are covered here:
 
@@ -177,7 +190,7 @@ Display name / tutorial: `saki.json:164-165`.
 | Deck patches (each card is one line) | `priv/static/mods/saki/*.jq`, e.g. `miyanaga_saki.jq:1` = `.saki_deck += ["miyanaga-saki"]` |
 | Card lifecycle (shuffle, deal, draft, enable/disable) | `lib/riichi_advanced/game/game_state/saki.ex` |
 | Draft UI + click-through | `lib/riichi_advanced_web/views/game_live.ex:354-355`, `log_live.ex:183`, `game_components.ex:190`, `corner_info_component.ex:24-42` |
-| Card art | `priv/static/images/sakicardsv12/v13.png`, css `assets/css/app.css:3361-3367` |
+| Card art | `priv/static/images/sakicardsv12/v13.png`, css `assets/css/app.css` (unverified — upstream path; *our* vendored copy of the same art is `web-client/public/images/sakicardsv13.png`) |
 | Mods | `persistent_saki_cards.jq`, `two_saki_cards.jq`, listed in `saki.json:146-147` |
 
 `default_mods` (`saki.json:2-58`) loads ~50 card patches plus

@@ -1,6 +1,16 @@
 # Saki PvP Mahjong: Character Implementation Specifications
 
-This directory contains concrete, production-ready technical implementation specifications for each character in the *Saki* supernatural Mahjong engine.
+This directory contains technical implementation specifications for the Saki
+supernatural Mahjong engine's characters.
+
+> **Status:** these are **design specifications**, not production-ready code. They mix
+> concrete numbers (which do match `engine/powers/rosters/`) with illustrative
+> pseudo-code that is *not* a transcription of the shipped implementation. Treat the
+> numbers as canonical and the code blocks as sketches. The real contract is the hook
+> API in `engine/powers/index.js`; see [`../conventions.md`](../conventions.md#adding-a-character).
+>
+> **Coverage:** 6 of the 8 shipped powers have a spec. `saki-normal` and `yuu` do not —
+> see the gap list below.
 
 Every character specification maps directly to the architecture defined in [docs/engine-design.md](../engine-design.md):
 1. **The Schrödinger’s Wall:** Dynamic weighted sampling from the finite 136-tile pool (`remainingPool`).
@@ -22,6 +32,16 @@ Every character specification maps directly to the architecture defined in [docs
 
 ### Ryuumonbuchi High (Nagano)
 * [06. Koromo Amae](./06_koromo_amae.md) - *Lunar Phase Resonance, Shanten Suppression Mire, Haitei Anchor & Counterplay*
+
+### Implemented but not yet specified
+
+Two shipped roster modules have no specification document yet. Their behaviour is
+fully described in code and partially in `../abilities.md`:
+
+| Registry key | Roster file | What it is |
+|---|---|---|
+| `saki-normal` | `engine/powers/rosters/saki-normal.js` | Saki Miyanaga, normal-type variant — "Ridge Bias / Ridge Resonance". Always-on passive, no Flow gauge. `KAN_BIAS_WEIGHT = 4.0`. |
+| `yuu` | `engine/powers/rosters/achiga.js` | Yuu Matsumi (Achiga Girls Academy) — normal-type passive boosting Manzu + Chun draws by `MANZU_CHUN_BIAS = 1.35`. |
 
 ---
 

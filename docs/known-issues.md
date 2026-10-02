@@ -256,16 +256,25 @@ Saki card art. Redistribution terms for the vendored assets are undefined.
 
 ---
 
+
+---
+
 # Part B — Documentation rot
 
-The docs contradict each other and the code in specific, fixable ways.
+**All nine items below have been fixed.** They are kept as a record of what was wrong
+and what the current state is, so the same rot is not reintroduced. Verified after the
+fact: 313 tests still pass, and 0 dead relative links across all 21 markdown files.
 
-## <a id="dr-01"></a>DR-01 🟡 ~40 stale `file:line` citations
+> **Convention adopted:** cite **symbols, not line numbers**. A `file.js:123`
+> citation rots the next time anyone edits above it, which is how every item in this
+> section happened. See [`conventions.md`](conventions.md#8-things-not-to-do).
 
-`engine-implementation.md` cites line numbers throughout. They are **30–100 lines
-stale** — it cites `game.js:1030` in a 1006-line file. Spot checks:
+## <a id="dr-01"></a>DR-01 ✅ FIXED — ~40 stale `file:line` citations
 
-| Doc | Actual |
+`engine-implementation.md` cited line numbers throughout, **30–100 lines** stale — it
+cited `game.js:1030` in a 1006-line file. Spot checks at the time:
+
+| Doc said | Actual |
 | --- | --- |
 | `game.js:308-419` selftest | `game.js:269-380` |
 | `game.js:513-534` collectRon | `game.js:474` |
@@ -273,129 +282,156 @@ stale** — it cites `game.js:1030` in a 1006-line file. Spot checks:
 | `room.js:914-964` validateAct | `room.js:996` |
 | `room.js:1219-1393` resolveCallWindow | `room.js:1367` |
 
-The prose is still useful; the coordinates are not. **Cite symbols, not lines** — see
-[`conventions.md`](conventions.md#8-things-not-to-do).
+**Fixed** — every `file:line` citation in `engine-implementation.md` and
+`architecture-comparison.md` was replaced with file + symbol (`Table.resolveCallWindow`,
+`core.executeDrawStep`, `game.js` `main`, `H.clearTempFuritenOnDraw`, …). Line numbers
+now appear only in this register, where they are quoting the old text on purpose.
 
 ## <a id="dr-02"></a>DR-02 ✅ FIXED — 7 absolute `file:///` links
 
-`docs/characters/README.md` linked to absolute paths from a collaborator's machine:
+`docs/characters/README.md` linked to absolute paths from a collaborator's machine
+(`file:///home/laffey/Projects/personal/saki/...`), which resolved nowhere else.
 
-```
-file:///home/laffey/Projects/personal/saki/docs/engine-design.md
-file:///home/laffey/Projects/personal/saki/docs/characters/01_saki_miyanaga.md
-   ... (6 more, lines 17-24)
-```
+**Fixed** — all 7 are relative (`../engine-design.md`, `./01_saki_miyanaga.md`, …).
 
-None resolved on any other checkout. **Fixed** — all 7 are now relative
-(`../engine-design.md`, `./01_saki_miyanaga.md`, …), so they resolve from any clone on
-any platform. Verified: 0 dead relative links across all 21 markdown files.
+## <a id="dr-03"></a>DR-03 ✅ FIXED — ~18 sentences with missing numbers
 
-## <a id="dr-03"></a>DR-03 🔴 `abilities.md` has ~18 sentences with missing numbers
+Numeric values had been stripped, leaving sentences that trailed off
+(`"multiplied by ."`, `"within of her starting score ()"`).
 
-Numeric values have been stripped, leaving sentences that trail off into punctuation:
+**Fixed in two categories:**
 
-- `net score delta is within of her starting score ()`
-- `draw weight for her winning tile is multiplied by .`
-- `If Touka leads by , gauge gain drops by -20%.`
-- `Locks the wall when remain.`
+- **Implemented characters (8)** — every value was recoverable from
+  `docs/characters/*.md` and the roster constants, and has been restored: Saki's
+  `±1500` band and `×1.35` affinity, Nodoka's `+3.5%` and `×4.0`, Yuuki's `+3.0%`/
+  `+0.75%` and 6 s clock, Mako's `+2.5% +0.5%/turn`, Hisa's `×3.0`/`70%`/`85%`,
+  Koromo's `×2.5`, and the wall gates `<= 20` / `<= 14`.
+- **Unimplemented characters (~20)** — nothing exists to recover them from, so they are
+  now marked **`[unspecified]`** rather than left as broken sentences or silently
+  invented. They are also flagged as design intent in a status banner at the top of
+  the mechanics section.
 
-The values are recoverable from `docs/characters/*.md` and the roster constants, so this
-is mechanical — but as written **the document is unusable as a rules reference for at
-least 18 mechanics.**
-
-## <a id="dr-04"></a>DR-04 🔴 `abilities.md` contradicts the specs on ~16 mechanics
+## <a id="dr-04"></a>DR-04 ✅ FIXED — `abilities.md` contradicted the specs on ~16 mechanics
 
 A redesign pass updated `docs/characters/*.md` and the rosters but not `abilities.md`.
-The specs win in every case. The full clash table is in
-[`docs/README.md`](README.md#where-abilitiesmd-contradicts-the-character-specs).
-Highest-impact examples:
 
-- **Yuuki T4** — `abilities.md` still describes a "75% chance to deal directly into her
-  wait". The spec explicitly titles the replacement *"Redesigned — No Mind Control"*.
-- **Hisa T1** — `abilities.md` describes a "Bluff Riichi" that waives the no-ten
-  penalty. The spec is *"Why this replaces the old 1-Shanten Bluff Riichi"*: no Riichi
-  is declared.
-- **Koromo T1** — `abilities.md` says a 2-second decision window; the spec says
-  *"Redesigned — No Unplayable 2s Timer"* (5 s threshold, −5% Flow/sec).
-- **Yuuki's turn clock** — `abilities.md` says 4 s; spec, `engine-design.md`, and code
-  all say 6 s.
+**Fixed** — all 8 implemented characters were reconciled against their spec, and each
+now carries a **Canonical source** line naming the spec file and the roster constants.
+The redesigned tiers are documented with a note about what they replaced:
 
-`abilities.md` also documents ~28 characters while only 8 roster modules exist.
+- **Yuuki T4** — was "75% chance to deal directly into her wait"; now **Turn-4 Tenpai
+  guarantee + 75% Tsumo boost**, annotated as replacing the removed mind control.
+- **Hisa T1** — was "Bluff Riichi" waiving the no-ten penalty; now **Phantom
+  Intimidation** (aura only, no Riichi declared, 3 turns not 4).
+- **Koromo T1** — was a 2 s decision window; now **5 s threshold, −5% Flow/sec**.
+- **Nodoka T2** — was "90% accuracy + Ron immunity"; now the **intersection of 100%
+  safe tiles**, with an explicit note that Ron immunity was removed as engine-breaking.
+- **Yuuki's turn clock** — 4 s → **6 s**.
+- **Mako** — `+15%/turn` → **`+2.5%` at T7 then `+0.5%/turn`**; `-15%/+30%` →
+  **`-10%/+35%`**.
+- **Hisa T4** — wall `<20` → **`<25`**; 1,000-pt cap → **50% mitigation**;
+  2 rotations of furiten → **4 s decision window**; Haitei 90% → **85%**.
+- **Yuu Matsumi** — renamed from "Thermal Affinity" to the code's actual
+  **"Hot Dams"**, `MANZU_CHUN_BIAS = 1.35`.
 
-## <a id="dr-05"></a>DR-05 🟡 `engine-design.md` names files and APIs that don't exist
+The 8-implemented / ~20-design-intent split is now stated in a banner at the top of
+`abilities.md`.
 
-- The §7 roster tree lists `rosters/ryuumonbuchi.js` and `rosters/shiraitodai.js` —
-  **neither exists**. Actual: `achiga`, `hisa`, `kiyosumi`, `koromo`, `mako`, `nodoka`,
-  `saki-normal`, `yuuki`.
-- The tree describes `kiyosumi.js` as containing "Saki, Nodoka, Yuuki, Mako, Hisa".
-  It contains only Saki; the others are separate files.
-- §7 pseudo-code shows `DynamicPool.sample(state.pool, weights, state.rng)`. The real
-  signature is `sample(weights)` on a bound pool.
-- §1 promises "PCG32/xoshiro256"; `engine/rng.js` uses **mulberry32**.
-- §6 self-contradicts: "all players start at 0% Flow" vs §6's "the FlowManager
-  pre-charges flow seats (server convention: 50 base)". The client hardcodes
-  `'Flow: 50 / 150'`, so 50 base is correct.
+## <a id="dr-05"></a>DR-05 ✅ FIXED — `engine-design.md` named files and APIs that don't exist
 
-## <a id="dr-06"></a>DR-06 🟡 `engine-implementation.md` documents fixed bugs as live
+- The §7 roster tree listed `rosters/ryuumonbuchi.js` and `rosters/shiraitodai.js` —
+  **neither exists**. **Fixed** — the tree is now the real 8 files, each labelled with
+  its character, plus the previously-unlisted `core.js`, `tiles.js`, `rng.js`,
+  `rules-config.js`, `invariants.js`, `replay.js`, `input.js`, `awakening.js`,
+  `nodokaEval.js`, and `mjaiAdapter.js`.
+- The tree claimed `kiyosumi.js` held five characters. **Fixed** — one file per
+  character.
+- §7 pseudo-code showed `DynamicPool.sample(state.pool, weights, state.rng)`. The real
+  signature is `sample(weights)` on a bound pool. **Fixed** — and while correcting it,
+  a latent **double-decrement bug** was removed: `sample()` already calls
+  `this.decrement(k)` internally (`dynamicPool.js`), so the documented explicit
+  `state.pool.decrement(drawnTile)` would have corrupted tile counts.
+- §1 promised "PCG32/xoshiro256"; `engine/rng.js` uses **mulberry32**. **Fixed**.
+- §6 self-contradicted on the Flow starting value. **Fixed** — now states that seats
+  start at 0 but the `FlowManager` **pre-charges flow seats to 50 each hand**, which
+  matches the `gauge: 33` / `Flow: 50 / 150` indicator the client renders.
+- §6 thematic accelerators repeated three stale numbers (Nodoka, Yuuki, Mako).
+  **Fixed** with the spec values and an inline note that the spec wins.
+- §8's "any new character from the 50+ cast" is now marked aspirational, with the
+  real 8-of-28 coverage.
 
-Two claims were fixed and the doc was never updated:
+## <a id="dr-06"></a>DR-06 ✅ FIXED — `engine-implementation.md` documented fixed bugs as live
 
-1. *"game.js and cli.js duplicate these helpers locally instead of importing tiles.js"*
-   — **false**. `game.js:22` imports from `./tiles`; only `cli.js` still duplicates.
-2. *"temp furiten currently clears even in riichi"* and *"known bug: standard riichi
+1. *"game.js and cli.js duplicate these helpers locally instead of importing
+   tiles.js"* — was false for `game.js`. **Fixed**: the doc now says `game.js` imports
+   from `./tiles` (that dedup completed) and flags `cli.js` as the one remaining
+   duplicate, which is true.
+2. *"temp furiten currently clears even in riichi"* / *"known bug: standard riichi
    rules require furiten to persist permanently"* — **fixed** at `game.js:518` and
-   `room.js:754`, with regression tests in `engine/tests/furiten-riichi.test.js` and
-   recorded as done in `architecture-comparison.md` §5.
+   `room.js:754` (`H.clearTempFuritenOnDraw`), pinned by
+   `engine/tests/furiten-riichi.test.js`. The doc now quotes the actual guard
+   (`if (!me.riichi && !me.doubleRiichi)`) and cites the regression suite.
 
-## <a id="dr-07"></a>DR-07 ⚪ Stale counts in `architecture-comparison.md` §5
+## <a id="dr-07"></a>DR-07 ✅ FIXED — stale counts in `architecture-comparison.md`
 
-- *"node --test tests/ — 254 pass"* → actual **310** (and that command no longer works,
-  see KI-01).
-- *"server npm test — 2 pass"* → actual **3**.
-- §3 lists the furiten bug as a live risk while §5 lists it as fixed.
-- §4's Phase 3 plan names a fixture directory `engine/tests/rules/`; what shipped is
-  the file `engine/tests/rules.test.js`. Plan and status disagree.
+- *"node --test tests/ — 254 pass"* → **310**, and the command is now the working glob
+  form.
+- *"server npm test — 2 pass"* → **3**.
+- §3 listed the furiten bug as a live risk while §5 listed it fixed. **Fixed** — §3
+  items now carry **[FIXED]** / **[OPEN]** / *partly* tags, and §4's phases are marked
+  ✅ / ⚠️ with the residual work named (e.g. `cli.js` still duplicates `KINDS`;
+  nothing persists replay journals to disk).
+- §4 Phase 3 named a fixture directory `engine/tests/rules/`; what shipped is the file
+  `engine/tests/rules.test.js`. **Fixed** — the status now notes the substitution.
+- The `rules.test.js` (27) and `furiten-riichi.test.js` (5) counts were already correct
+  and are unchanged.
 
-## <a id="dr-08"></a>DR-08 ⚪ ~60 unresolvable citations to `reference/`
+## <a id="dr-08"></a>DR-08 ✅ ANNOTATED — ~60 unresolvable citations to `reference/`
 
-`reference-riichi-advanced.md` cites ~60 paths under `reference/riichi_advanced/`
-(`saki.json`, `*.majs`, `documentation/riichi.md`, `lib/...ex`, …) and
-`architecture-comparison.md` cites ~10 more. `.gitignore:2` excludes `reference/`, so
-**none of these resolve in a fresh clone** and the reader has no way to know what is
-being compared. Either vendor the specific files cited, or inline the findings.
+`reference/` is gitignored, so none of these paths resolve in a fresh clone.
 
-## <a id="dr-09"></a>DR-09 ⚪ Smaller inaccuracies
+**Fixed by disclosure rather than deletion** — deleting them would destroy the research
+value. `reference-riichi-advanced.md` and `architecture-comparison.md` now open with a
+banner stating that `reference/` is not committed, that every `path:line` citation there
+is **unverified** without a manual clone, and that the document is background reading
+rather than a spec. The one path that had drifted from our own tree
+(`sakicardsv12/v13.png`) now points at our actual vendored copy.
 
-| Claim | Location | Reality |
+Still open if you want it closed properly: vendoring the handful of upstream files that
+are actually cited.
+
+## <a id="dr-09"></a>DR-09 ✅ FIXED — smaller inaccuracies
+
+| Claim | Was | Now |
 | --- | --- | --- |
-| "any of the **six** Saki-character rosters" | `server/README.md:45` | **eight** are registered in `room.js:24-31` (`saki-normal` and `yuu`/`achiga` are missing from the README) |
-| "bundle size is ~250 kB total" | `web-client/README.md:37` | 282 kB JS + 46 kB CSS + a **23 MB** PNG |
-| "**production-ready** technical implementation specifications" | `docs/characters/README.md:3` | Design specs with pseudo-code; 2 of 8 shipped characters have no spec at all |
-| "50+ Saki cast" fully combinable from 6 primitives | `engine-design.md:268` | Aspirational. No roadmap maps the 28 documented characters to the 8 built. |
-
-Also undocumented anywhere until [`development.md`](development.md#4-environment-variables):
-`PORT`, `SAKI_POWER_SEATS`, `BOT_DELAY_MS`, `NODE_ENV`, `SAKI_RIICHI_FORCE`. And
-`run_server.sh` / `run_server.bat` were referenced by **no** document at all.
+| "any of the **six** Saki-character rosters" | `server/README.md` | A **table of all eight** registry keys → roster files → characters, flagging the two normal-type ones and the silent-`catch` failure mode |
+| "bundle size is ~250 kB total" | `web-client/README.md` | Per-asset table: ~280 kB JS, ~46 kB CSS, **~23 MB** PNG, with a note to budget for the sprite sheet |
+| "**production-ready** technical implementation specifications" | `docs/characters/README.md` | Reframed as **design specifications** with illustrative pseudo-code, plus an explicit note that `saki-normal` and `yuu` have no spec |
+| "50+ Saki cast" fully combinable | `engine-design.md` | Marked aspirational with real 8-of-28 coverage |
+| Undocumented env vars | — | `PORT`, `SAKI_POWER_SEATS`, `BOT_DELAY_MS`, `NODE_ENV`, `SAKI_RIICHI_FORCE` now in both `docs/development.md` and `server/README.md` |
+| `run_server.sh` / `run_server.bat` referenced by nothing | — | Documented in the root README, `docs/development.md` §3, and `web-client/README.md` |
+| "two clients, one server" | — | Both READMEs now explain `web-client/` vs the vendored WASM client in `server/public/` |
+| Reconnect listed as "excluded" but attempted by the client | — | `server/README.md` now carries the reconnect caveat and the stale-store symptom |
 
 ---
 
 # Suggested order of work
 
+Documentation is now consistent. These are the remaining **code** items, in
+recommended order:
+
 | # | Action | Cost | Fixes |
 | --- | --- | --- | --- |
-| 1 | ~~Change `tests/` → `tests/*.test.js` in both `package.json`s~~ | ✅ done | KI-01 |
-| 2 | ~~Relative-ise the 7 `file:///` links~~ | ✅ done | DR-02 |
+| 1 | ~~Fix `npm test` in both packages~~ | ✅ done | KI-01 |
+| 2 | ~~Fix all doc rot (DR-01 – DR-09)~~ | ✅ done | Part B |
 | 3 | Add a GitHub Actions workflow running the 4 test commands | 30 min | KI-06 |
 | 4 | Add `"engines": { "node": ">=22" }` to all three `package.json`s | 5 min | KI-06 |
-| 5 | Restore the ~18 missing numbers in `abilities.md` from the specs | 2 h | DR-03 |
-| 6 | Add a "superseded by §N of the character spec" note to `abilities.md` | 1 h | DR-04 |
-| 7 | Strip `file:line` from `engine-implementation.md`, cite symbols | 2 h | DR-01, DR-06 |
-| 8 | Fix the roster tree, `sample()` signature, and RNG name in `engine-design.md` | 30 min | DR-05 |
-| 9 | Log `console.warn` when a roster hook throws or a roster fails to load | 30 min | KI-09 |
-| 10 | Reject `Hello` on `protocol_version` mismatch | 20 min | KI-09 |
-| 11 | Make `server/helpers.js` → `engine/helpers.js`, update the 3 test imports | 30 min | KI-03 |
-| 12 | Add npm workspaces; drop duplicate `riichi`/`syanten` from `server/` | 1 h | KI-02 |
-| 13 | Split `Table` out of `server/room.js` | 3 h | KI-11, unblocks 10 |
-| 14 | Make `game.js` drive `core.js` (or delete its inline power hooks) | 1 d | KI-04, KI-05 |
-| 15 | Document `server/public/` provenance; add a LICENSE | 1 h | KI-08, KI-12 |
-| 16 | Add client tests (Vitest + jsdom) for `store.ts` and tile rendering | 1 d | KI-07 |
+| 5 | Log `console.warn` when a roster hook throws or a roster fails to load | 30 min | KI-09 |
+| 6 | Reject `Hello` on `protocol_version` mismatch | 20 min | KI-09 |
+| 7 | Make `server/helpers.js` → `engine/helpers.js`, update the 3 test imports | 30 min | KI-03 |
+| 8 | Drop `toki`/`teru` from the `POWERS` array, or implement them | 15 min | KI-05 |
+| 9 | Add npm workspaces; drop duplicate `riichi`/`syanten` from `server/` | 1 h | KI-02 |
+| 10 | Add a LICENSE; record `server/public/` provenance | 1 h | KI-08, KI-12 |
+| 11 | Add client tests (Vitest + jsdom) for `store.ts` and tile rendering | 1 d | KI-07 |
+| 12 | Split `Table` out of `server/room.js` | 3 h | KI-11, unblocks 5–7 |
+| 13 | Make `game.js` drive `core.js` (or delete its inline power hooks) | 1 d | KI-04, KI-05 |

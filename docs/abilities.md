@@ -58,15 +58,34 @@ Every roster power carries a `meta.type`, and both types coexist on the same tab
 
 ## Detailed Character Ability Mechanics
 
+> ### ⚠️ Read this before using this document as a rules reference
+>
+> **Implemented (8 characters)** — these match `engine/powers/rosters/*.js` and the
+> per-character specs in [`characters/`](characters/):
+> Saki Miyanaga, Saki (normal-type variant), Nodoka Haramura, Yuuki Kataoka,
+> Mako Someya, Hisa Takei, Koromo Amae, Yuu Matsumi.
+>
+> **Design intent only (20 characters)** — Touka Ryuumonbuchi onward. **There is no
+> code and no spec for these.** Several still carry `[unspecified]` markers where a
+> numeric value was never written down; nothing can recover them. Treat them as a wish
+> list, not as behaviour.
+>
+> Where the pre-redesign numbers appeared here previously, they have been corrected
+> against the character specs. See
+> [`known-issues.md`](known-issues.md) for the full rot register.
+
 ### Kiyosumi High
 
 #### 1. Saki Miyanaga
 
-**Thematic Passive:  (Platitude Equilibrium)**
+**Thematic Passive: Platitude Equilibrium (±0)**
 
-- Mechanic: Saki gains +20% extra Flow Gauge gain on all defensive actions (folding against Riichi, discarding Genbutsu, and paying Ron/Tsumo costs).
-- The Twist: If Saki’s net score delta is within of her starting score (), she receives a passive +15% draw-weight boost toward forming closed triplets (Koutsu) to facilitate Kans.
+- Mechanic: Saki gains a **+50% bonus** on defensive Flow generation — discarding a *Genbutsu* (100% safe) tile against an active opponent Riichi awards **+3.0% Flow instead of the +1.5% baseline**. Paying Ron/Tsumo damage under **4,000 points** grants a further **+10% flat Flow**.
+- The Twist: If Saki's net score delta is **within 1,500 points** of her starting score (**25,000**), she receives a passive **×1.35** draw-weight boost toward forming closed triplets (Koutsu) to facilitate Kans.
 - Strategic Impact: If Saki takes a massive lead or falls into a deep deficit, this passive shuts off. Saki players balance early scores near zero to bank meter for an endgame dead-wall blow.
+
+> Canonical source: [`characters/01_saki_miyanaga.md`](characters/01_saki_miyanaga.md); constants `EQUILIBRIUM_BAND = 1500`, `TRIPLET_AFFINITY = 1.35` in `engine/powers/rosters/kiyosumi.js`.
+
 **Active Skill: Ridge Resonance (Rinshan Kaihou)**
 
 *Consumes Flow Gauge upon declaring any Kan (closed or open). Every tier
@@ -84,41 +103,52 @@ tile (most copies, wait-preferring).*
 
 **Thematic Passive: Etopen's Anchor**
 
-- Mechanic (Human Stance): Generates double Flow Gauge whenever playing strictly by mathematical maximum-efficiency (highest Uke-ire discard), but suffers a -10% defense penalty against trap waits (Hell-waits or Suji traps).
-- The Twist (Nodocchi Mode): Once Flow Gauge reaches 50%, she enters "Nodocchi Mode."
+- Mechanic (Human Stance): While Flow is **below 50%**, discarding the tile that yields the maximum possible *Uke-ire* awards **+3.5% Flow instead of the +1.5% baseline**. Playing a sub-optimal discard with **more than 3 tiles less acceptance** than the optimum inflicts a **-10% Flow** penalty.
+- The Twist (Nodocchi Mode): Once Flow Gauge reaches **50%**, she enters "Nodocchi Mode."
 - Becomes 100% immune to all information-distortion and vision debuffs (sees through stealth discards, blurred rivers, and fake tells).
-- She cannot call Chi/Pon on tiles with statistical Expected Value below 0.
+- While in Human Stance she suffers a **-10% defense rating** against Hell-waits and Suji traps.
+
+> Canonical source: [`characters/02_nodoka_haramura.md`](characters/02_nodoka_haramura.md).
+
 **Active Skill: Digital Execution (Theory of Probability)**
 
 *Consumes Flow Gauge during regular draw step.*
 
-- Tier 1 (25% Flow) – Statistical Filter: For the next 2 turns, eliminates dead terminal/honor draws with zero mathematical utility, boosting turn-efficiency toward Tenpai by +35%.
-- Tier 2 (50% Flow) – Optimal Discard Calculation: Automatically calculates opponent hands and highlights the safest discard across all three opponents with 90% accuracy. Discarding the highlighted tile grants Ron immunity for that turn.
-- Tier 3 (100% Flow) – Machine Shanten Compression: Compresses her hand by 1 whole Shanten step over the next 2 draws by pulling the two mathematically optimal bridge tiles from the live wall.
-- Tier 4 (150% Overdrive) – Absolute EV Singularity: Grants an uninterrupted 3-turn state where every discard she makes carries a 0% deal-in risk, while her own draw weight for her winning tile is multiplied by .
+- Tier 1 (25% Flow) – Statistical Filter: Triggered on the draw step during **Turns 1–8**. For her **next 3 draws**, sets `W(t) = 0.0` for isolated terminal/honor tiles (`1m, 9m, 1p, 9p, 1s, 9s, 1z–7z`) that do not form pairs or triplets with her hand, compressing live sampling to suited middle tiles (`2–8`) for a **+35%** hand-advancement rate.
+- Tier 2 (50% Flow) – Optimal Discard Matrix: Runs `getWaits` across all 3 opponents, then highlights the **intersection of 100% safe tiles** (Genbutsu against every active threat) with a cyan digital reticle. If she holds no safe tile, her draw is resampled exclusively from the Genbutsu subset. **There is no Ron immunity and no accuracy percentage** — an earlier design granted "Ron immunity for that turn", which breaks the engine and was removed.
+- Tier 3 (100% Flow) – Machine Shanten Compression: On the draw step during **Turns 5–10** at Shanten 1 or 2. Computes the two optimal bridge tiles (B1, B2) toward Tenpai and sets `W(B1) = 15.0`, `W(B2) = 15.0` for her **next 2 draws**, guaranteeing closed Tenpai within 2 turns without breaking tile conservation.
+- Tier 4 (150% Overdrive) – Absolute EV Singularity: In Tenpai, Turn 7+. Lasts **3 consecutive turns**; each drawn tile carries **0% deal-in risk** (sampled only from common safe tiles), and her draw weight for her declared winning wait is multiplied by **×4.0**.
+
+> Note the design inversion: rather than making her *discards* Ron-immune, she only *draws* safe tiles. Player agency is preserved.
 
 #### 3. Yuuki Kataoka
 
 **Thematic Passive: Fast-Twitch Metabolism (Taco Rush)**
 
 - Mechanic (Round Wind Inversion):
-  - East Rounds (Ton): Yuuki gains +50% Flow Gauge generation, +25% draw weight on low-value speed tiles (Tanyao/Yakuhai), and reduces turn decision timers for all players at the table to 4 seconds.
-  - South Rounds (Nan - Sugar Crash): Flow Gauge generation is cut by -50%, and all points paid out on dealer/opponent wins increase by +15%.
+  - East Rounds (Ton): Flow generation is **+3.0% per legal discard** (a +100% boost over the +1.5% baseline). Simple numbers (`2–8`) and East Wind tiles (`1z`) receive a **+30% draw-weight bias** (`W(t) × 1.30`). Decision timers for **all 4 players** are reduced to **6 seconds**.
+  - Accelerators: calling an open meld (Chi/Pon) on **turns 1–5** awards **+10% flat Flow**; winning as Dealer (Oya) in East grants **+25% Flow**.
+  - South Rounds (Nan - Sugar Crash): Flow generation drops to **+0.75% per legal discard** (a -50% penalty). Dealing in during South increases the score payout by **+15%** and drains **25% Flow**.
+
+> Canonical source: [`characters/03_yuuki_kataoka.md`](characters/03_yuuki_kataoka.md). The turn clock is **6 seconds**, not the 4 originally specified; `docs/engine-design.md` agrees.
+
 **Active Skill: Caloric Surge (Taco Power)**
 
 *Consumes Flow Gauge during draw or before calling an open meld.*
 
-- Tier 1 (25% Flow) – Quick Bite: Usable on turns 1–6. Instantly pulls a single tile from the wall that completes a sequence or open meld call (Chi/Pon).
+- Tier 1 (25% Flow) – Quick Bite: Usable on the draw step during **turns 1–5**. Instantly pulls a single tile from the wall that completes a sequence or open meld call (Chi/Pon).
 - Tier 2 (50% Flow) – Spicy Southward Defense: Usable in the South round to temporarily stave off the "Sugar Crash." Negates the -50% gauge penalty and grants immunity against 1 direct Ron call during the current hand.
-- Tier 3 (100% Flow) – East Wind Onslaught: Usable only while Dealer (Oya) in East. Triples the draw weight of all East Wind honor tiles and Dora tiles for the current hand. A winning hand automatically stacks a flat +2 Han bonus.
-- Tier 4 (150% Overdrive) – Ultimate Fiesta (Tanyao Blast): Guarantees a first-row (turns 1–6) Tenpai. Opponents discarding simple number tiles (2–8) have a 75% chance to deal directly into her open wait, ending the hand immediately and forcing an East 1 Repeat (Renchan).
+- Tier 3 (100% Flow) – East Wind Onslaught: Usable only while Dealer (Oya) in East. Multiplies the draw weight of East Wind honor tiles (`1z`) and active Dora tiles by **×3.0**. On winning, the active Dora indicator is swapped with an unseen matching dead-wall tile, awarding a legal **+2 Han** bonus.
+- Tier 4 (150% Overdrive) – Ultimate Fiesta / Row-1 Blitz: Turn 1 of any East round hand. **No mind control** — the server guides her first 3 draws along a pure Tanyao/Yakuhai trajectory to guarantee Tenpai by **Turn 4**, then boosts her Tsumo draw weight for her winning tile to **75%** across **Turns 4–7**. Opponents are pressured into discarding dangerous tiles organically because they have had no time to build safe tiles; their agency is untouched. *(This replaces an earlier design that gave opponents a flat 75% chance to deal directly into her wait, which was removed as mind control.)*
 
 #### 4. Mako Someya
 
 **Thematic Passive: The Parlor Archive**
 
-- Mechanic: Mako starts each hand with 0% gauge generation. Starting from Turn 7 (the middle pond), Flow generation increases by +15% per turn for the remainder of the hand.
-- The Twist (Spectacle Removal): Activating an active skill removes her glasses. While glasses are off, she suffers -15% defense against closed Riichi hands, but gains +30% tile-reading accuracy against any player who has made open melds.
+- Mechanic: Mako starts each hand with **0% Flow generation** through **Turns 1–6** (dormant observation phase). From **Turn 7** onwards she gains **+2.5% Flow**, ramping **+0.5% per subsequent turn** (+3.0% on Turn 8, +3.5% on Turn 9, and so on).
+- The Twist (Spectacle Removal): Activating an active skill removes her glasses. While glasses are off, she suffers **-10% defense resistance** against closed Riichi hands, but gains **+35% tile-reading accuracy** against any player who has made open melds (Chi/Pon/Kan), surfacing their likely waiting shapes on her HUD.
+
+> Canonical source: [`characters/04_mako_someya.md`](characters/04_mako_someya.md); ramp is computed as `2.5 + (turnCount - 7) * 0.5` in `engine/powers/rosters/mako.js`.
 **Active Skill: Spindle Territory (Visual Memory Archive)**
 
 *Consumes Flow Gauge during draw or discard.*
@@ -135,20 +165,22 @@ tile (most copies, wait-preferring).*
 - Mechanic (The "Bad Wait" Paradox):
   - Entering Tenpai on a multi-sided sequence wait (Ryanmen, 5–8 winning tiles live) imposes a -30% draw weight on winning tiles.
 
-  - Entering Tenpai on an "ugly" wait (single-tile Tanki, middle Kanchan, edge Penchan, or Jigoku-machi / Hell-wait with tile remaining) multiplies draw weight for that exact tile by .
+  - Entering Tenpai on an "ugly" wait (single-tile Tanki, middle Kanchan, edge Penchan, or Jigoku-machi / Hell-wait with tile remaining) multiplies draw weight for that exact tile by **×3.0**.
 
-- The Twist (Showmanship Slam): When Hisa declares Riichi, opponents lose 10% Flow Gauge due to intimidation. However, dealing into an opponent while in Riichi increases point payout penalties by +25%.
+- The Twist (Showmanship Slam): When Hisa declares Riichi, all 3 opponents lose **10% Flow Gauge** due to intimidation. However, dealing into an opponent while in Riichi increases point payout penalties by +25%.
 **Active Skill: Hell-Wait Intimidation (Jigoku Shoushuu)**
 
 *Consumes Flow Gauge on draw, Tenpai, or Riichi declaration.*
 
-- Tier 1 (25% Flow) – Bluff Riichi: Can be activated while in 1-Shanten. Declares Riichi and projects a full Tenpai threat aura, biasing opponent defense toward folding for 4 turns. Standard No-ten penalty is waived at exhaustive draw.
-- Tier 2 (50% Flow) – Jigoku Trap Forge: When shifting into a 1-tile wait, Hisa forces an unseen copy of that specific tile into the top 6 positions of an opponent's upcoming draws.
-- Tier 3 (100% Flow) – Chaos Slap Tsumo: Usable in Tenpai on a 1-tile wait. For 3 turns, her draw weight for that remaining tile jumps to 75%. Winning via Tsumo drains 25% Flow Gauge from all opponents.
-- Tier 4 (150% Overdrive) – Exhaustive Standoff / Absolute Hell: Activated when the wall drops below 20 tiles while in Hell-wait Tenpai. Rather than illegally disabling Ron prompts, the engine establishes Hell-Machi Dominance:
-  - Any opponent attempting to declare Ron on Hisa's discards suffers a Damage Cap of 1,000 points (Tanyao equivalent), nullifying high-value counter-attacks.
-  - Opponents who hold Hisa's winning tile are locked into Temporary Furiten for 2 rotations.
-  - Hisa's Haitei (last tile) self-draw rate is set to 90%.
+- Tier 1 (25% Flow) – Phantom Intimidation: In 1-Shanten during Row 2 (Turns 7–12). Projects a **Riichi-level threat aura** *without formally declaring Riichi* — opponent bots and HUD danger meters evaluate her as Riichi Tenpai and bias heavily toward defensive folding for 3 turns, while she remains free to advance her hand legally. **No Riichi is declared and the no-ten penalty is never waived**: a fake Riichi would be Chombo. *(This replaces an earlier "Bluff Riichi" tier.)*
+- Tier 2 (50% Flow) – Jigoku Trap Forge: When shifting into a 1-tile wait, Hisa locates the single remaining copy of that tile in `remainingPool` and injects it into the upcoming draw sequence of an opponent who is folding — they evaluate it as safe and deal directly into her wait.
+- Tier 3 (100% Flow) – Chaos Slap Tsumo: Usable in Tenpai on a 1-tile or 2-tile ugly wait. For 3 turns, her draw weight for that remaining tile jumps to **70%**. Winning via Tsumo drains **25% Flow Gauge** from all 3 opponents.
+- Tier 4 (150% Overdrive) – Absolute Hell Dominance: Activated when the live wall drops **below 25 tiles** while in Hell-wait Tenpai. Rather than illegally disabling Ron prompts, the engine establishes Hell-Machi Dominance:
+  - Her draw probability for her 1-tile wait on the final turns is set to **85%** (Haitei Gravitation).
+  - If she deals in during this window her payout damage is **dampened by 50%** — replacing an earlier flat 1,000-point cap.
+  - Opponents who hold her winning tile have their turn decision window slashed to **4 seconds**, pressuring misplays.
+
+> Canonical source: [`characters/05_hisa_takei.md`](characters/05_hisa_takei.md). The wall gate is `< 25` in both the spec and `engine/powers/rosters/hisa.js`.
 
 #### 2. Saki Miyanaga (Normal-Type Variant: Ridge Bias)
 
@@ -177,17 +209,19 @@ tile (most copies, wait-preferring).*
 
 *Consumes Flow Gauge during draw or end-game turns.*
 
-- Tier 1 (25% Flow) – Chilling Gaze: For 3 turns, opponents drawing a tile that reduces their Shanten suffer a 2-second turn-decision window due to hesitation.
-- Tier 2 (50% Flow) – Oceanic Shanten Mire: For 4 turns, all opponents' draw weight for tiles decreasing their Shanten count is penalized by -40%.
-- Tier 3 (100% Flow) – Haitei Gravity (Ocean Moon): When the wall drops to 15 tiles, Koromo anchors the flow. Her hand-advancing draw weight multiplies by . Opponents outside of closed Riichi have their Ron payout capped at Mangan. Her Haitei Raoyue win chance jumps to 75%.
-- Tier 4 (150% Overdrive) – Submerged Abyss (Total Stagnation): Usable when entering Tenpai in the late wall (). Opponent hands are subjected to an intense Shanten chill (draw weight for Tenpai-completing tiles reduced by -80%). Koromo gains a 90% probability to draw the winning tile on her final draw before exhaustion (Haitei Raoyue), yielding a Yakuman / Baiman Tsumo.
+- Tier 1 (25% Flow) – Chilling Gaze: For 3 turns, opponents who take longer than **5 seconds** to discard lose **5% Flow Gauge per second** of hesitation, siphoning their meter into Koromo's pool. *(No unplayable 2-second window — the drain is gradual and always leaves the opponent a legal move.)*
+- Tier 2 (50% Flow) – Oceanic Shanten Mire: For 4 turns, all opponents' draw weight for tiles decreasing their Shanten count is penalised by **-40%** (`W(t) × 0.60`).
+- Tier 3 (100% Flow) – Haitei Gravity (Ocean Moon): When the live wall drops to **20 tiles or fewer**, Koromo's hand-advancing draw weight multiplies by **×2.5**. Opponents outside of closed Riichi have their Ron payout capped at Mangan. Her Haitei Raoyue win chance jumps to **75%**.
+- Tier 4 (150% Overdrive) – Submerged Abyss / Haitei Raoyue: Usable in Tenpai when the live wall has **14 or fewer** tiles remaining. Opponents suffer an **-80% draw-weight penalty** for Tenpai-completing tiles. Koromo's winning wait is reserved via `pool.reserveSlot` and pinned as the very last live tile; her Overdrive win rate falls by **-25% per opponent meld** called, so a table that keeps calling melds can steal the Haitei tile outright.
+
+> Canonical source: [`characters/06_koromo_amae.md`](characters/06_koromo_amae.md). The wall gates are `<= 20` (T3) and `<= 14` (T4) in both the spec and `engine/powers/rosters/koromo.js`.
 - Counterplay: Opponent open meld calls (Chi/Pon) consume wall tiles, reducing Overdrive win probability by 25% per call.
 
 #### 2. Touka Ryuumonbuchi
 
 **Thematic Passive: The Spotlight (Ojou-sama's Pride)**
 
-- Mechanic: If another player holds the lead or is in Riichi, Touka gains +30% bonus Flow Gauge generation. If Touka leads by , gauge gain drops by -20%.
+- Mechanic: If another player holds the lead or is in Riichi, Touka gains +30% bonus Flow Gauge generation. If Touka leads by [unspecified] points, gauge gain drops by -20%.
 - The Twist (Cold Stance Trigger): Facing high-efficiency opponents (Nodoka or Yuuki), Touka enters "Cold State." She gains immunity to intimidation and mental debuffs, but her deal-in vulnerability against stealth discards (Momoko) increases by +20%.
 **Active Skill: Flood Control & Cold Execution (Chisui)**
 
@@ -195,7 +229,7 @@ tile (most copies, wait-preferring).*
 
 - Tier 1 (25% Flow) – Chisui: Flow Surge: Calling Chi/Pon complies strictly with standard turn order (melded tile forms the 14th tile followed by immediate discard to maintain hand conservation). Upon executing the meld, Touka receives an instant 100% Flow Gauge refund for this skill and is permitted to reposition one concealed tile into her discard river with safe-tile priority before Ron calls resolve.
 - Tier 2 (50% Flow) – River Gate (Current Control): For 3 discards across the table, opponents to her right and across are 35% less likely to draw connecting edge/terminal tiles.
-- Tier 3 (100% Flow) – Cold Awakening (Pure Execution): Enters Cold State for the hand. Hand efficiency (Uke-ire) jumps by +60%, and all points won on completed hands are multiplied by .
+- Tier 3 (100% Flow) – Cold Awakening (Pure Execution): Enters Cold State for the hand. Hand efficiency (Uke-ire) jumps by +60%, and all points won on completed hands are multiplied by [unspecified].
 - Tier 4 (150% Overdrive) – Grand Deluge (Chisui Cataclysm): For 2 full rotations, discards from all players are magnetically funneled to match Touka’s waiting tiles. Opponents have a 70% probability of being forced to discard directly into her wait for an inescapable Ron.
 
 #### 3. Momoko Touyoko ("Stealth Momo")
@@ -220,7 +254,7 @@ tile (most copies, wait-preferring).*
 
 - Mechanic (Chained Containment): Hajime begins every match in chained manacles as atonement for past cheating:
   - Chained State (Default): Point payouts on deal-ins are reduced by 15%, and she earns +25% bonus Flow Gauge whenever she folds or discards safe tiles (Genbutsu).
-- The Twist (Unlocking the Chains): If Hajime's score drops below or Touka Ryuumonbuchi falls into 3rd/4th place at the table, her chains shatter. She trades defensive damage mitigation for offensive sleight-of-hand draw manipulation.
+- The Twist (Unlocking the Chains): If Hajime's score drops below [unspecified] **or** Touka Ryuumonbuchi falls into 3rd/4th place at the table, her chains shatter. She trades defensive damage mitigation for offensive sleight-of-hand draw manipulation.
 **Active Skill: Sleight of Hand (Prestidigitation)**
 
 *Consumes Flow Gauge on discard or draw.*
@@ -245,7 +279,7 @@ tile (most copies, wait-preferring).*
 *Consumes Flow Gauge on draw.*
 
 - Tier 1 (25% Flow) – Beginner’s Shuffle: For 2 turns, Kaori automatically discards her least efficient middle tile (3–7), drawing an unseen terminal or wind/dragon honor from the wall.
-- Tier 2 (50% Flow) – Honor Magnetism: For 3 draws, multiplies the probability of drawing Dragon tiles (Haku, Hatsu, Chun) and Wind honors by .
+- Tier 2 (50% Flow) – Honor Magnetism: For 3 draws, multiplies the probability of drawing Dragon tiles (Haku, Hatsu, Chun) and Wind honors by [unspecified].
 - Tier 3 (100% Flow) – Kokushi Trajectory (Thirteen Orphans Alignment): If Kaori holds at least 7 unique terminal/honor tiles, her next 3 draws are guaranteed to pull missing unique terminals, pushing her into Kokushi Musou Tenpai.
 - Tier 4 (150% Overdrive) – The Idiot-Savant Yakuman: Enters full novice trance. If in Tenpai on any terminal/honor Yakuman wait (Kokushi Musou, Daisangen, or Suuankou), winning draw probability spikes to 75% over the next 2 turns, unlocking an unblockable Yakuman strike.
 
@@ -267,7 +301,7 @@ tile (most copies, wait-preferring).*
 - Tier 4 (150% Overdrive) – Mirror Gate Tactical Lockout: Mihoko activates absolute defensive reads for 3 full rotations:
   - Discarding into an opponent's Ron wait does not cause illegal network misfires; instead, the deal-in damage is capped to a maximum of 1,000 points (Tanyao flat base), completely insulating her against Mangan/Yakuman ambushes.
   - The opponent whose wait was triggered is placed into Temporary Furiten for 1 full rotation, forcing them to miss further win opportunities on that tile.
-  - If Mihoko enters Tenpai during this window, her own winning draw probability is multiplied by .
+  - If Mihoko enters Tenpai during this window, her own winning draw probability is multiplied by [unspecified].
 
 #### 3. Kana Ikeda (Kazekoshi Girls' School)
 
@@ -284,7 +318,7 @@ tile (most copies, wait-preferring).*
 - Tier 1 (25% Flow) – Cat Scratch: Usable only in 3rd or 4th place. Instantly draws a tile connecting into a high-scoring Dora or Aka-Dora sequence.
 - Tier 2 (50% Flow) – Desperation Shanten Compression: Usable under . Compresses 1 Shanten step over the next 2 turns, drawing high-value tiles (Dora, honors) from the wall.
 - Tier 3 (100% Flow) – Sanbaiman Roar: Usable in Tenpai while trailing in last place. For 3 turns, winning draw weight is boosted by +65%. Winning forces the hand payout to a minimum of Haneman (6 Han) or Sanbaiman (11 Han) if already high-value.
-- Tier 4 (150% Overdrive) – Nine-Lives Reversal: Usable when at risk of elimination (). Payouts on direct deal-ins are capped at 1,000 pts for 3 turns. Her next drawn tile is guaranteed to hit Tsumo on a completed high-value hand, draining maximum points from all 3 opponents simultaneously.
+- Tier 4 (150% Overdrive) – Nine-Lives Reversal: Usable when at risk of elimination (score below [unspecified]). Payouts on direct deal-ins are capped at 1,000 pts for 3 turns. Her next drawn tile is guaranteed to hit Tsumo on a completed high-value hand, draining maximum points from all 3 opponents simultaneously.
 
 ### Achiga Girls Academy
 
@@ -307,11 +341,11 @@ tile (most copies, wait-preferring).*
 
 #### 2. Yuu Matsumi (2nd / Deputy)
 
-**Normal-Passive: Thermal Affinity (Warmth of Characters & Dragons)**
+**Normal-Passive: Hot Dams (Manzu + Chun)** *(sometimes called "Thermal Affinity" in earlier drafts — the code string is "Hot Dams")*
 
 *Normal-type power: always on at full strength, no Flow cost, no tiers.*
 
-- Mechanic: Draw weight is multiplied by **x1.35** on every warm tile — the Manzu (Characters) suit (1m–9m, including Aka-Dora `0m`) and the Red Dragon (Chun, `7z`). All other draws are neutral (`x1.0`).
+- Mechanic: Draw weight is multiplied by **×1.35** (`MANZU_CHUN_BIAS`) on every warm tile — the Manzu (Characters) suit (1m–9m, including Aka-Dora `0m`) and the Red Dragon (Chun, `7z`). All other draws are neutral (`×1.0`).
 - She lives entirely outside the Flow economy: gauge stays pinned at `0`, never accumulates, never drains, and tier commands are ignored for her seat.
 - Contributes to Hon'itsu / Chin'itsu Manzu and Chun waits without any strategic overhead — the twist is that she simply *is* warm: no "chill" debuff or metered tradecraft exists in the implemented version.
 
@@ -329,7 +363,7 @@ tile (most copies, wait-preferring).*
 
 - Tier 1 (25% Flow) – Trail Cleansing: Immediately cleanses active vision or information debuffs affecting her client HUD.
 - Tier 2 (50% Flow) – Deep Trail Ascent: Usable when the wall is below 35 tiles. Increases Shizuno's draw efficiency (Uke-ire) by +45% while advancing the table's "Deep Mountain" dampening effect by 5 turns.
-- Tier 3 (100% Flow) – Mountain Sovereignty (Zone Lockdown): Locks the wall when remain. For 4 turns, completely silences all opponent active skills and passives (100% suppression) while Shizuno alone receives an un-dampened +50% draw weight.
+- Tier 3 (100% Flow) – Mountain Sovereignty (Zone Lockdown): Locks the wall when [unspecified] tiles remain. For 4 turns, completely silences all opponent active skills and passives (100% suppression) while Shizuno alone receives an un-dampened +50% draw weight.
 - Tier 4 (150% Overdrive) – Apex of Mount Achiga (Mountain Sanctuary): Activated in the final 15 tiles of the wall. Preserving the integrity of Ron declarations without toxic total game lockouts:
   - Discarding into opponent waits inflicts a strict Damage Dampener: deal-in damage is capped at 1,000 points.
   - Opponents entering Tenpai in this zone are placed in Late-Wall Hesitation (Turn timers slashed to 2 seconds).
@@ -372,7 +406,7 @@ Each completed meld grants Ako a stacking +10% Flow Gauge generation for the res
 
 - Tier 1 (25% Flow) – One Turn Ahead (Ichijun): Displays an ethereal ghost preview of her exact next draw and the next discard of the player to her left, planning turns with 100% certainty.
 - Tier 2 (50% Flow) – Two Turns Ahead (Nijun): Extends forecast to 2 full rotations (showing her next 2 draws and upcoming danger discards across the board). Declaring Riichi here raises Ippatsu draw weight to 70%, provided no call interrupts.
-- Tier 3 (100% Flow) – Three Turns Ahead (Sanjun Collapse): Projects 3 full turns into the future, highlighting all hidden waits across the board. Winning draw weight multiplies by .
+- Tier 3 (100% Flow) – Three Turns Ahead (Sanjun Collapse): Projects 3 full turns into the future, highlighting all hidden waits across the board. Winning draw weight multiplies by [unspecified].
   - Toll: If the hand ends in an exhaustive draw or she deals in, Flow Gauge generation is locked at 0% for the next hand.
 - Tier 4 (150% Overdrive) – Singularity of Destiny (Ippatsu Tsumo Miracle): Locks the table into an immutable timeline. Open calls (Chi/Pon/Kan) are disabled for all opponents for 1 full rotation. Toki declares Riichi, and the engine guarantees her winning tile arrives on the very next draw, scoring an unavoidable Riichi + Ippatsu + Menzen Tsumo strike with an automatic +2 Han temporal bonus.
 
@@ -402,7 +436,7 @@ Reads supernatural match tempo: if an opponent possesses an active supernatural 
 
 - Mechanic (Dynamic Stance Shifting):
   - Hiroe Stance (Offensive Vanguard - Default): Generates +20% extra Flow Gauge when pursuing open hands and pushing forward into danger. Discards trigger false danger alarms on opponent assist meters.
-  - Kinue Stance (Defensive Anchor): Activates automatically whenever score drops below or an opponent declares closed Riichi. Payouts on deal-ins are reduced by 20%, and safe-tile draw rates increase by +30%.
+  - Kinue Stance (Defensive Anchor): Activates automatically whenever score drops below [unspecified] **or** an opponent declares closed Riichi. Payouts on deal-ins are reduced by 20%, and safe-tile draw rates increase by +30%.
 - The Twist: In Hiroe (Offensive) Stance, pushing through against an opponent's Riichi imposes a -15% defense penalty for 2 turns if she refuses to fold.
 **Active Skill: Atago Dominance (Kansai Whirlwind)**
 
@@ -466,7 +500,7 @@ Reads supernatural match tempo: if an opponent possesses an active supernatural 
 *Consumes Flow Gauge on discard, draw, or in All-Last.*
 
 - Tier 1 (25% Flow) – Crop Inspection: Displays Harvest Seed inventory on HUD and grants +25% defense resistance against deal-ins for 3 turns.
-- Tier 2 (50% Flow) – Early Gleaning: Usable prior to All-Last if trailing by . Pulls 2 random Harvest Seeds into her hand over her next 2 draws.
+- Tier 2 (50% Flow) – Early Gleaning: Usable prior to All-Last if trailing by [unspecified] points. Pulls 2 random Harvest Seeds into her hand over her next 2 draws.
 - Tier 3 (100% Flow) – Fertile Earth: Usable during turns 1–4. Banks up to 2 additional tiles discarded during opening rotations into her Granary and refills 25% Flow Gauge.
 - Tier 4 (150% Overdrive) – The Golden Bountiful Autumn (Absolute Harvest): Activated in All-Last. Floods hand with banked Harvest Seeds over the next 3 draws. Opponents' winning draw weights are reduced by 50%. If Takami reaches Tenpai on Harvest tiles, winning draw chance is boosted to 85% with an automatic +2 Han / +40 Fu multiplier.
 
