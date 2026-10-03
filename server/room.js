@@ -1562,15 +1562,28 @@ try { state.powers.register(s, ROSTERS[power](s, this.persistentPowerState[s]));
     });
 
     // 3. Priority Arbitration:
+    //
+    // IMPORTANT: `responses` arrives in *response* order, not turn order. CPU
+    // candidates resolve synchronously so they happen to land in turn order, but
+    // human candidates are awaited over the wire and can land in any order.
+    // Standard riichi gives pon/daiminkan to the claimant nearest the discarder
+    // in turn order, so every arbitration below ranks explicitly rather than
+    // relying on arrival order.
+    const turnRank = (seat) => (seat - from + 4) % 4;
+    const byTurnOrder = (a, b) => turnRank(a.seat) - turnRank(b.seat);
+    const ordered = [...responses].sort(byTurnOrder);
+
     // Priority 1: Ron claims
-    const ronClaims = responses.filter((r) => r.type === 'Ron');
+    const ronClaims = ordered.filter((r) => r.type === 'Ron');
     if (ronClaims.length > 0) {
-      for (const r of responses) {
+      for (const r of ordered) {
         if (candidateMap.get(r.seat)?.ronAtt && r.type !== 'Ron') {
           players[r.seat].tempFuriten = true;
         }
       }
       this.phase = PHASE.TURN_ACT;
+      // Turn order also decides who collects the riichi sticks below, so hits
+      // must be ordered rather than in response order.
       const hits = ronClaims.map((r) => ({ seat: r.seat }));
       return {
         end: true,
@@ -1586,21 +1599,23 @@ try { state.powers.register(s, ROSTERS[power](s, this.persistentPowerState[s]));
     }
 
     // Mark temporary furiten for players who passed Ron
-    for (const r of responses) {
+    for (const r of ordered) {
       if (candidateMap.get(r.seat)?.ronAtt && r.type !== 'Ron') {
         players[r.seat].tempFuriten = true;
       }
     }
 
-    // Priority 2: Pon / Daiminkan claims
-    const ponClaim = responses.find((r) => r.type === 'Pon' || (r.type === 'Kan' && candidateMap.get(r.seat)?.canDaimin));
+    // Priority 2: Pon / Daiminkan claims — nearest claimant in turn order wins.
+    const ponClaim = ordered.find(
+      (r) => r.type === 'Pon' || (r.type === 'Kan' && candidateMap.get(r.seat)?.canDaimin)
+    );
     if (ponClaim) {
       const callKind = ponClaim.type === 'Kan' ? 'daiminkan' : 'pon';
       return await this.doOpenCall(ponClaim.seat, from, tile, callKind);
     }
 
-    // Priority 3: Chi claims (shimocha only)
-    const chiClaim = responses.find((r) => r.type === 'Chi');
+    // Priority 3: Chi claims (shimocha only, so at most one seat can claim)
+    const chiClaim = ordered.find((r) => r.type === 'Chi');
     if (chiClaim && candidateMap.get(chiClaim.seat)?.chiOpts) {
       let chosen = chiClaim.tiles;
       if (!chosen || !Array.isArray(chosen) || chosen.length !== 2) {

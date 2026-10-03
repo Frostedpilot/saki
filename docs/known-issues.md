@@ -258,6 +258,54 @@ once per hook, and `resetHookWarnings()` is exported for tests.
 
 ---
 
+## <a id="ki-16"></a>KI-16 ✅ FIXED — Call-window priority decided by response arrival, not turn order
+
+Found by the sweep added after KI-15 (item 17a): reading `resolveCallWindow` looking
+for the duplicated-rule pattern. It wasn't duplication — it was an ordering bug.
+
+**The bug:** arbitration used `responses.find(...)` and `responses.filter(...)`, but
+`responses` is built by `results.push(res)` as each candidate resolves. CPU candidates
+resolve synchronously, so they land in turn order *by accident*; human candidates are
+awaited over the WebSocket and land in whatever order the network delivers. Two
+consequences:
+
+1. **Pon / daiminkan priority** went to whichever claimant's response arrived first.
+   Standard riichi gives it to the claimant **nearest the discarder in turn order**.
+2. **Riichi sticks on a double ron** went to `wins[0]`, which was likewise in response
+   order — even though `finishHand` documents that seat as "the nearest winner in turn
+   order". The pot could be paid to the wrong player.
+
+**Why it survived:** the E2E test has exactly one human seat, and CPU-only play is
+correct by accident, so no existing test could see it.
+
+**Fixed** by ranking explicitly instead of relying on arrival order:
+
+```js
+const turnRank = (seat) => (seat - from + 4) % 4;
+const ordered = [...responses].sort((a, b) => turnRank(a.seat) - turnRank(b.seat));
+```
+
+`ron` claims, the furiten-on-pass sweep, pon/daiminkan selection, chi selection and
+`winBy.hits` all now read from `ordered`, so `hits[0]` is genuinely the nearest winner
+and stick collection is correct.
+
+**Tests:** `server/test/call-window.test.js` (9 tests) scripts **out-of-order** human
+responses with an artificial delay, covering pon priority from two discarder seats, ron
+beating a pon, double-ron hit ordering, furiten on passing a ron, riichi seats being
+offered no calls, chi being kamicha-only, an uncontested discard, and chankan opening
+ron only.
+
+Two things worth recording about how these tests were written:
+
+- The first harness set `isCpu: true` on every seat, so the CPU branch **ignored the
+  scripted responses entirely** and the tests passed while asserting almost nothing —
+  including the two that were meant to prove the ordering fix. Real behaviour, not the
+  code, was wrong; a test that cannot fail is worse than no test.
+- Verified the tests actually bite: reverting the fix to arrival order makes **3 of the
+  9 fail**; restoring it returns 9/9.
+
+---
+
 ## <a id="ki-15"></a>KI-15 ✅ FIXED — Kakan was legal while in riichi, in both rule implementations
 
 Found by the same sweep as KI-13/KI-14 — this time by reading `classifyHumanKan` and
@@ -576,7 +624,7 @@ The 8-implemented / ~20-design-intent split is now stated in a banner at the top
 
 - *"node --test tests/ — 254 pass"* → **342**, and the command is now the working glob
   form.
-- *"server npm test — 2 pass"* → **71**.
+- *"server npm test — 2 pass"* → **80**.
 - §3 listed the furiten bug as a live risk while §5 listed it fixed. **Fixed** — §3
   items now carry **[FIXED]** / **[OPEN]** / *partly* tags, and §4's phases are marked
   ✅ / ⚠️ with the residual work named (e.g. `cli.js` still duplicates `KINDS`;
@@ -638,7 +686,7 @@ Docs are consistent and CI is green. These are the remaining **code** items:
 | 15 | ~~Assert score conservation; fix riichi sticks lost at an exhaustive draw~~ | ✅ done | KI-14 |
 | 16 | ~~Log 500s distinctly from 404s in the static handler~~ | ✅ done | KI-09 |
 | 17 | Add a LICENSE; record `server/public/` provenance | 1 h | KI-08, KI-12 |
-| 17a | Sweep `resolveCallWindow` and the scoring path for the same duplicated-rule pattern as KI-15 | 3 h | KI-04 |
+| 17a | ~~Sweep `resolveCallWindow` and the scoring path~~ | ✅ done | KI-16 |
 | 18 | Add an `.nvmrc` | 2 min | KI-06 |
 | 19 | ~~Pin the kan/riichi rules across every decision site + `doOwnKan`~~ | ✅ done | KI-15 |
 | 20 | ~~Cover `botDecision` and the `doOwnKan` choke point~~ | ✅ done | KI-15 |
