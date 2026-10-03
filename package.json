@@ -1,0 +1,24 @@
+{
+  "name": "saki",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Saki - supernatural (character-powered) Japanese riichi mahjong: engine, bridge server, and web client",
+  "type": "commonjs",
+  "engines": {
+    "node": ">=22"
+  },
+  "workspaces": [
+    "engine",
+    "server",
+    "web-client"
+  ],
+  "scripts": {
+    "test": "npm run test:engine && npm run test:server && npm run test:client",
+    "test:engine": "npm test --workspace engine",
+    "test:server": "npm test --workspace server",
+    "test:client": "npm run build --workspace web-client",
+    "links": "node scripts/check-links.mjs",
+    "smoke": "node engine/game.js --seed 42 --kyoku 1",
+    "check": "npm run test && npm run links"
+  }
+}

@@ -5,6 +5,20 @@
 // (all weights 1.0 = pure uniform sampling, identical to physical deck).
 const TrajectoryPlanner = require('./trajectoryPlanner');
 
+// A throwing hook must never break a game, but silence hid real breakage: a
+// power could fail completely and the suite still passed, because the tests
+// assert the fallback path too. Warn once per hook name — drawWeight fires on
+// every single draw, so an unguarded warn would flood the console.
+const warnedHooks = new Set();
+function warnHook(hookName, seat, e) {
+  if (warnedHooks.has(hookName)) return;
+  warnedHooks.add(hookName);
+  const msg = e && e.message ? e.message : String(e);
+  console.warn(`[power] hook '${hookName}' (seat ${seat}) threw and was ignored: ${msg}`);
+  console.warn('[power] this power is now inert for the rest of the session');
+}
+function resetHookWarnings() { warnedHooks.clear(); }
+
 class PowerDispatcher {
   constructor() {
     this.registry = new Map(); // seat -> hooks object
@@ -26,9 +40,9 @@ class PowerDispatcher {
   // is disrupted by an opponent's kan) can observe every kan on the table.
   broadcastPlayerKan(kanSeat, state) {
     if (typeof kanSeat !== 'number') return;
-    for (const [, h] of this.registry) {
+    for (const [seat, h] of this.registry) {
       if (typeof h.onPlayerKan === 'function') {
-        try { h.onPlayerKan(kanSeat, state); } catch { /* aura must not break the game */ }
+        try { h.onPlayerKan(kanSeat, state); } catch (e) { warnHook('onPlayerKan', seat, e); }
       }
     }
   }
@@ -70,7 +84,7 @@ class PowerDispatcher {
       try {
         const w = h.onPowerDraw(tile, state, trajectory);
         if (typeof w === 'number' && w >= 0) return w;
-      } catch { /* fall through to 1.0 */ }
+      } catch (e) { warnHook('onPowerDraw', seat, e); }
     }
     return 1.0;
   }
@@ -113,12 +127,14 @@ class PowerDispatcher {
   }
   // Phase 3
   onSettlement(result, state) {
-    for (const [, h] of this.registry) {
-      if (h.onSettlement) h.onSettlement(result, state);
+    for (const [seat, h] of this.registry) {
+      if (h.onSettlement) {
+        try { h.onSettlement(result, state); } catch (e) { warnHook('onSettlement', seat, e); }
+      }
     }
   }
 }
 
 const dispatcher = new PowerDispatcher();
 
-module.exports = { PowerDispatcher, dispatcher };
+module.exports = { PowerDispatcher, dispatcher, resetHookWarnings };

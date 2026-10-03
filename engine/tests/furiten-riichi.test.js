@@ -5,7 +5,7 @@
 // non-riichi temp furiten still clears on the next draw.
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
-const H = require('../../server/helpers');
+const H = require('../helpers');
 const { scoreHand } = require('../scoring');
 
 const C = (o) => ({

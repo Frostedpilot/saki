@@ -19,14 +19,11 @@ or re-shape the whole distribution. See [`docs/engine-design.md`](docs/engine-de
 
 ## Quick start
 
-Requires **Node.js 22+** (developed on 22.18.0). There is no root `package.json`,
-no workspace tooling, and no build step for the JS packages — **you must install
-dependencies three times**, once per package:
+Requires **Node.js 22+** (developed on 22.18.0). The repo is a single **npm
+workspace** — one install covers all three packages:
 
 ```bash
-cd engine      && npm ci
-cd ../server   && npm ci
-cd ../web-client && npm ci
+npm ci
 ```
 
 Then start the full stack:
@@ -49,14 +46,13 @@ cd web-client && npm run dev        # terminal 2 — client, :3000
 ### Just want to watch the engine play itself?
 
 ```bash
-cd engine
-node game.js                          # full hanchan, 4 CPU bots
-node game.js --powers none --human 0  # you at seat 0, no powers
-node game.js --seed 12345 --kyoku 4   # deterministic, 4 rounds
-node cli.js eval "123456789m1234p"    # score one hand
+node engine/game.js                       # full hanchan, 4 CPU bots
+node engine/game.js --powers none --human 0   # you at seat 0, no powers
+node engine/game.js --seed 12345 --kyoku 4    # deterministic, 4 rounds
+node engine/cli.js eval "112233456789m11s"    # score one hand
 ```
 
-Full flag list and more: [`docs/development.md`](docs/development.md#running-the-engine).
+Full flag list and more: [`docs/development.md`](docs/development.md#33-running-the-engine).
 
 ---
 
@@ -84,8 +80,9 @@ divergence is explicit data rather than a hidden branch. Per-rule detail:
 saki/
 ├── engine/                  core rules + power framework (no I/O, no network)
 │   ├── game.js              offline reference game + CLI + --selftest rule checker
-│   ├── cli.js               hand evaluator / interactive play / power demos
+│   ├── cli.js               single-hand scorer (node cli.js eval <hand>)
 │   ├── core.js              modular match core used by the server
+│   ├── helpers.js           shared rule helpers (waits/furiten/bots/aborts/oka-uma)
 │   ├── tiles.js             34 kinds -> 37 physical tile kinds (aka) -> 136 tiles
 │   ├── scoring.js           thin wrapper over the `riichi` npm package
 │   ├── rng.js               deterministic seeded RNG (mulberry32)
@@ -102,13 +99,17 @@ saki/
 │   │   ├── nodokaEval.js    "Nodocchi" EV / tenpai evaluator
 │   │   ├── mjaiAdapter.js   pluggable evaluator interface (MJAI bots)
 │   │   └── rosters/         one file per character power (8 shipped)
-│   └── tests/               24 *.test.js, node:test
+│   └── tests/               25 *.test.js, node:test
+│
+├── scripts/
+│   └── check-links.mjs      markdown link checker (npm run links)
+│
+├── .github/workflows/ci.yml  engine + server + client build + link check
 │
 ├── server/                  WebSocket bridge (node:http + ws)
 │   ├── index.js             static host for public/ + WebSocketServer at /ws
 │   ├── room.js              Room (lobby/seats) + Table (hand driver)  <- largest file
 │   ├── protocol.js          protocol v6 JSON codec
-│   ├── helpers.js           riichi helpers extracted from game.js (shared truth)
 │   ├── yaku-map.js          riichi lib yaku names -> protocol Kind/DoraLabel
 │   ├── public/              vendored prebuilt WASM client (upstream build, ~12 MB)
 │   └── test/bridge.test.js  headless end-to-end protocol test
@@ -124,6 +125,7 @@ saki/
 │       └── assets/          vendored tile sprite sheets
 │
 ├── docs/                    design specs, per-character specs, reference notes
+├── package.json             npm workspace root (one install for all three)
 ├── run_server.sh / .bat     start bridge + client dev server together
 └── .gitignore               reference/ (upstream clones), node_modules/, dist/
 ```
@@ -132,12 +134,16 @@ saki/
 
 ## Tests
 
-There is no CI. Everything runs locally via Node's built-in test runner.
+CI runs on every push and PR (`.github/workflows/ci.yml`). Everything runs locally
+via Node's built-in test runner.
 
 ```bash
-cd engine     && npm test          # 310 tests + 43 rule checks  (~80 s)
-cd server     && npm test          # 3 end-to-end tests          (~8-17 s)
-cd web-client && npm run build     # tsc type-check (no unit tests)
+npm test              # everything CI runs (~2 min)
+npm run test:engine   # 341 tests + 43 rule checks
+npm run test:server   # 3 end-to-end tests
+npm run test:client   # tsc type-check (no client unit tests)
+npm run links         # markdown link check
+npm run smoke         # one short deterministic hand
 ```
 
 > `node --test` needs a **glob**, not a bare directory: `node --test tests/*.test.js`
@@ -159,7 +165,7 @@ cd web-client && npm run build     # tsc type-check (no unit tests)
 | [`docs/conventions.md`](docs/conventions.md) | Code style, module boundaries, adding a character |
 | [`docs/known-issues.md`](docs/known-issues.md) | Structural fragility register + doc rot |
 | [`docs/architecture-comparison.md`](docs/architecture-comparison.md) | Why this design over the upstream Elixir/Rust/Z3 engine |
-| [`docs/abilities.md`](docs/abilities.md) | All character powers — **design intent, partly superseded** |
+| [`docs/abilities.md`](docs/abilities.md) | All character powers — 8 implemented, ~20 design intent |
 | [`docs/characters/`](docs/characters/) | Per-character specs — **canonical for implemented characters** |
 | [`docs/saki-characters.md`](docs/saki-characters.md) | Franchise lore / full cast reference |
 | [`docs/reference-riichi-advanced.md`](docs/reference-riichi-advanced.md) | Notes on the upstream reference engine (needs `reference/`) |
@@ -168,8 +174,10 @@ cd web-client && npm run build     # tsc type-check (no unit tests)
 
 ## Known state
 
-This is an active personal project with **no CI, no linter, no LICENSE, and no
-release process**. Character coverage is the main gap: 8 powers are implemented out of
-~28 documented. Both the honest list of structural risks and the documentation-rot
-register live in [`docs/known-issues.md`](docs/known-issues.md) — please read it
-before trusting any single document, several contradict each other.
+An active personal project. **CI is green on every push**, tests run locally via one
+command, and the engine is a single npm workspace — but there is still **no linter, no
+LICENSE, and no release process**.
+
+Character coverage is the main remaining gap: **8 powers implemented out of ~28
+documented**. The structural risks that are still open, and the documentation-rot
+register, live in [`docs/known-issues.md`](docs/known-issues.md).

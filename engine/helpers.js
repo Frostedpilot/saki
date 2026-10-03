@@ -1,12 +1,17 @@
 'use strict';
-// helpers.js — pure riichi rule helpers extracted from engine/game.js so the
-// bridge server can reuse the exact same logic (scoring, waits, furiten,
-// bot discards/calls). Single source of truth stays in engine/game.js + the
-// riichi/syanten libraries; these are thin reuse functions.
+// helpers.js — pure riichi rule helpers, single source of truth for
+// engine/game.js and the bridge server (scoring, waits, furiten, bot
+// discards/calls, abort conditions, oka/uma).
+//
+// History: these were originally inline in engine/game.js, then extracted to
+// server/helpers.js so the server could reuse them. That put them on the wrong
+// side of the boundary — engine/tests had to require() across into server/ —
+// and game.js kept its own copies, so two files had to be kept in sync by hand.
+// They now live here, in the engine, and both front-ends import them.
 
 const syanten = require('syanten');
-const { KINDS, norm, same, toCounts } = require('../engine/tiles');
-const { scoreHand } = require('../engine/scoring');
+const { KINDS, norm, same, toCounts } = require('./tiles');
+const { scoreHand } = require('./scoring');
 
 // ---------------------------------------------------------------- shanten
 const shantenOf = (h) => {

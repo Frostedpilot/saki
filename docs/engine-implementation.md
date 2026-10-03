@@ -14,10 +14,10 @@ libraries, but have different wall models:
 |---|---|---|---|
 | Offline reference game | `engine/game.js`, `engine/cli.js` | Pre-shuffled 136-array, `wall.pop()` | CLI demo, `--selftest`, rule truth |
 | Modular match core | `engine/core.js`, `engine/tiles.js`, `engine/scoring.js`, `engine/rng.js`, `engine/powers/dynamicPool.js`, `engine/powers/index.js`, `engine/powers/flowManager.js`, `engine/powers/trajectoryPlanner.js` | `DynamicPool` inventory + weighted sample | `server/room.js` `Table` (network game) |
-| Netplay glue | `server/room.js`, `server/helpers.js`, `server/protocol.js` | Delegates draws to `core.executeDrawStep` | Real client matches |
+| Netplay glue | `server/room.js`, `engine/helpers.js`, `server/protocol.js` | Delegates draws to `core.executeDrawStep` | Real client matches |
 | Reused rule math | `riichi` (yaku/score), `syanten` (shanten/hairi) npm packages | — | Both layers |
 
-`server/helpers.js` is an explicit extract of `engine/game.js` logic so the
+`engine/helpers.js` is an explicit extract of `engine/game.js` logic so the
 server reuses identical waits/furiten/bot/kuikae code.
 
 ---
@@ -69,7 +69,7 @@ yaku. Both game layers therefore require `r.yakuman > 0 || r.han >= 1`
 (`Table.isAWin` in `server/room.js`; the `tsumoOk` / `tryRon` gates in
 `engine/game.js`). Overtime adds `minHan=2` (see §7).
 
-`shantenOf` / `hairiOf` in `server/helpers.js` are thin
+`shantenOf` / `hairiOf` in `engine/helpers.js` are thin
 `syanten(toCounts(hand))` wrappers that return `99` / `{}` on throw.
 
 ---
@@ -191,12 +191,12 @@ winners) and corrects `tenhou` to
 ### 4.3 Discard + riichi
 
 - Discard index: human input or `botDiscard(hand, riichiLocked, banned)` in
-  `server/helpers.js`: if riichi-locked, tsumogiri (`hand.length-1`);
+  `engine/helpers.js`: if riichi-locked, tsumogiri (`hand.length-1`);
   else 15% random, else argmin shanten over unique discards.
 - Riichi gate, checked **before** the cut using the same `di` (avoids
   epsilon-random disagreement): closed hand, some discard leaves 0-shanten,
   `canRiichi(score, wallLeft)` = `score>=1000 && wallLeft>=4`
-  (`server/helpers.js`), probability 0.45 (or 1.0 with `--riichi-always`).
+  (`engine/helpers.js`), probability 0.45 (or 1.0 with `--riichi-always`).
   Humans confirm; `declareRiichi()` sets `riichi/doubleRiichi(first-turn)/ippatsu`,
   subtracts 1000 pts to `riichiPool`, snapshots `riichiWaits` via `getWaits`,
   and arms `fourRiichiPending` when all four are riichi.
@@ -222,14 +222,14 @@ suukaikan check, rinshan draw `dead[rinshanIdx++]`, rinshan tsumo check with
 | Daiminkan (open) | Opponent discard + 3 copies in hand | 3 hand tiles + discard → `{open:true,type:'kan'}` | Offered in the pon branch when `nSame>=3`, bot p=0.25; consumes the discard (`me.discards.pop()`) |
 
 - `isSuukaikanAbort(kansBy)`: total>=4 and not all by one player → abortive
-  draw (`engine/game.js` `isSuukaikanAbort`, mirrored in `server/helpers.js`).
+  draw (`engine/game.js` `isSuukaikanAbort`, mirrored in `engine/helpers.js`).
   Solo quad continues with a log line.
 - Rinshan win calls `tsumoWin(..., rinshan=true)`; else fall through to the
   normal discard path (`discardAfterCall`).
 - Kan dora: `revealKanDora` exposes the next indicator pair and rebroadcasts
   (`server/room.js`); `ctx.dora = baseDora()` refreshes.
 - Ankan after riichi: legal only if waits are unchanged
-  (`ankanKeepsWaits` in `server/helpers.js`, comparing `riichiWaits` before
+  (`ankanKeepsWaits` in `engine/helpers.js`, comparing `riichiWaits` before
   vs after). Offline humans can force it and eat a chombo mangan penalty +
   replay; bots skip it; the server rejects it in
   `Table.classifyHumanKan` / `Table.validateAct`.
@@ -238,7 +238,7 @@ suukaikan check, rinshan draw `dead[rinshanIdx++]`, rinshan tsumo check with
 
 ## 6. Ron, furiten, calls, kuikae
 
-### 6.1 Waits and furiten — `server/helpers.js`
+### 6.1 Waits and furiten — `engine/helpers.js`
 
 - `getWaits(player, players, dead, ctxBase)`: try all 34 `KINDS` as ron tiles
   with neutral flags; collect those with `isAgari`. Shape-only so open tenpai
@@ -274,13 +274,13 @@ suukaikan check, rinshan draw `dead[rinshanIdx++]`, rinshan tsumo check with
 - The pon loop runs `k=1..3` and stops at the first claim; chi is only offered
   to `nx=(turn+1)%4` (kamicha) **if no pon claimed**. Riichi seats are skipped
   for both.
-- `chiOptions(hand, tile)` (`server/helpers.js`): honors and aka `0x` excluded;
+- `chiOptions(hand, tile)` (`engine/helpers.js`): honors and aka `0x` excluded;
   returns rank pairs for ryanmen/kanchan/penchan shapes.
 - Pon meld: 2 hand copies + discard; chi meld: 2 hand tiles + discard; in both
   cases the discard is popped from the discarder's river and `callsMade++`,
   ippatsu cleared.
 - Kuikae: after chi with hand tiles `a,b`, `kuikaeBannedChi(a,b)`
-  (`server/helpers.js`) computes the forbidden discards (e.g. chi 2-3 bans 1,4).
+  (`engine/helpers.js`) computes the forbidden discards (e.g. chi 2-3 bans 1,4).
   `discardAfterCall(pl, seat, ..., banned)` enforces it: humans re-prompt, bots
   filter via `botDiscard(..., banned)`. After pon the 4th copy is banned.
 
@@ -336,7 +336,7 @@ these are enabled in `RULES.aborts` and disabled in `RULES.serverAborts`
 - All-last extras: agari-yame (leading dealer may end), enchousen/overtime
   (dealer win or dealer tenpai at all-last continues; `minHan=2`
   ryanhan-shibari), tobi bust-out (`score<0` ends match).
-- Match result: `applyOkaUma` (`server/helpers.js`, canonical copy; also present
+- Match result: `applyOkaUma` (`engine/helpers.js`, canonical copy; also present
   in `engine/game.js`): 25k start vs 30k target, oka +20 split among tied 1sts,
   uma `+20/+10/-10/-20` averaged over ties, zero-sum totals.
 
@@ -369,7 +369,7 @@ these are enabled in `RULES.aborts` and disabled in `RULES.serverAborts`
 2. `engine/game.js` `main()`: match loop → kyoku setup → turn loop → per-turn
    kan/tsumo/discard/ron/calls → settlement → rotation. Start here for the
    full rules picture.
-3. `server/helpers.js`: same pure rules, importable by the server.
+3. `engine/helpers.js`: same pure rules, importable by the server.
 4. `engine/core.js` + `engine/powers/dynamicPool.js`: stateful pool version of
    deal/draw/slots with audit.
 5. `server/room.js` `Table`: event-driven mirror of (2) — `playTurn` (= draw +

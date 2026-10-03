@@ -52,7 +52,7 @@ Status tags: **[FIXED]** landed — see §5. **[OPEN]** still true.
 
 1. **Duplicated truth.** *Partly fixed.* `engine/game.js` now imports from
    `engine/tiles.js` instead of re-implementing it (Phase 2). Still duplicated:
-   `engine/cli.js` re-declares `KINDS` and its own `buildWall`; `server/helpers.js`
+   `engine/cli.js` re-declares `KINDS` and its own `buildWall`; `engine/helpers.js`
    re-extracts helper logic from `game.js`; `server/room.js` `Table` mirrors the turn
    loop as events. Drift remains possible between `cli.js` and `tiles.js`, and between
    the offline and server rule paths (different abort configuration).
@@ -62,7 +62,7 @@ Status tags: **[FIXED]** landed — see §5. **[OPEN]** still true.
    and `game.js` `selftest()` is 43 ad-hoc checks rather than a fixture suite.
 3. **Furiten bug class.** **[FIXED]** This was a live bug: `me.tempFuriten=false` ran
    on every own draw, so a riichi passer could ron again later in the round. Guarded
-   with `if (!me.riichi && !me.doubleRiichi)`, via `server/helpers.js`
+   with `if (!me.riichi && !me.doubleRiichi)`, via `engine/helpers.js`
    `clearTempFuritenOnDraw` on the server side. Pinned by
    `engine/tests/furiten-riichi.test.js` (5 tests). Reference behaviour is in
    `furiten.majs`.
@@ -83,7 +83,7 @@ It is less reliable as a runtime for us (new stack, own matcher bugs to own).
 
 ### Phase 1: Rule Correctness & Critical Bug Fixes
 - **Fix Riichi Furiten Leak**: ✅ done
-  - Guarded `me.tempFuriten = false` in `engine/game.js` so it never resets if `me.riichi || me.doubleRiichi`; added `server/helpers.js` `clearTempFuritenOnDraw`, called from `Table.playTurn`.
+  - Guarded `me.tempFuriten = false` in `engine/game.js` so it never resets if `me.riichi || me.doubleRiichi`; added `engine/helpers.js` `clearTempFuritenOnDraw`, called from `Table.playTurn`.
   - Regression tests in `engine/tests/furiten-riichi.test.js` assert that passing a winning discard under riichi prevents all subsequent ron attempts for that kyoku, while still allowing valid tsumo.
 - **RNG Determinism Unification**: ⚠️ partly done
   - The global `Math.random` monkey-patching in `engine/game.js` now backs onto `createRNG(seed)` (mulberry32) from `engine/rng.js`.
@@ -94,7 +94,7 @@ It is less reliable as a runtime for us (new stack, own matcher bugs to own).
   - Removed the redundant `KINDS`, `norm`, `same`, `toCounts`, `toHandStr`, and `DORA_NEXT` from `engine/game.js`; it now imports from `engine/tiles.js`.
   - Still open: `engine/cli.js` re-declares `KINDS` and its own `buildWall`.
 - **Harmonize Rule Helpers**: ⚠️ partly done
-  - Canonical copies of the abort/nagashi helpers live in `server/helpers.js`.
+  - Canonical copies of the abort/nagashi helpers live in `engine/helpers.js`.
   - Still open: wait generation, kuikae checking, and call arbitration are still separate implementations in `engine/game.js` and `server/room.js`.
 
 ### Phase 3: Exact Pinning & Comprehensive Scoring Test Corpus
@@ -115,7 +115,7 @@ It is less reliable as a runtime for us (new stack, own matcher bugs to own).
 
 ## 5. Implementation status
 
-- Phase 1: gate in `engine/game.js` (own-draw clear) + `server/helpers.js`
+- Phase 1: gate in `engine/game.js` (own-draw clear) + `engine/helpers.js`
   `clearTempFuritenOnDraw` used by `Table.playTurn`; regression in
   `engine/tests/furiten-riichi.test.js` (5 tests).
 - Phase 1 RNG: `--seed` now backs `Math.random` with `createRNG` (mulberry32);
@@ -123,7 +123,7 @@ It is less reliable as a runtime for us (new stack, own matcher bugs to own).
   thread an `RNG` through state like `core.js` does — see §3.4.)*
 - Phase 2: `game.js` tile/scoring helpers deleted, imported from
   `engine/tiles.js` + `engine/scoring.js`; abort helpers annotated with
-  canonical copies in `server/helpers.js` (`isSuufonRenda`,
+  canonical copies in `engine/helpers.js` (`isSuufonRenda`,
   `isSuukaikanAbort`, `isNagashi` added + exported). *(`cli.js` still duplicates
   `KINDS` and `buildWall`.)*
 - Phase 3: exact pins (`riichi 1.2.0`, `syanten 1.6.0`, engine + server);

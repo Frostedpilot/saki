@@ -2,7 +2,7 @@
 // Each test pins a crash path or a subtle rule boundary.
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
-const H = require('../../server/helpers');
+const H = require('../helpers');
 const { KINDS, norm, same, fullCounts, toCounts, DORA_NEXT } = require('../tiles');
 const { scoreHand } = require('../scoring');
 const { parseDiscardIndex } = require('../input');

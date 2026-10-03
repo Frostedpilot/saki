@@ -108,22 +108,32 @@ header states this as the invariant. `engine/tests/powerArchitecture.test.js` pi
 `try/catch` and falls back to the default (`drawWeight` → `1.0`, `broadcastPlayerKan` →
 ignore). Write hooks that assume nothing about state shape.
 
-### 4.3 The two rule implementations
+### 4.3 One rule layer, two front-ends
 
 | | Offline | Network |
 | --- | --- | --- |
-| Driver | `engine/game.js` | `engine/core.js` + `server/room.js` |
+| Driver | `engine/game.js` `main()` | `engine/core.js` + `server/room.js` `Table` |
 | Wall | pre-shuffled array, `wall.pop()` | `DynamicPool` weighted sampling |
 | Powers | **inline simplified `powerDraw()`** — *not* the roster framework | full `PowerDispatcher` |
-| Aborts | all five | none |
+| Aborts | all five | none (`RULES.serverAborts`) |
 
-Shared logic lives in `engine/tiles.js`, `engine/scoring.js`, `engine/rng.js`,
-`engine/rules-config.js`, and `server/helpers.js`. **When you change a rule, decide
-which implementation you are changing and say so in the commit** — or better, move it
-into a shared module, which is what `server/helpers.js` was extracted for.
+**The rule functions themselves are defined once**, in `engine/helpers.js`, and both
+front-ends import them: `getWaits`, `isDiscardFuriten`, `tryRon`, `botDiscard`,
+`botWantsCall`, `chiOptions`, `kuikaeBannedChi`, `countYaochuu`, `canRiichi`,
+`bakazeOf`, `roundLabel`, `clearAllIppatsu`, `ankanKeepsWaits`, `isSuufonRenda`,
+`isSuukaikanAbort`, `isNagashi`, `applyOkaUma`, `shantenOf`, `hairiOf`. Other shared
+logic lives in `engine/tiles.js`, `engine/scoring.js`, `engine/rng.js` and
+`engine/rules-config.js`.
 
-`engine/cli.js` still re-declares `KINDS` and re-implements `buildWall` locally instead
-of importing `tiles.js`. This duplication is real and unfixed.
+> **Do not add a second copy of a rule helper.** If `engine/helpers.js` doesn't have
+> what you need, add it there. It used to be extracted into `server/helpers.js` while
+> `game.js` kept private copies annotated "keep in sync" — that arrangement let the
+> engine's own tests reach into `server/`, and it has been undone.
+
+**What is still duplicated** is the per-hand *orchestration*: `game.js`'s `main()` and
+`room.js`'s `Table` each drive a hand independently (`declareRiichi`, `collectRon`,
+call-window arbitration, settlement). Those closures have no unit tests beyond the
+43-check selftest. See [`known-issues.md`](known-issues.md#ki-04) before touching them.
 
 ### 4.4 Rules are data
 
@@ -267,13 +277,25 @@ table if the character uses a new primitive.
 ## 8. Things not to do
 
 - **Do not cite `file:line` in docs.** Cite symbols — `room.js` `resolveCallWindow`.
-  The ~40 existing line citations in `engine-implementation.md` are already stale.
-- **Do not add a second rule implementation.** Extend `server/helpers.js` or
-  `engine/rules-config.js` instead.
+  Line citations rot the moment anyone edits above them.
+- **Do not copy a rule helper.** Add it to `engine/helpers.js`, or put the number in
+  `engine/rules-config.js`. Do not re-implement waits, furiten, bot decisions, abort
+  conditions or oka/uma in a caller.
 - **Do not mutate pool/hand/score from a roster** — return weights and let
   `DynamicPool` sample.
-- **Do not add a root `package.json`** expecting it to work. There are no workspaces;
-  each package installs independently.
+- **Do not add a fourth dependency tree.** The repo is a single npm workspace; run
+  `npm ci` once at the root. Don't add a per-package lockfile.
+- **Do not `require()` across the workspace from `engine/` into `server/`.** The
+  dependency is one-directional: `server/` → `engine/`, never the reverse.
+- **Do not pass a bare directory to `node --test`.** Node 22 rejects
+  `node --test tests/` with `Cannot find module`. Use `tests/*.test.js`.
+- **Do not pass only one flag form.** `game.js` accepts `--flag value` and
+  `--flag=value`; an earlier parser accepted only the latter, so `--kyoku 4` silently
+  played zero hands. `npm run smoke` guards this.
+- **Do not swallow errors without logging.** If a hook must not break the game, catch
+  it and `console.warn` — rate-limited, so a per-draw hook cannot flood the console.
 - **Do not commit `node_modules/`, `dist/`, or `reference/`** — all gitignored.
 - **Do not treat `server/public/` as build output.** It is a vendored upstream WASM
   client tracked in git; nothing here regenerates it.
+- **Do not add a client test framework without also wiring it into CI.**
+  `npm run test:client` currently only runs `tsc`.

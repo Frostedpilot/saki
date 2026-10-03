@@ -257,11 +257,69 @@ export class GameStore {
   constructor(socket: GameSocket) {
     this.socket = socket;
     this.socket.onStatus((status) => {
+      const wasInGame = this.screen === 'game';
       this.connectionStatus = status;
+      // The bridge has no session resume: a reconnect produces a brand-new
+      // anonymous session with no room and no seat. Keeping the old board would
+      // leave the player staring at a dead table whose every action is rejected
+      // with InvalidAction, so drop them back to the lobby and say why.
+      if (status === 'disconnected' && wasInGame) {
+        this.abandonSession();
+        this.showToast(
+          'Connection lost. The bridge cannot resume a game, so you have been returned to the lobby.',
+          'error'
+        );
+      }
       this.notify();
     });
 
     this.socket.onMessage((msg) => this.handleServerMessage(msg));
+  }
+
+  /**
+   * Clear every piece of game state and return to the lobby.
+   *
+   * Used when the session cannot be resumed. The next RoomState / GameStarted
+   * repopulates seats, powers, and board state, so anything left stale here
+   * would be rendered as if the abandoned hand were still live.
+   */
+  public abandonSession(): void {
+    this.screen = 'lobby';
+    this.roomCode = '';
+    this.yourSeat = 0;
+    this.yourSeatWind = 'East';
+    this.hostSeat = 0;
+
+    this.roundWind = 'East';
+    this.roundNumber = 1;
+    this.totalRounds = 4;
+    this.honba = 0;
+    this.riichiSticks = 0;
+    this.scores = [25000, 25000, 25000, 25000];
+    this.doraIndicators = [];
+    this.remainingTiles = 70;
+
+    this.hand = [];
+    this.drawnTile = null;
+    this.opponentTileCounts = [13, 13, 13, 13];
+    this.discards = [[], [], [], []];
+    this.melds = [[], [], [], []];
+    this.riichiDeclared = [false, false, false, false];
+
+    this.currentTurn = -1;
+    this.lastDiscarderSeat = -1;
+    this.resetTurnActions();
+    this.resetCalls();
+    this.roundEndModal = null;
+    this.isGameOver = false;
+    this.kuikaeBannedIndices = [];
+    this.isRiichiMode = false;
+    this.riichiCandidateIndices = new Set();
+    this.hoveredTileKind = null;
+    this.lastDiscard = null;
+    this.hoveredDiscardWaitHint = null;
+    this.cutin = null;
+    this.logs = [];
   }
 
   public get dealerSeat(): number {

@@ -17,18 +17,30 @@ const { createRNG } = require('../engine/rng');
 const { KINDS, norm, same, DORA_NEXT } = require('../engine/tiles');
 const { scoreHand } = require('../engine/scoring');
 const P = require('./protocol');
-const H = require('./helpers');
+const H = require('../engine/helpers');
 const Y = require('./yaku-map');
 
+// Roster loading must never take the server down, but a silent catch hid real
+// breakage: a typo'd or broken roster made its seat a no-op with no log line.
+// Load defensively and say so loudly, once, naming the key that failed.
 const ROSTERS = {};
-try { ROSTERS.saki = require('../engine/powers/rosters/kiyosumi').createSakiHooks; } catch { /* roster missing */ }
-try { ROSTERS.hisa = require('../engine/powers/rosters/hisa').createHisaHooks; } catch { /* roster missing */ }
-try { ROSTERS.koromo = require('../engine/powers/rosters/koromo').createKoromoHooks; } catch { /* roster missing */ }
-try { ROSTERS.yuuki = require('../engine/powers/rosters/yuuki').createYuukiHooks; } catch { /* roster missing */ }
-try { ROSTERS.mako = require('../engine/powers/rosters/mako').createMakoHooks; } catch { /* roster missing */ }
-try { ROSTERS.nodoka = require('../engine/powers/rosters/nodoka').createNodokaHooks; } catch { /* roster missing */ }
-try { ROSTERS['saki-normal'] = require('../engine/powers/rosters/saki-normal').createSakiNormalHooks; } catch { /* roster missing */ }
-try { ROSTERS.yuu = require('../engine/powers/rosters/achiga').createYuuHooks; } catch { /* roster missing */ }
+function loadRoster(key, load) {
+  try {
+    const hooks = load();
+    if (typeof hooks !== 'function') throw new Error('module does not export a hooks factory');
+    ROSTERS[key] = hooks;
+  } catch (e) {
+    console.warn(`[roster] '${key}' failed to load and is unavailable: ${e && e.message ? e.message : e}`);
+  }
+}
+loadRoster('saki', () => require('../engine/powers/rosters/kiyosumi').createSakiHooks);
+loadRoster('hisa', () => require('../engine/powers/rosters/hisa').createHisaHooks);
+loadRoster('koromo', () => require('../engine/powers/rosters/koromo').createKoromoHooks);
+loadRoster('yuuki', () => require('../engine/powers/rosters/yuuki').createYuukiHooks);
+loadRoster('mako', () => require('../engine/powers/rosters/mako').createMakoHooks);
+loadRoster('nodoka', () => require('../engine/powers/rosters/nodoka').createNodokaHooks);
+loadRoster('saki-normal', () => require('../engine/powers/rosters/saki-normal').createSakiNormalHooks);
+loadRoster('yuu', () => require('../engine/powers/rosters/achiga').createYuuHooks);
 
 const KIND_ORDER = {};
 KINDS.forEach((k, i) => { KIND_ORDER[k] = i; });

@@ -55,52 +55,63 @@ The remaining problem is that **nothing runs these tests automatically** — see
 
 ---
 
-## <a id="ki-02"></a>KI-02 🟠 Three installs, no workspace, duplicated dependencies
+## <a id="ki-02"></a>KI-02 ✅ FIXED — Three installs, no workspace, duplicated dependencies
 
-There is no root `package.json` and no npm workspaces. Three packages, three lockfiles,
-three `node_modules` trees. A developer who runs `npm ci` in the root gets an error; a
-developer who forgets `server/` gets `Cannot find module 'ws'`.
+**Was:** no root `package.json` and no npm workspaces — three packages, three lockfiles,
+three `node_modules` trees. A developer who ran `npm ci` in the root got an error; one
+who forgot `server/` got `Cannot find module 'ws'`.
 
 Worse, `server/` declares `riichi` and `syanten` as **its own dependencies** even though
-it consumes engine code across the package boundary by relative path:
+it consumes engine code by relative path (`require('../engine/core')`,
+`require('../engine/tiles')`), so both libraries were installed **twice as separate
+physical copies** with nothing enforcing they stayed in sync.
 
-```js
-// server/room.js
-const core = require('../engine/core');
-const { KINDS, norm, same, DORA_NEXT } = require('../engine/tiles');
-```
+**Fixed** — the repo is now a single npm workspace:
 
-So `riichi@1.2.0` and `syanten@1.6.0` are installed **twice, as two separate physical
-copies**. Nothing enforces they stay in sync — bump one and the server silently scores
-against a different library than the engine's tests assert against.
+- Root `package.json` with `"workspaces": ["engine", "server", "web-client"]`.
+- One `package-lock.json` at the root; the three sub-lockfiles are deleted.
+- `npm ci` once at the root installs everything into one hoisted `node_modules`.
+- Verified: exactly **one** `riichi@1.2.0` and **one** `syanten@1.6.0` on disk.
+- Root scripts for the common tasks: `npm test`, `test:engine`, `test:server`,
+  `test:client`, `links`, `smoke`, `check`.
 
-**Fix direction:** make `server/` a workspace member of `engine/`, or drop the
-duplicate declarations and rely on Node's resolution walking up to `engine/node_modules`.
+Per-package runs still work (`npm test --workspace engine`).
 
----
-
-## <a id="ki-03"></a>KI-03 🟠 Engine tests depend on the server package
-
-Three files in `engine/tests/` import from `server/`:
-
-```
-engine/tests/edge.test.js:5            require('../../server/helpers')
-engine/tests/furiten-riichi.test.js:8  require('../../server/helpers')
-engine/tests/rules.test.js:9           require('../../server/helpers')
-```
-
-The dependency runs **both ways**: `server/` → `engine/` for the engine, and
-`engine/tests/` → `server/` for the shared rule helpers. So the engine test suite
-cannot run in isolation, the two packages are not separable, and the "engine has no
-dependency on the server" assumption in `architecture-comparison.md` is false.
-
-`server/helpers.js` exists precisely to break this (it was extracted out of
-`engine/game.js`), but it landed on the wrong side of the boundary. Moving it to
-`engine/helpers.js` would make the dependency one-directional.
+**Residual:** `server/` still declares `riichi`/`syanten` redundantly. That is
+deliberate and harmless under hoisting, but if the pins ever diverge npm will install
+two copies and the server will score against a different library than the engine tests
+assert against. Bump both together.
 
 ---
 
-## <a id="ki-04"></a>KI-04 🔴 Two rule implementations that diverge
+## <a id="ki-03"></a>KI-03 ✅ FIXED — Engine tests depended on the server package
+
+**Was:** three files in `engine/tests/` reached across into `server/` for the shared
+rule helpers (`require('../../server/helpers')`). The dependency ran **both ways**, so
+the engine test suite could not run without `server/` present.
+
+**Fixed** — `server/helpers.js` was moved to `engine/helpers.js`, putting the shared
+rules on the engine side where they belong. Four call sites updated:
+
+| File | Change |
+|---|---|
+| `server/room.js` | `require('./helpers')` → `require('../engine/helpers')` |
+| `engine/tests/edge.test.js` | `require('../../server/helpers')` → `require('../helpers')` |
+| `engine/tests/furiten-riichi.test.js` | same |
+| `engine/tests/rules.test.js` | same |
+
+The dependency graph is now one-directional: `server/` → `engine/`, never the reverse.
+
+**Also fixed while in there:** `engine/game.js` had been keeping **19 verbatim copies**
+of the functions in `helpers.js`, annotated "canonical copy … keep in sync". They were
+byte-identical (`isNagashi`) or strictly better (`botDiscard` gained a `rand`
+injection parameter). `game.js` now imports all of them, deleting **131 lines**
+(1029 → 898) with **zero behaviour change** — verified by byte-identical output hashes
+on two seeded 4-hand matches before and after, plus the 43-check selftest.
+
+---
+
+## <a id="ki-04"></a>KI-04 🟡 Two rule front-ends that diverge (shared rules now deduplicated)
 
 The same rules are implemented twice, and the two copies disagree:
 
@@ -112,54 +123,78 @@ The same rules are implemented twice, and the two copies disagree:
 | Nagashi mangan, oka/uma | yes | no |
 | Character powers | **inline `powerDraw()`, not the roster framework** | full `PowerDispatcher` + `rosters/` |
 
-A rule fixed in `game.js` is not automatically fixed in `room.js`. This has already
-happened: the permanent-riichi-furiten bug existed on both sides and needed two fixes
-plus a regression suite. The divergence is at least *declared* in
+**Still open.** A rule fixed in `game.js` is not automatically fixed in `room.js`. This
+has already happened: the permanent-riichi-furiten bug existed on both sides and needed
+two fixes plus a regression suite. The divergence is at least *declared* in
 `engine/rules-config.js` (`RULES.aborts` vs `RULES.serverAborts`) — but the comment
 there, "Flip a flag only together with its handler", is a warning that this is a trap.
 
-There is also residual duplication *within* the engine: `engine/cli.js` still
-re-declares `KINDS` and re-implements `buildWall` instead of importing `engine/tiles.js`,
-even though `game.js` was already deduped.
+**Reduced, not closed.** The *shared rule functions* are no longer duplicated —
+`engine/helpers.js` is now the single definition for waits, furiten, bot decisions,
+abort conditions and oka/uma, and `game.js` imports all of them (see KI-03). What still
+differs is the **rule front-ends**: `game.js`'s `main()` and `server/room.js`'s
+`Table` each orchestrate a hand independently, and that orchestration is not shared.
 
-**Fix direction:** make `server/room.js` the single rule implementation and have
-`game.js` drive it, or extract every divergent rule behind a shared function.
+`engine/cli.js` also re-declared `KINDS` and re-implemented `buildWall`; that copy is
+now gone (see KI-05).
+
+**Why this is deferred.** The orchestration in `game.js`'s `main()` — `declareRiichi`,
+`collectRon`, call-window arbitration, nagashi payout distribution, chombo settlement —
+has **no unit tests**; the only net is the 43-check selftest, which covers it thinly.
+Consolidating it means either writing that coverage first, or rewriting both front-ends
+at once with a weak safety net. Both are worse than the status quo, so this stays open
+until `main()`'s closure logic is characterised. The 19 duplicated helpers *were* worth
+removing immediately because the selftest covered them well.
 
 ---
 
-## <a id="ki-05"></a>KI-05 🟠 `--powers` silently ignores characters it accepts
+## <a id="ki-05"></a>KI-05 ✅ FIXED — `--powers` silently ignored characters it accepted
 
-`engine/game.js` accepts eight power keys:
+**Was:** `engine/game.js` accepted eight keys
 
 ```js
 const POWERS = ['none','saki','kuro','koromo','toki','yuuki','hisa','teru'];
 ```
 
 but its inline `powerDraw()` only branches on `saki`/`yuuki`, `kuro`, `koromo`, and
-`hisa`. **`toki` and `teru` fall through and behave exactly like `none`** — no warning,
-no error. `mako` is not in the list at all despite having a roster file.
+`hisa`. **`toki` and `teru` fell through and behaved exactly like `none`** — no warning,
+no error. `mako` was not in the list at all despite having a roster file.
 
-Combined with KI-04, `game.js --powers X` is *not* a way to exercise a roster: the
-Flow gauge, tiers, `PowerDispatcher`, `dynamicPool` reservations and `awakening.js`
-are all unreachable from that entry point. **The roster framework is only reachable
-via `server/room.js` and the engine unit tests.** Anyone using `game.js` to sanity-check
-a character is testing a different implementation than the one that ships.
+Root cause: `toki` and `teru` were never forgotten implementations. They were
+display-layer gimmicks in the old `cli.js` ("precog", a streak message) and `game.js`
+had copied the key list without the display layer.
+
+**Fixed:**
+
+- `toki` and `teru` removed from `POWERS`; an unknown key is now a **hard error**
+  listing the valid keys, instead of a silent fallback to `none`.
+- `engine/cli.js` cut from 204 lines to 47: only `eval` survives, which needs nothing
+  but the `riichi` package. That removed the third copy of the tile helpers *and* the
+  fourth copy of `powerDraw`.
+- `engine/tests/offline-rules.test.js` asserts `toki`/`teru` are absent from `POWERS`,
+  so they cannot quietly return.
+- `game.js`'s header now says plainly that `--powers` drives the inline rig and **not**
+  the roster framework, with a pointer to the server for that.
+
+**Still true (part of KI-04):** `game.js --powers X` does not exercise a roster. The
+Flow gauge, tiers, `PowerDispatcher`, `dynamicPool` reservations and `awakening.js` are
+reachable only via `server/room.js` and the engine unit tests.
 
 ---
 
-## <a id="ki-06"></a>KI-06 🔴 No CI, no linter, no pinned runtime
+## <a id="ki-06"></a>KI-06 🟡 CI added; no linter, no release process
 
-- **No CI.** No `.github/`, no workflow file, no `*.yml` anywhere in the repo. The 313
-  tests plus the 43-check selftest run only when a human remembers to run them.
-  (`npm test` now works in both packages as of the KI-01 fix — there is simply nothing
-  to invoke it automatically.)
-- **No linter or formatter.** No ESLint, Prettier, `.editorconfig`, or `tsconfig`
-  sharing between packages.
-- **No pinned Node version.** No `.nvmrc`, no `engines` field in any `package.json`.
-  The code uses `node:test`, ES2022, and `??` — Node 22+ is required but never declared.
+- **CI: ✅ fixed.** `.github/workflows/ci.yml` runs on push and PR: `npm ci`, engine
+  tests, server E2E, client type-check + build, a CLI smoke check, and the markdown link
+  checker. The 344 tests plus the 43-check selftest now run automatically.
+- **Markdown link checking: ✅ added.** `scripts/check-links.mjs` (`npm run links`)
+  verifies every relative link in every `.md` resolves. It caught real breakage during
+  this work and is cheap to run locally.
+- **No linter or formatter.** Still no ESLint, Prettier, or `.editorconfig`.
+- **Node version: ✅ pinned.** `"engines": { "node": ">=22" }` in all three
+  `package.json`s plus the root, and CI runs Node 22 explicitly. No `.nvmrc` yet.
 - **Three unrelated versions**: `engine@1.0.0`, `server@0.1.0`, `web-client@1.0.0`,
-  with no release process, no changelog, and commit messages like `update` and
-  `whatever this is`.
+  with no release process, no changelog, and commit messages like `update`.
 
 ---
 
@@ -196,39 +231,52 @@ The repo also ships two hand-curated third-party assets with the same problem:
 
 ---
 
-## <a id="ki-09"></a>KI-09 🔴 Several silent failure modes
+## <a id="ki-09"></a>KI-09 🟡 Silent failure modes — the worst ones now warn
 
 The code prefers to swallow errors. Each of these produces a confusing symptom rather
 than a diagnostic:
 
-| Where | Behaviour | Symptom instead of an error |
+| Where | Behaviour | Status |
 | --- | --- | --- |
-| `server/room.js` roster registry | `try { ROSTERS.x = require(...) } catch { /* roster missing */ }` | A character silently unavailable, no log line |
-| `engine/powers/index.js` hooks | Every hook call wrapped in `try/catch`, falling back to the default | A broken power silently becomes a no-op |
-| `server/room.js` `SAKI_POWER_SEATS` | `.filter(n => Number.isFinite(n) && n >= 0 && n < 4)` | `SAKI_POWER_SEATS=0,9,x` silently drops `9` and `x` |
-| `server/index.js` `Hello` | Answers `Welcome` **without validating `protocol_version`** | A version-mismatched client is accepted, then misbehaves |
-| `server/public/` HTTP handler | Any read error → `404 not found` | A permissions/corruption problem looks like a missing route |
+| `server/room.js` roster registry | `try { ROSTERS.x = require(...) } catch {}` | ✅ **Fixed** — `loadRoster(key, load)` logs `console.warn` naming the key and the error, and rejects a module that doesn't export a factory |
+| `engine/powers/index.js` hook calls | Every hook wrapped in `try/catch`, falling back to the default | ✅ **Fixed** — warns once per hook name (rate-limited: `drawWeight` fires on every draw, so an unguarded warn would flood the console) |
+| `server/room.js` `SAKI_POWER_SEATS` | `.filter(...)` drops out-of-range values | ⚠️ Open — `SAKI_POWER_SEATS=0,9,x` still drops `9` and `x` silently |
+| `server/index.js` `Hello` | Answers `Welcome` **without validating `protocol_version`** | ⚠️ Open — a mismatched client is accepted, then misbehaves |
+| `server/public/` HTTP handler | Any read error → `404 not found` | ⚠️ Open — a permissions problem looks like a missing route |
 
-The hook-level `try/catch` is defensible — a cosmetic aura must not break a game — but
-it means **a power can be fully broken and still pass every test**, because the tests
-assert the fallback path too. At minimum, log to `console.warn` when a hook throws.
+The hook-level `try/catch` is defensible — a cosmetic aura must not break a game — and
+is retained. What was wrong was the *silence*: a power could be fully broken and the
+suite still passed, because the tests assert the fallback path too. `onPowerDraw` now
+prints
+
+```
+[power] hook 'onPowerDraw' (seat 0) threw and was ignored: <error>
+[power] this power is now inert for the rest of the session
+```
+
+once per hook, and `resetHookWarnings()` is exported for tests.
 
 ---
 
-## <a id="ki-10"></a>KI-10 🟠 Reconnect silently loses your session
+## <a id="ki-10"></a>KI-10 ✅ FIXED — Reconnect silently lost your session
 
-`web-client/src/net/socket.ts` reconnects every 2 s on close — but the server has
-**no session resume**. `Hello` mints a brand-new `session_token` (`tok_<time>_<n>_<rand>`)
-and the client is a fresh anonymous player with no room, no seat, and no game.
+**Was:** `web-client/src/net/socket.ts` reconnects every 2 s on close, but the server has
+**no session resume** — `Hello` mints a fresh anonymous token, so the client came back
+with no room, no seat, and no game. `GameStore` kept the pre-disconnect state, so the
+client *looked* connected while rendering a stale table, and every action returned
+`{ Error: { code: 'InvalidAction' } }`. The user had to reload manually.
 
-The `GameStore` still holds the pre-disconnect game state. So after a bridge restart the
-client looks connected, renders a stale table, and every action returns
-`{ Error: { code: 'InvalidAction', message: 'no game in progress' } }`. The user must
-manually reload and create a new room.
+**Fixed** — `GameStore` now detects the situation and acts on it. On a `disconnected`
+status while `screen === 'game'` it calls a new `abandonSession()`, which clears every
+piece of game state (hand, discards, melds, scores, dora, actions, call state via the
+existing `resetTurnActions`/`resetCalls` helpers, round modal, riichi mode, logs) and
+returns to the lobby, then shows an explanatory toast:
 
-`server/README.md` lists reconnection under "Excluded features", but the client
-actively attempts it, which turns a documented exclusion into an undocumented
-half-feature.
+> Connection lost. The bridge cannot resume a game, so you have been returned to the
+> lobby.
+
+The next `RoomState` / `GameStarted` repopulates everything, so nothing stale survives.
+The server side is unchanged — resume is still genuinely unsupported, now honestly so.
 
 ---
 
@@ -237,14 +285,15 @@ half-feature.
 | File | Lines | Concern |
 | --- | --- | --- |
 | `server/room.js` | **1800** | `Room` (lobby, seats, power assignment) **and** `Table` (the entire hand driver) in one file |
-| `web-client/src/state/store.ts` | **1141** | All game state *and* all outbound protocol calls in one class |
-| `engine/game.js` | 1006 | Game loop, bot AI, power hooks, and the 43-check selftest |
+| `web-client/src/state/store.ts` | **1198** | All game state *and* all outbound protocol calls in one class |
+| `engine/game.js` | **898** | Game loop, bot AI, power rig, and the 43-check selftest (was 1006; 131 lines of duplicated helpers removed) |
 | `engine/powers/rosters/kiyosumi.js` | 571 | One character's full skill tree |
 | `engine/tests/crossCharacter.test.js` | 578 | — |
 
 `room.js` is the direct cause of several items above: the roster registry, the env-var
 parsing, the bot pacing, and the rule divergence all live together with no seam.
-Splitting `Table` out of `Room` would make KI-04 and KI-09 tractable.
+Splitting `Table` out of `Room` would make KI-04 tractable. Purely mechanical and
+low-risk, but it changes no behaviour, so it is not urgent.
 
 ---
 
@@ -254,10 +303,7 @@ No `LICENSE` file, despite `engine/` and `server/` depending on the third-party
 `riichi` and `syanten` packages and vendoring a FluffyStuff SVG sheet and official
 Saki card art. Redistribution terms for the vendored assets are undefined.
 
----
-
-
----
+Deliberately deferred — this needs a decision from the repo owner, not a code change.
 
 # Part B — Documentation rot
 
@@ -374,7 +420,7 @@ The 8-implemented / ~20-design-intent split is now stated in a banner at the top
 
 ## <a id="dr-07"></a>DR-07 ✅ FIXED — stale counts in `architecture-comparison.md`
 
-- *"node --test tests/ — 254 pass"* → **310**, and the command is now the working glob
+- *"node --test tests/ — 254 pass"* → **341**, and the command is now the working glob
   form.
 - *"server npm test — 2 pass"* → **3**.
 - §3 listed the furiten bug as a live risk while §5 listed it fixed. **Fixed** — §3
@@ -417,21 +463,31 @@ are actually cited.
 
 # Suggested order of work
 
-Documentation is now consistent. These are the remaining **code** items, in
-recommended order:
+Docs are consistent and CI is green. These are the remaining **code** items:
 
 | # | Action | Cost | Fixes |
 | --- | --- | --- | --- |
 | 1 | ~~Fix `npm test` in both packages~~ | ✅ done | KI-01 |
 | 2 | ~~Fix all doc rot (DR-01 – DR-09)~~ | ✅ done | Part B |
-| 3 | Add a GitHub Actions workflow running the 4 test commands | 30 min | KI-06 |
-| 4 | Add `"engines": { "node": ">=22" }` to all three `package.json`s | 5 min | KI-06 |
-| 5 | Log `console.warn` when a roster hook throws or a roster fails to load | 30 min | KI-09 |
-| 6 | Reject `Hello` on `protocol_version` mismatch | 20 min | KI-09 |
-| 7 | Make `server/helpers.js` → `engine/helpers.js`, update the 3 test imports | 30 min | KI-03 |
-| 8 | Drop `toki`/`teru` from the `POWERS` array, or implement them | 15 min | KI-05 |
-| 9 | Add npm workspaces; drop duplicate `riichi`/`syanten` from `server/` | 1 h | KI-02 |
-| 10 | Add a LICENSE; record `server/public/` provenance | 1 h | KI-08, KI-12 |
-| 11 | Add client tests (Vitest + jsdom) for `store.ts` and tile rendering | 1 d | KI-07 |
-| 12 | Split `Table` out of `server/room.js` | 3 h | KI-11, unblocks 5–7 |
-| 13 | Make `game.js` drive `core.js` (or delete its inline power hooks) | 1 d | KI-04, KI-05 |
+| 3 | ~~Fix the CLI arg parser (`--flag value` produced NaN, 0 hands played)~~ | ✅ done | new |
+| 4 | ~~GitHub Actions workflow + `scripts/check-links.mjs`~~ | ✅ done | KI-06 |
+| 5 | ~~`"engines": { "node": ">=22" }` in all `package.json`s~~ | ✅ done | KI-06 |
+| 6 | ~~Warn on roster-load and hook failures~~ | ✅ done | KI-09 |
+| 7 | ~~Reset the session on reconnect instead of showing a zombie table~~ | ✅ done | KI-10 |
+| 8 | ~~Move `server/helpers.js` → `engine/helpers.js`; delete `game.js`'s 19 duplicate fns~~ | ✅ done | KI-03 |
+| 9 | ~~`cli.js` → `eval` only; drop `toki`/`teru`; error on unknown `--powers`~~ | ✅ done | KI-05 |
+| 10 | ~~npm workspaces: one `npm ci`, one lockfile, single `riichi`/`syanten`~~ | ✅ done | KI-02 |
+| 11 | ~~`game.js` export guard + `engine/tests/offline-rules.test.js` (31 tests)~~ | ✅ done | KI-04 (partial) |
+| 12 | Reject `Hello` on `protocol_version` mismatch | 20 min | KI-09 |
+| 13 | Warn on dropped `SAKI_POWER_SEATS` values instead of discarding silently | 15 min | KI-09 |
+| 14 | Add a LICENSE; record `server/public/` provenance | 1 h | KI-08, KI-12 |
+| 15 | Add an `.nvmrc` | 2 min | KI-06 |
+| 16 | Characterise `game.js` `main()` closures with unit tests | 4 h | prerequisite for 18 |
+| 17 | Add client tests (Vitest + jsdom) for `store.ts` and tile rendering | 1 d | KI-07 |
+| 18 | Consolidate the two rule front-ends behind one shared layer | 2–3 d | KI-04 |
+| 19 | Split `Table` out of `server/room.js` | 3 h | KI-11, unblocks 16–18 |
+
+The one genuinely large remaining item is **18**, and it should not be started before
+**16**: `main()`'s orchestration is the only significant block of logic in the repo with
+thin coverage, so consolidating it before characterising it would mean rewriting the
+weakest-tested code in the project.

@@ -6,7 +6,7 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const { scoreHand } = require('../scoring');
-const H = require('../../server/helpers');
+const H = require('../helpers');
 const { RULES } = require('../rules-config');
 const { checkConservation, assertDeadWall, assertScoresConserved } = require('../invariants');
 const core = require('../core');

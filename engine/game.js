@@ -12,29 +12,65 @@
 //   oka/uma + agari-yame/enchousen/shibari end conditions, ankan-after-riichi
 //   chombo check, kuikae enforcement.
 // Simplifications: no open-riichi, no sekinin-barai (pao).
-// Usage: node game.js [--powers none,saki,kuro,toki] [--human -1|0..3]
+// Both `--flag value` and `--flag=value` are accepted.
+// Usage: node game.js [--powers none,saki,kuro,koromo,yuuki,hisa] [--human -1|0..3]
 //        [--seed N] [--kyoku N] [--selftest=1]
 //        [--closed-only=1] [--riichi-always=1] (demo flags: bots never open,
 //        bots always riichi when able; default play unchanged)
 //        [--demo-abort=NAME] fires the abortive-draw settlement once, after
 //        the next clean discard (demo rare rulings on demand)
-const syanten = require('syanten');
-const { KINDS, norm, same, toCounts, toHandStr, DORA_NEXT } = require('./tiles');
+// NOTE: --powers here drives this file's inline powerDraw() rig, NOT the roster
+// framework in engine/powers/rosters/. To exercise the real Flow-gauge powers,
+// run the bridge server and play through the web client.
+const { KINDS, norm, same, DORA_NEXT } = require('./tiles');
 const { scoreHand, meldStr } = require('./scoring');
 const { createRNG } = require('./rng');
 const { parseDiscardIndex } = require('./input');
+// Shared rule helpers. This file used to keep its own verbatim copies of these;
+// helpers.js was extracted out of game.js but game.js was never rewired to
+// import them, so the two drifted and had to be "kept in sync" by hand. One
+// definition each now — see engine/helpers.js.
+const {
+  shantenOf, hairiOf, getWaits, isDiscardFuriten, tryRon,
+  botDiscard, botWantsCall, chiOptions, kuikaeBannedChi, countYaochuu,
+  canRiichi, bakazeOf, roundLabel, clearAllIppatsu, ankanKeepsWaits,
+  isSuufonRenda, isSuukaikanAbort, isNagashi, applyOkaUma,
+} = require('./helpers');
 
-const POWERS = ['none', 'saki', 'kuro', 'koromo', 'toki', 'yuuki', 'hisa', 'teru'];
-const args = Object.fromEntries(
-  process.argv.slice(2).map(a => {
-    const m = a.match(/^--([^=]+)=(.*)$/);
-    return m ? [m[1], m[2]] : [a.replace(/^--/, ''), true];
-  })
-);
-const SEAT_POWERS = ((args.powers || 'none,none,none,none').split(',').concat(['none', 'none', 'none', 'none'])).slice(0, 4)
-  .map(p => POWERS.includes(p) ? p : 'none');
+const POWERS = ['none', 'saki', 'kuro', 'koromo', 'yuuki', 'hisa'];
+// Accepts both `--flag=value` and `--flag value` (incl. negative values like
+// `--human -1`). Previously only the `=` form parsed: `--kyoku 1` set
+// args.kyoku === true, so parseInt(true) was NaN, KYOKU_N was NaN, and the
+// match loop `for (kyoku = 0; kyoku < NaN; ...)` never ran — the game
+// silently played zero hands and printed an all-ties match result.
+function parseArgs(argv) {
+  const out = {};
+  for (let i = 0; i < argv.length; i++) {
+    const m = argv[i].match(/^--([^=]+)(?:=(.*))?$/);
+    if (!m) continue;
+    const key = m[1];
+    if (m[2] !== undefined) { out[key] = m[2]; continue; }
+    const next = argv[i + 1];
+    // A value is anything that isn't another flag. `-1` is a value, `--x` is not.
+    if (next !== undefined && !next.startsWith('--')) { out[key] = next; i++; }
+    else out[key] = true;
+  }
+  return out;
+}
+const args = parseArgs(process.argv.slice(2));
+const SEAT_POWERS = ((args.powers || 'none,none,none,none').split(',').concat(['none', 'none', 'none', 'none'])).slice(0, 4);
+const badPowers = SEAT_POWERS.filter(p => !POWERS.includes(p));
+if (badPowers.length) {
+  console.error(`unknown --powers value(s): ${badPowers.join(',')}`);
+  console.error(`valid powers: ${POWERS.join(', ')}`);
+  process.exit(1);
+}
 const HUMAN = args.human === undefined ? -1 : parseInt(args.human, 10);
 const KYOKU_N = parseInt(args.kyoku || '8', 10); // 4 = tonpuusen, 8 = full hanchan
+if (!Number.isFinite(KYOKU_N) || KYOKU_N < 1) {
+  console.error(`--kyoku must be a positive integer (got ${JSON.stringify(args.kyoku)})`);
+  process.exit(1);
+}
 // test/demo flags (default play unchanged): --closed-only=1 bots never pon/chi,
 // --riichi-always=1 bots always riichi when able (shows ippatsu/ura/furiten fast)
 const CLOSED_ONLY = args['closed-only'] === '1' || args['closed-only'] === true;
@@ -55,10 +91,9 @@ function buildWall() {
   for (let i = w.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1));[w[i], w[j]] = [w[j], w[i]]; }
   return w;
 }
-// DORA_NEXT + toCounts: shared from engine/tiles.js
-const shantenOf = h => { try { return syanten(toCounts(h)); } catch { return 99; } };
-const hairiOf = h => { try { return syanten.hairi(toCounts(h)); } catch { return {}; } };
-// toHandStr + meldStr: shared from engine/tiles.js + engine/scoring.js
+// DORA_NEXT + KINDS: shared from engine/tiles.js
+// shantenOf / hairiOf now come from ./helpers (see the require block at the top).
+// meldStr: shared from engine/scoring.js
 
 // scoring via shared engine/scoring.js (same signature + flags).
 
@@ -74,25 +109,10 @@ function countVisible(tile, players, dead) {
   for (const t of dead) if (norm(t) === k) n++;
   return n;
 }
-// Waits of a 13-tile (minus melds) hand: tiles completing the shape.
-// Shape-only (han ignored) so furiten/tenpai work for open hands too.
-// NOTE: no 4-copy exclusion - a wait with all copies visible (karaten)
-// is still tenpai for ryukyoku purposes.
-function getWaits(player, players, dead, ctxBase) {
-  const waits = [];
-  for (const k of KINDS) {
-    const ctx = { ...ctxBase, riichi: false, doubleRiichi: false, ippatsu: false, kanFlag: false, lastFlag: false, tenhou: false };
-    let r;
-    try { r = scoreHand(player.hand, player.melds, k, false, ctx); }
-    catch { continue; }
-    if (r.isAgari) waits.push(norm(k));
-  }
-  return waits;
-}
-const isDiscardFuriten = (player, waits) => {
-  const disc = new Set(player.discards.map(norm));
-  return waits.some(w => disc.has(w));
-};
+
+// Waits/furiten/bot/abort/settlement helpers now come from ./helpers (see the
+// require block at the top). getWaits, isDiscardFuriten and the rest used to be
+// duplicated here verbatim.
 
 // ---------- Saki power draw hook (per seat) ----------
 function powerDraw(wall, hand, power, ctx) {
@@ -134,136 +154,11 @@ function powerDraw(wall, hand, power, ctx) {
   return drawOne();
 }
 
-// ---------- bot brain: shanten + suggested drop + random ----------
-// banned: normalized tiles illegal here (kuikae after a call)
-function botDiscard(hand, riichiLocked, banned = []) {
-  if (riichiLocked) return hand.length - 1;
-  const legal = hand.map((_, i) => i).filter(i => !banned.includes(norm(hand[i])));
-  const pool = legal.length ? legal : hand.map((_, i) => i); // fallback (never happens)
-  if (Math.random() < 0.15) return pool[Math.floor(Math.random() * pool.length)];
-  const seen = new Set(), uniqIdx = [];
-  for (const i of pool) { const k = norm(hand[i]); if (!seen.has(k)) { seen.add(k); uniqIdx.push(i); } }
-  let best = [], bestS = 99;
-  for (const idx of uniqIdx) {
-    const rest = hand.filter((_, i) => i !== idx);
-    const s = shantenOf(rest);
-    if (s < bestS) { bestS = s; best = [idx]; }
-    else if (s === bestS) best.push(idx);
-  }
-  return best[Math.floor(Math.random() * best.length)];
-}
-function botWantsCall(afterShantenGain) {
-  if (CLOSED_ONLY) return false;
-  if (afterShantenGain < 0) return Math.random() < 0.05;
-  return Math.random() < 0.55;
-}
-function chiOptions(hand, tile) {
-  const t = norm(tile);
-  if (t[1] === 'z' || t[0] === '0') return [];
-  const n = parseInt(t[0], 10), s = t[1];
-  const has = (x) => hand.some(h => norm(h) === x + s);
-  const opts = [];
-  if (n >= 3 && has(n - 2) && has(n - 1)) opts.push([n - 2, n - 1]);
-  if (n >= 2 && n <= 8 && has(n - 1) && has(n + 1)) opts.push([n - 1, n + 1]);
-  if (n <= 7 && has(n + 1) && has(n + 2)) opts.push([n + 1, n + 2]);
-  return opts;
-}
-// terminals + honors in a dealt hand (aka 0m counts as 5m, not terminal)
-function countYaochuu(hand) {
-  return hand.filter(t => { const k = norm(t); return k[1] === 'z' || k[0] === '1' || k[0] === '9'; }).length;
-}
-// suufon-renda: first-lap discards, all four the same wind (1z-4z)?
-// Canonical copy for tests/server: server/helpers.js isSuufonRenda (keep in sync).
-function isSuufonRenda(discards) {
-  if (discards.length !== 4) return false;
-  const w = discards.map(norm);
-  return ['1z', '2z', '3z', '4z'].includes(w[0]) && w.every(x => x === w[0]);
-}
-// suukaikan: 4+ kans abort unless one player declared them all
-// Canonical copy for tests/server: server/helpers.js isSuukaikanAbort (keep in sync).
-function isSuukaikanAbort(kansBy) {
-  const total = kansBy.reduce((a, b) => a + b, 0);
-  if (total < 4) return false;
-  return !kansBy.some(n => n === total && total >= 4);
-}
-// round wind from kyoku index (0-3 East, 4-7 South; tonpuusen = first 4)
-function bakazeOf(kyoku) { return kyoku < 4 ? 1 : 2; }
-function roundLabel(kyoku) { return `${bakazeOf(kyoku) === 1 ? 'EAST' : 'SOUTH'} ${(kyoku % 4) + 1}`; }
-// riichi requires 1000pts and 4+ live wall tiles left
-function canRiichi(score, wallLeft) { return score >= 1000 && wallLeft >= 4; }
-// kuikae: tiles completing a shuntsu with the two HAND tiles used in a chi.
-// E.g. chi 4 with 2-3 from hand bans 1 and 4 (called tile included).
-function kuikaeBannedChi(a, b) {
-  a = norm(a); b = norm(b);
-  const suit = a[1];
-  const nums = [parseInt(a[0], 10), parseInt(b[0], 10)].sort((x, y) => x - y);
-  const d = nums[1] - nums[0], out = [];
-  if (d === 1) {
-    if (nums[0] > 1) out.push((nums[0] - 1) + suit);
-    if (nums[1] < 9) out.push((nums[1] + 1) + suit);
-  } else if (d === 2) out.push((nums[0] + 1) + suit);
-  return out;
-}
-function waitsSetEq(a, b) {
-  if (a.length !== b.length) return false;
-  const s = new Set(a);
-  return b.every(x => s.has(x));
-}
-// ankan after riichi is legal only if waits are unchanged (else chombo).
-// Fail closed like server/helpers.js: unknown waits or missing copies
-// means "changing", so callers reject instead of corrupting state.
-function ankanKeepsWaits(pl, kanTile) {
-  if (!pl.riichiWaits) return false;
-  const rest = [...pl.hand];
-  for (let c = 0; c < 4; c++) { const i = rest.findIndex(x => same(x, kanTile)); if (i < 0) return false; rest.splice(i, 1); }
-  const kanMeld = { tiles: pl.hand.filter(x => same(x, kanTile)), open: false, type: 'kan' };
-  const after = getWaits({ hand: rest, melds: [...pl.melds, kanMeld] }, [], [], { dora: [], bakaze: 1, jikaze: 1 });
-  return waitsSetEq([...pl.riichiWaits].sort(), [...after].sort());
-}
-// oka/uma placement. totals in points, zero-sum. ties share averaged uma;
-// oka (+20 pot from 25k start vs 30k target) split among tied 1sts.
-function applyOkaUma(scores) {
-  const UMA = [20, 10, -10, -20], OKA = 20;
-  const order = [0, 1, 2, 3].sort((a, b) => scores[b] - scores[a]);
-  const rows = [0, 1, 2, 3].map(seat => ({ seat, score: scores[seat], uma: 0, oka: 0, total: 0, place: 0 }));
-  const bySeat = Object.fromEntries(rows.map(r => [r.seat, r]));
-  let rank = 0, i = 0;
-  while (i < 4) {
-    let j = i;
-    while (j + 1 < 4 && scores[order[j + 1]] === scores[order[i]]) j++;
-    const group = order.slice(i, j + 1);
-    const avgUma = group.reduce((s, _, k) => s + UMA[rank + k], 0) / group.length;
-    for (const seat of group) {
-      bySeat[seat].uma = avgUma;
-      bySeat[seat].place = rank + 1;
-      if (rank === 0) bySeat[seat].oka = OKA / group.length;
-      bySeat[seat].total = (scores[seat] - 30000) / 1000 + bySeat[seat].uma + bySeat[seat].oka;
-    }
-    rank += group.length; i = j + 1;
-  }
-  return rows.sort((a, b) => b.total - a.total || a.seat - b.seat);
-}
-// nagashi mangan: fully closed hand (ankan ok), every discard terminal/honor
-// Canonical copy for tests/server: server/helpers.js isNagashi (keep in sync).
-function isNagashi(pl) {
-  if (!pl.discards.length) return false;
-  if (!pl.melds.every(m => !m.open)) return false;
-  return pl.discards.every(d => { const k = norm(d); return k[1] === 'z' || k[0] === '1' || k[0] === '9'; });
-}
-function clearAllIppatsu(P) { for (const p of P) p.ippatsu = false; }
-
-// Ron attempt on a discard with furiten enforcement.
-// Returns {win:bool, blocked:bool, r} - blocked=true means furiten stop.
-// opts: {chankan, minHan} - minHan enforces ryanhan-shibari in overtime.
-function tryRon(qp, disc, ctxShoot, players, dead, opts = {}) {
-  const minHan = opts.minHan || 1;
-  const r = scoreHand(qp.hand, qp.melds, disc, false, ctxShoot);
-  if (!r.isAgari || !(r.yakuman > 0 || r.han >= minHan)) return { win: false };
-  const waits = getWaits(qp, players, dead, ctxShoot);
-  if (qp.tempFuriten) return { win: false, blocked: true, reason: 'temp', r };
-  if (isDiscardFuriten(qp, waits)) return { win: false, blocked: true, reason: 'discard', r };
-  return { win: true, r, waits };
-}
+// ---------- bot brain, abort helpers, settlement ----------
+// botDiscard, botWantsCall, chiOptions, countYaochuu, isSuufonRenda,
+// isSuukaikanAbort, bakazeOf, roundLabel, canRiichi, kuikaeBannedChi,
+// ankanKeepsWaits, applyOkaUma, isNagashi, clearAllIppatsu and tryRon all
+// moved to ./helpers — one definition each, shared with the bridge server.
 
 // ---------- selftest (deterministic rule checks) ----------
 async function selftest() {
@@ -739,7 +634,7 @@ async function main() {
             choice = null;
           } else if (canDaimin && Math.random() < 0.25) {
             choice = 'kan';
-          } else if (botWantsCall(gain)) {
+          } else if (botWantsCall(gain, CLOSED_ONLY)) {
             choice = 'pon';
           }
           if (choice === 'kan') {
@@ -1003,4 +898,22 @@ async function main() {
   if (readline) readline.close();
 }
 
-main().catch(e => { console.error(e); process.exit(1); });
+// Only play a match when invoked directly. Without this guard, requiring this
+// file from a test started a full hanchan on import.
+if (require.main === module) {
+  main().catch(e => { console.error(e); process.exit(1); });
+}
+
+// Testable surface. Rule helpers (getWaits, tryRon, botDiscard, isNagashi,
+// applyOkaUma, ...) are NOT re-exported here — import them from ./helpers,
+// which is the single definition shared with the bridge server. What lives only
+// in this file is the CLI/plumbing above plus the offline power rig.
+module.exports = {
+  main,
+  selftest,
+  parseArgs,
+  buildWall,
+  countVisible,
+  powerDraw,
+  POWERS,
+};

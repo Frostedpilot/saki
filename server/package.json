@@ -5,6 +5,9 @@
   "description": "WebSocket bridge: riichi_mahjong_rs protocol v6 client <-> the saki engine (powers included)",
   "main": "index.js",
   "type": "commonjs",
+  "engines": {
+    "node": ">=22"
+  },
   "scripts": {
     "start": "node index.js",
     "test": "node --test test/*.test.js"
