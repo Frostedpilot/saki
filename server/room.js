@@ -42,6 +42,18 @@ loadRoster('nodoka', () => require('../engine/powers/rosters/nodoka').createNodo
 loadRoster('saki-normal', () => require('../engine/powers/rosters/saki-normal').createSakiNormalHooks);
 loadRoster('yuu', () => require('../engine/powers/rosters/achiga').createYuuHooks);
 
+// A character hook that throws must not break the match, but it must not be
+// silent either: a power that is quietly inert looks identical to a power that
+// simply has no effect this hand. Warn once per call site so a per-tick hook
+// cannot flood the log.
+const warnedSites = new Set();
+function warnOnce(site, e) {
+  if (warnedSites.has(site)) return;
+  warnedSites.add(site);
+  const msg = e && e.message ? e.message : String(e);
+  console.warn(`[power] '${site}' threw and was ignored: ${msg}`);
+}
+
 const KIND_ORDER = {};
 KINDS.forEach((k, i) => { KIND_ORDER[k] = i; });
 
@@ -72,7 +84,15 @@ function defaultPowerSeats() {
   const raw = process.env.SAKI_POWER_SEATS;
   if (raw !== undefined && raw !== '') {
     const seats = ['none', 'none', 'none', 'none'];
-    String(raw).split(',').map((s) => parseInt(s.trim(), 10)).filter((n) => Number.isFinite(n) && n >= 0 && n < 4).forEach((n) => { seats[n] = 'saki'; });
+    // Don't silently drop unparseable or out-of-range entries: a typo here
+    // previously produced a room with no powers and no explanation.
+    const dropped = [];
+    String(raw).split(',').map((s) => parseInt(String(s).trim(), 10)).forEach((n, i) => {
+      if (!Number.isFinite(n)) { dropped.push(`${String(raw).split(',')[i]} (not a number)`); return; }
+      if (n < 0 || n > 3) { dropped.push(`${n} (seat must be 0-3)`); return; }
+      seats[n] = 'saki';
+    });
+    if (dropped.length) console.warn(`[config] SAKI_POWER_SEATS: ignoring ${dropped.join(', ')}`);
     return seats;
   }
   return ['saki', 'nodoka', 'koromo', 'yuuki'];
@@ -361,12 +381,12 @@ class Table {
       if (type === 'normal') {
         let isActive = false;
         if (hooks && typeof hooks.isPowerActive === 'function') {
-          try { isActive = !!hooks.isPowerActive(state); } catch { /* ignore */ }
+          try { isActive = !!hooks.isPowerActive(state); } catch (e) { warnOnce('isPowerActive', e); }
         }
         let desc = '';
         if (hooks && hooks.meta && hooks.meta.passiveName) desc = hooks.meta.passiveName;
         if (hooks && typeof hooks.getHudAdvice === 'function') {
-          try { desc = hooks.getHudAdvice(state) || desc; } catch { /* ignore */ }
+          try { desc = hooks.getHudAdvice(state) || desc; } catch (e) { warnOnce('getHudAdvice', e); }
         }
         this.broadcast(P.evSuperpowerIndicator({
           seat: s,
@@ -587,6 +607,17 @@ class Table {
       if (++handsPlayed > 200) { console.error('[bridge] safety: too many hands'); break; }
       await this.playOneHand();
     }
+    // Settle any riichi sticks still uncollected on the table. They are only
+    // carried when nobody was tenpai, so if the match ends with a carry the pot
+    // would otherwise be orphaned and the scores would not total 100 000.
+    // Returned evenly: the pot is always a whole multiple of 1000, so a quarter
+    // of it is always exact (1000 -> 250 each, 3000 -> 750 each).
+    if (this.riichiCarry > 0) {
+      const each = this.riichiCarry / 4;
+      for (let s = 0; s < 4; s++) this.scores[s] += each;
+      console.log(`[bridge] uncollected riichi sticks returned evenly: ${this.riichiCarry / 1000} sticks (${each} each)`);
+      this.riichiCarry = 0;
+    }
     this.broadcastMessage(P.gameOver([...this.scores]));
     console.log(`[bridge] ${code}: game over scores=${this.scores.join('/')}`);
     this.room.afterGameOver();
@@ -605,7 +636,7 @@ class Table {
     for (let s = 0; s < 4; s++) {
       const power = this.powerOf(s);
       if (power && ROSTERS[power]) {
-        try { state.powers.register(s, ROSTERS[power](s, this.persistentPowerState[s])); } catch { /* ignore */ }
+try { state.powers.register(s, ROSTERS[power](s, this.persistentPowerState[s])); } catch (e) { warnOnce('register:' + power, e); }
       }
       // Normal-type powers live outside the Flow economy (Spec §6.1): their
       // gauge is pinned to 0 and every flow op is a no-op. Flow seats restore
@@ -807,7 +838,11 @@ class Table {
         if (ankanTile && r1 < 0.5) {
           if (!me.riichi || H.ankanKeepsWaits(me, ankanTile)) kanChoice = { kind: 'ankan', tile: ankanTile };
         } else if (ponUp && this.decide.next() < 0.35) {
-          kanChoice = { kind: 'kakan', tile: norm(ponUp.tiles[0]) };
+          // Kakan while in riichi is never legal (it moves a tile out of the
+          // concealed hand and can change the wait). Bots bypass validateAct, so
+          // the rule has to be enforced here as well as in classifyHumanKan.
+          if (me.riichi) console.log(`[bridge] P${seat} skips KAKAN (illegal while in riichi)`);
+          else kanChoice = { kind: 'kakan', tile: norm(ponUp.tiles[0]) };
         }
       }
     }
@@ -881,7 +916,7 @@ class Table {
       for (let s = 0; s < 4; s++) {
         const h = ctx.state.powers.hooksFor(s);
         if (h && typeof h.onTurnEnd === 'function') {
-          try { h.onTurnEnd(ctx.state); } catch { /* ignore */ }
+          try { h.onTurnEnd(ctx.state); } catch (e) { warnOnce('onTurnEnd', e); }
         }
       }
     }
@@ -961,7 +996,7 @@ class Table {
         if (res && res.flowDelta && ctx.state.flow) {
           ctx.state.flow.addFlow(seat, res.flowDelta);
         }
-      } catch { /* ignore */ }
+      } catch (e) { warnOnce('onDiscard', e); }
     }
 
     this.broadcast(P.evTileDiscarded({
@@ -976,17 +1011,27 @@ class Table {
 
   classifyHumanKan(seat, tileIndex) {
     const me = this.ctx.players[seat];
-    if (tileIndex !== undefined && tileIndex !== null && tileIndex > 0) {
+    // Adding a kan to an existing pon moves a tile out of the concealed hand and
+    // into the meld, which can change the wait. Standard riichi forbids it
+    // outright while in riichi — unlike ankan, which is legal if the waits are
+    // unchanged. Both rule implementations used to allow it here.
+    const kakanForbidden = me.riichi
+      ? { error: true, reason: 'cannot add a kan to a pon while in riichi (chombo) - choose another tile' }
+      : null;
+
+    if (tileIndex !== undefined && tileIndex !== null && tileIndex >= 0) {
       const tileCode = P.tileToSaki({ index: tileIndex, red_dora: false });
       if (tileCode) {
         const k = norm(tileCode);
         const c = me.hand.filter((x) => norm(x) === k).length;
         if (c === 4) {
-          if (me.riichi && !H.ankanKeepsWaits(me, k)) return { error: true };
+          if (me.riichi && !H.ankanKeepsWaits(me, k)) {
+            return { error: true, reason: 'this ankan would change your riichi waits (chombo) - choose another tile' };
+          }
           return { kind: 'ankan', tile: k };
         }
         const pon = me.melds.find((m) => m.type === 'pon' && norm(m.tiles[0]) === k);
-        if (pon && c >= 1) return { kind: 'kakan', tile: k };
+        if (pon && c >= 1) return kakanForbidden || { kind: 'kakan', tile: k };
       }
     }
 
@@ -995,12 +1040,14 @@ class Table {
     for (const x of me.hand) { const k = norm(x); cnt[k] = (cnt[k] || 0) + 1; }
     const ankanTile = Object.keys(cnt).find((k) => cnt[k] === 4);
     if (ankanTile) {
-      if (me.riichi && !H.ankanKeepsWaits(me, ankanTile)) return { error: true };
+      if (me.riichi && !H.ankanKeepsWaits(me, ankanTile)) {
+        return { error: true, reason: 'this ankan would change your riichi waits (chombo) - choose another tile' };
+      }
       return { kind: 'ankan', tile: ankanTile };
     }
     const ponUp = me.melds.find((m) => m.type === 'pon' && me.hand.some((h) => same(h, m.tiles[0])));
     if (ponUp) {
-      return { kind: 'kakan', tile: norm(ponUp.tiles[0]) };
+      return kakanForbidden || { kind: 'kakan', tile: norm(ponUp.tiles[0]) };
     }
     return null;
   }
@@ -1017,7 +1064,12 @@ class Table {
     if (a.type === 'Kan') {
       const k = a.kan;
       if (!k) return { ok: false, reason: 'kan not possible' };
-      if (k.error) return { ok: false, reason: 'this ankan would change your riichi waits (chombo) - choose another tile' };
+      if (k.error) return { ok: false, reason: k.reason || 'illegal kan (chombo) - choose another tile' };
+      // Defence in depth: classifyHumanKan already refuses kakan while in riichi,
+      // but the rule is cheap enough to assert again at the boundary.
+      if (k.kind === 'kakan' && me.riichi) {
+        return { ok: false, reason: 'cannot add a kan to a pon while in riichi (chombo)' };
+      }
       if (this.ctx.kanCount >= 4 || this.ctx.rinshanIdx >= 4) return { ok: false, reason: 'no kan slots left' };
       return {
         ok: true,
@@ -1085,6 +1137,15 @@ class Table {
   async doOwnKan(seat, me, kan) {
     const ctx = this.ctx;
     const tile = kan.tile;
+
+    // Choke point: every kan passes through here regardless of whether it came
+    // from a human, a bot, or a future caller. Kakan while in riichi is never
+    // legal (unlike ankan, which is conditional on leaving the waits unchanged),
+    // so refuse it here rather than relying on each caller to check.
+    if (kan.kind === 'kakan' && me.riichi) {
+      console.log(`[bridge] P${seat} kakan refused: illegal while in riichi`);
+      return { end: false, next: (seat + 1) % 4 };
+    }
 
     if (kan.kind === 'kakan') {
       const hits = await this.collectRon(tile, seat, { chankan: true, label: 'CHANKAN' });
@@ -1219,7 +1280,7 @@ class Table {
           try {
             const r = hooks[fnName].call(hooks, state);
             if (r && r.ok) { activation = { activated: true, tier: t, result: r }; break; }
-          } catch { /* failed */ }
+          } catch (e) { warnOnce(`tryActivateTier${t}`, e); }
         }
       }
     }
@@ -1290,7 +1351,7 @@ class Table {
               activation = { activated: true, tier: t, result: r };
               break;
             }
-          } catch { /* failed */ }
+          } catch (e) { warnOnce(`${power}:onKanDeclared`, e); }
         }
       }
     }
@@ -1326,7 +1387,7 @@ class Table {
       if (typeof this.ctx.state.powers.onSettlement === 'function') {
         this.ctx.state.powers.onSettlement(result, this.ctx.state);
       }
-    } catch { /* ignore */ }
+    } catch (e) { warnOnce('onSettlement', e); }
   }
 
   // Discard right after a call/kan. Returns {tile,...} or null.
@@ -1796,15 +1857,40 @@ class Table {
         const take = [0, 1000, 1500, 3000][nTen];
         for (let i = 0; i < 4; i++) this.scores[i] += tenpai.includes(i) ? give : -take;
       }
+      // Riichi sticks must not vanish when a hand is drawn. The win path awards
+      // ctx.riichiPool to the nearest winner; here the standard rule applies —
+      // the sticks go to the tenpai players, split evenly. If nobody is tenpai
+      // they carry to the next hand, and run() settles anything still carried
+      // when the match ends. Without this a riichi declared in a drawn hand
+      // silently destroys 1000 points.
+      const sticks = ctx.riichiPool;
+      ctx.riichiPool = 0;
+      let awarded = 0;
+      if (sticks > 0 && tenpai.length > 0) {
+        // Split as evenly as a whole number of points allows: 1000 across 3
+        // tenpai players is 334/333/333, not 1000/0/0.
+        const n = tenpai.length;
+        const each = Math.floor(sticks / n);
+        let remainder = sticks - each * n;
+        for (const s of tenpai) {
+          const amt = each + (remainder > 0 ? 1 : 0);
+          if (remainder > 0) remainder--;
+          this.scores[s] += amt;
+          awarded += amt;
+        }
+      } else {
+        this.riichiCarry = sticks;
+      }
+
       this.broadcast(P.evRoundDraw({
         scores: [...this.scores],
         reason: 'Exhaustive',
         tenpai: tenpai.map((s) => P.seatWind(s, dealer)),
-        riichiSticks: ctx.riichiPool / 1000,
+        riichiSticks: sticks / 1000,
         playerHands: this.playerHandsInfo(),
         declarer: null,
       }));
-      console.log(`[bridge] EXHAUSTIVE tenpai=${tenpai.map((s) => 'P' + s).join(',')}`);
+      console.log(`[bridge] EXHAUSTIVE tenpai=${tenpai.map((s) => 'P' + s).join(',')} sticks=${sticks / 1000} awarded=${awarded / 1000} carried=${this.riichiCarry / 1000}`);
     }
   }
 }

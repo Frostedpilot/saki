@@ -139,8 +139,8 @@ via Node's built-in test runner.
 
 ```bash
 npm test              # everything CI runs (~2 min)
-npm run test:engine   # 341 tests + 43 rule checks
-npm run test:server   # 3 end-to-end tests
+npm run test:engine   # 342 tests + 43 rule checks
+npm run test:server   # 71 server tests
 npm run test:client   # tsc type-check (no client unit tests)
 npm run links         # markdown link check
 npm run smoke         # one short deterministic hand

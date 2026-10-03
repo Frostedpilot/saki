@@ -65,6 +65,17 @@ function route(client, parsed) {
   const { ws } = client;
   switch (parsed.kind) {
     case 'Hello': {
+      // Reject an explicit version mismatch instead of accepting it and then
+      // failing in confusing ways later. A client that omits the field is
+      // accepted (it is optional in the protocol).
+      if (parsed.protocol_version !== undefined && parsed.protocol_version !== null
+          && parsed.protocol_version !== P.PROTOCOL_VERSION) {
+        send(ws, P.errorMessage(
+          'VersionMismatch',
+          `server speaks protocol v${P.PROTOCOL_VERSION}, client requested v${parsed.protocol_version}`
+        ));
+        return;
+      }
       client.sessionToken = newToken();
       client.displayName = parsed.display_name || '';
       send(ws, P.welcome(client.sessionToken));

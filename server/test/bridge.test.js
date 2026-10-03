@@ -71,6 +71,7 @@ class MockClient {
     this.frames = [];
     this.waiting = null;
     this.errors = [];
+    this.scoreSnapshots = [];
     this.counts = { GameStarted: 0, TileDrawn: 0, OtherPlayerDrew: 0, TileDiscarded: 0, RoundWon: 0, RoundDraw: 0, CallAvailable: 0, PlayerCalled: 0, PlayerRiichi: 0 };
     this.sent = false; // did we just reply to a TileDrawn?
     this.opened = new Promise((res, rej) => {
@@ -96,6 +97,11 @@ class MockClient {
     const ev = m.Event;
     if (ev) {
       for (const key of Object.keys(this.counts)) if (ev[key]) this.counts[key]++;
+      // Accumulate as frames stream past — next() drains them, so they cannot be
+      // inspected afterwards.
+      if (ev.RoundWon) {
+        this.scoreSnapshots.push({ yakuList: ev.RoundWon.yaku_list, scores: ev.RoundWon.scores });
+      }
       // --- auto-policy: respond to actionable events ---
       if (ev.TileDrawn) {
         const t = ev.TileDrawn;
@@ -144,6 +150,41 @@ class MockClient {
 
   close() { try { this.ws.close(); } catch { /* ignore */ } }
 }
+
+test('Hello is rejected when the client asks for a different protocol version', { timeout: 30000 }, async () => {
+  const server = await startServer();
+  let client;
+  try {
+    client = new MockClient(`ws://127.0.0.1:${server.port}/ws`);
+    await client.opened;
+
+    client.send({ Hello: { protocol_version: 5, display_name: 'OldClient' } });
+    const err = await client.nextWhere((m) => m.Error);
+    assert.equal(err.Error.code, 'VersionMismatch');
+    assert.match(err.Error.message, /v6/);
+    // No session was minted, so no Welcome follows.
+    assert.equal(client.frames.some((m) => m.Welcome), false);
+  } finally {
+    if (client) client.close();
+    server.child.kill();
+  }
+});
+
+test('Hello without a protocol_version is accepted (the field is optional)', { timeout: 30000 }, async () => {
+  const server = await startServer();
+  let client;
+  try {
+    client = new MockClient(`ws://127.0.0.1:${server.port}/ws`);
+    await client.opened;
+
+    client.send({ Hello: { display_name: 'NoVersion' } });
+    const welcome = await client.nextWhere((m) => m.Welcome);
+    assert.equal(welcome.Welcome.protocol_version, 6);
+  } finally {
+    if (client) client.close();
+    server.child.kill();
+  }
+});
 
 test('full bridge match (1 human + 3 CPU) completes with GameOver', { timeout: 90000 }, async () => {
   const server = await startServer();
@@ -197,6 +238,25 @@ test('full bridge match (1 human + 3 CPU) completes with GameOver', { timeout: 9
     assert.ok(client.counts.TileDiscarded >= 1, 'discards arrived');
     assert.ok(gameOverMsg.final_scores.length === 4);
     for (const s of gameOverMsg.final_scores) assert.ok(Number.isFinite(s));
+
+    // Money conservation. Nothing moves points in or out of the table except
+    // riichi sticks, which are already taken from a player when declared, so
+    // every score snapshot the server emits must still total 100 000. A payout
+    // bug (wrong honba, double-counted sticks, a loser charged twice) would
+    // break this while still leaving every individual score finite.
+    const TOTAL = 4 * 25000;
+    const finalTotal = gameOverMsg.final_scores.reduce((a, b) => a + b, 0);
+    assert.equal(finalTotal, TOTAL, `final scores must total ${TOTAL}, got ${finalTotal}`);
+
+    const scoreSnapshots = client.scoreSnapshots;
+    for (const [i, { scores: snap }] of scoreSnapshots.entries()) {
+      const sum = snap.reduce((a, b) => a + b, 0);
+      assert.equal(sum, TOTAL, `RoundWon #${i} scores must total ${TOTAL}, got ${sum}`);
+    }
+    // A match is seeded from Math.random(), so it may legitimately end with all
+    // four hands drawn and no winner. Log rather than assert; settlement.test.js
+    // covers the win paths deterministically.
+    console.log(`[test] hands won: ${scoreSnapshots.length}`);
 
     // Return to lobby and confirm a post-game RoomState.
     client.send('ReturnToLobby');

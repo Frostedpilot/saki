@@ -231,18 +231,18 @@ The repo also ships two hand-curated third-party assets with the same problem:
 
 ---
 
-## <a id="ki-09"></a>KI-09 🟡 Silent failure modes — the worst ones now warn
+## <a id="ki-09"></a>KI-09 ✅ FIXED — Silent failure modes
 
-The code prefers to swallow errors. Each of these produces a confusing symptom rather
-than a diagnostic:
+The code prefers to swallow errors. Each of these produced a confusing symptom
+rather than a diagnostic. All are now either logged or rejected outright:
 
-| Where | Behaviour | Status |
+| Where | Was | Now |
 | --- | --- | --- |
-| `server/room.js` roster registry | `try { ROSTERS.x = require(...) } catch {}` | ✅ **Fixed** — `loadRoster(key, load)` logs `console.warn` naming the key and the error, and rejects a module that doesn't export a factory |
-| `engine/powers/index.js` hook calls | Every hook wrapped in `try/catch`, falling back to the default | ✅ **Fixed** — warns once per hook name (rate-limited: `drawWeight` fires on every draw, so an unguarded warn would flood the console) |
-| `server/room.js` `SAKI_POWER_SEATS` | `.filter(...)` drops out-of-range values | ⚠️ Open — `SAKI_POWER_SEATS=0,9,x` still drops `9` and `x` silently |
-| `server/index.js` `Hello` | Answers `Welcome` **without validating `protocol_version`** | ⚠️ Open — a mismatched client is accepted, then misbehaves |
-| `server/public/` HTTP handler | Any read error → `404 not found` | ⚠️ Open — a permissions problem looks like a missing route |
+| `server/room.js` roster registry | `try { ROSTERS.x = require(...) } catch {}` | `loadRoster(key, load)` logs `console.warn` naming the key and error, and rejects a module that doesn't export a factory |
+| `engine/powers/index.js` hook calls | every hook wrapped in `try/catch` with no log | warns **once per hook name** (rate-limited: `drawWeight` fires on every draw) |
+| `server/room.js` `SAKI_POWER_SEATS` | `.filter(...)` silently dropped bad values | names each rejected entry and why: `ignoring 9 (seat must be 0-3), x (not a number)` |
+| `server/index.js` `Hello` | answered `Welcome` **without validating `protocol_version`** | rejects an explicit mismatch with `Error{code:'VersionMismatch'}`; omitting the field is still accepted, since it's optional |
+| `server/public/` HTTP handler | any read error → `404 not found` | ⚠️ still open — a permissions problem looks like a missing route |
 
 The hook-level `try/catch` is defensible — a cosmetic aura must not break a game — and
 is retained. What was wrong was the *silence*: a power could be fully broken and the
@@ -255,6 +255,160 @@ prints
 ```
 
 once per hook, and `resetHookWarnings()` is exported for tests.
+
+---
+
+## <a id="ki-15"></a>KI-15 ✅ FIXED — Kakan was legal while in riichi, in both rule implementations
+
+Found by the same sweep as KI-13/KI-14 — this time by reading `classifyHumanKan` and
+asking what standard riichi says about each branch.
+
+**The rule:** an *ankan* (closed quad) while in riichi is legal **only if it leaves your
+waits unchanged**; otherwise it is chombo. A *kakan* (adding the fourth tile to an
+existing **pon**) while in riichi is **never legal** — it moves a tile out of the
+concealed hand into the meld, which can change the wait, and standard rules forbid it
+outright rather than making it conditional.
+
+**The bug:** the kakan branch had no riichi check at all, in *either* rule
+implementation — and, on the server, in **two further places**:
+
+| Site | Reached by | Was |
+| --- | --- | --- |
+| `engine/game.js` human kan offer | offline human | `else if (a.startsWith('kakan') && ponUp) kanChoice = …` — no riichi test |
+| `engine/game.js` bot kan offer | offline bots | `else if (ponUp && Math.random() < 0.35) kanChoice = …` — bots would do it too |
+| `room.js` `classifyHumanKan`, explicit-tile branch | networked human | returned `{kind:'kakan'}` with no riichi test |
+| `room.js` `classifyHumanKan`, auto-detect branch | networked human | returned `{kind:'kakan'}` with no riichi test |
+| **`room.js` CPU kan offer (`playTurn`)** | **networked bots** | `kanChoice = { kind: 'kakan' }` — no riichi test |
+
+The server has **two** independent implementations of "may this seat declare a kan":
+`classifyHumanKan` for humans and an inline block in `playTurn` for CPU seats. The
+first was fixed; the second was missed until a follow-up review — and CPU seats
+**bypass `validateAct` entirely** (only the human branch calls it), so the boundary
+re-check added to `validateAct` did not cover them either.
+
+So a player in riichi could add a kan to a pon and alter their wait structure with no
+chombo penalty, on either rule path, as human or as CPU.
+
+**Fixed at all five sites**, plus defence in depth:
+
+- Each kakan branch now refuses explicitly with
+  `'cannot add a kan to a pon while in riichi (chombo)'`.
+- `validateAct` re-asserts the rule (covers humans).
+- **`doOwnKan` — the single choke point every kan passes through, whatever its
+  origin — refuses a kakan from a riichi hand** before touching the hand or melds.
+  This is the guard that actually covers bots and any future caller.
+
+### Second finding from the same review: `ankanKeepsWaits` did not fail closed
+
+`engine/helpers.js` documents "fail closed: unknown waits ⇒ treat as wait-changing",
+but the guard was `if (!pl.riichiWaits) return false;` — and **`[]` is truthy in JS**. An
+empty wait set therefore fell through, and `waitsSetEq(computed, [])` returns `true`
+when the computed side is also empty, so an unknown wait set could read as
+"unchanged" and permit a chombo. Now `[]` is treated as unknown, and a `kanTile` not
+present in the hand is refused rather than silently mishandled.
+
+**Tests:** `server/test/validation.test.js` (37 deterministic tests) pins
+`classifyHumanKan`, `validateAct`, `botDecision` and `doOwnKan` — ankan/kakan detection,
+both riichi-kan rules, explicit tile-index selection (including index 0, which a `> 0`
+guard used to skip), every `validateAct` rejection path, bot discard sanity over 500
+draws (the RNG can never index past the candidate list), riichi-locked tsumogiri,
+`SAKI_RIICHI_FORCE`, and the `doOwnKan` choke point from both sides.
+`engine/tests/rules.test.js` gains a case for the fail-closed behaviour.
+
+Neither seeded offline match contained a kakan-while-riichi situation, so their output
+hashes are byte-identical — the fix is surgical and changed no unrelated play.
+
+**Lesson worth recording:** two independent implementations of the same rule decision
+existed on the server (human vs CPU), and only one of them was fixed the first time.
+When a rule is enforced, enforce it at the **choke point** where the effect happens, not
+only at each decision site — hence the `doOwnKan` guard.
+
+---
+
+## <a id="ki-14"></a>KI-14 ✅ FIXED — Riichi sticks vanished at an exhaustive draw
+
+Found by the same method as KI-13: add a missing invariant assertion, then read what
+breaks. The bridge E2E test only asserted that final scores were *finite*, never that
+they *conserve* — so a money bug sailed straight through.
+
+**The bug:** at an exhaustive draw, `finishHand` ran the noten payments and then only
+*reported* the riichi sticks sitting on the table:
+
+```js
+riichiSticks: ctx.riichiPool / 1000,   // reported…
+                                       // …and never awarded
+```
+
+Neither awarded to the tenpai players nor carried forward. The win path awards the pool
+to the nearest winner, so **every riichi declared in a hand that ended in an exhaustive
+draw destroyed 1000 points.** The new assertion failed with
+`final scores must total 100000, got 99000` — exactly one stick, intermittently,
+depending on whether that match happened to contain a drawn riichi hand.
+
+**The fix** — implement the actual rule, which also makes it self-balancing:
+
+- **Exhaustive draw:** sticks go to the tenpai players, split as evenly as a whole
+  number of points allows (1000 across 3 players is 334/333/333, not 1000/0/0). If
+  nobody is tenpai they carry to the next hand, as `engine/game.js` does.
+- **Match end:** `run()` settles anything still carried before emitting `GameOver`.
+  A quarter of the pot is always exact because the pot is a whole multiple of 1000.
+
+**Tests:** new `server/test/settlement.test.js` (11 deterministic tests) drives
+`finishHand` directly with a headless `Table`, covering exhaustive draw (0/2/3/4
+tenpai), dealer and non-dealer tsumo, single and double ron, carry accumulation, and
+match teardown. The E2E test additionally asserts that every `RoundWon` score
+snapshot and the final total are exactly 100 000.
+
+Worth noting how the work went: three of the eleven failures were **my own test
+expectations** being wrong (an incomplete hand, a missing `dead` array, forgetting
+that declaring riichi adds a han) and one exposed a **flaw in my first fix** — a
+`units % 4` remainder scheme that handed one seat the entire 1000 instead of splitting
+it. The code was right in every case; the tests were not. That is the argument for
+writing the deterministic tests rather than trusting a random match to catch it.
+
+---
+
+## <a id="ki-13"></a>KI-13 ✅ FIXED — Unmapped yaku silently dropped from the wire
+
+Found by probing `server/yaku-map.js`, which had **zero test coverage** — nothing
+asserted that a yaku the `riichi` library can actually emit survives translation.
+
+**The bug:** `対々和` (Toitoi, 2 han) and `三暗刻` (Sanankou, 2 han) were in no lookup
+table, so `buildYakuList` dropped them. A toitoi or sanankou win reached the client
+with a `yaku_list` missing its main yaku while `RoundWon.han` stayed correct — so the
+hand's total looked right and its yaku list was quietly wrong. The comment in the file
+claimed 人和 and 大七星 were the only unmapped yaku; two more common ones had simply
+never been noticed.
+
+**The fix:** mapped them to the correct protocol variants, recovered from the vendored
+WASM client binary (serde serialises unit variants as their Rust names, so the enums
+are recoverable as contiguous ASCII runs):
+
+| Japanese | Protocol `Kind` |
+| --- | --- |
+| 対々和 | `AllTriplets` |
+| 三暗刻 | `ThreeConcealedTriplets` |
+
+人和 and 大七星 stay dropped — the protocol's `Kind` enum genuinely has no variant for
+either — and that is now declared in an exported `UNSUPPORTED_BY_PROTOCOL` set rather
+than buried in a comment.
+
+**Also fixed while in there:**
+- `rankFromResult` matched `endsWith('倍役満')`, which misses `ダブル役満`; it now
+  matches any name containing `役満`.
+- `yaku-map.js` exported its tables so tests needn't parse its source.
+- Two provably dead map entries (`両立直`, `清一色（喰い下がり）`) are now declared in
+  `LEGACY_ALIASES` — kept as insurance against a future lib rename, but asserted to be
+  unemitted by the pinned version.
+
+**New test:** `server/test/yaku-map.test.js` (18 tests). Two of them are drift guards
+that would have caught this and will catch its recurrence:
+1. every yaku the lib can emit is either mapped or explicitly listed as unsupported
+2. every `Kind`, `DoraLabel` and `ScoreRank` the map targets is a real enum variant,
+   re-verified against the WASM binary
+
+That turns an unaudited translation table into a self-checking one. If a future
+`riichi` release adds a yaku, the suite fails and names it.
 
 ---
 
@@ -420,9 +574,9 @@ The 8-implemented / ~20-design-intent split is now stated in a banner at the top
 
 ## <a id="dr-07"></a>DR-07 ✅ FIXED — stale counts in `architecture-comparison.md`
 
-- *"node --test tests/ — 254 pass"* → **341**, and the command is now the working glob
+- *"node --test tests/ — 254 pass"* → **342**, and the command is now the working glob
   form.
-- *"server npm test — 2 pass"* → **3**.
+- *"server npm test — 2 pass"* → **71**.
 - §3 listed the furiten bug as a live risk while §5 listed it fixed. **Fixed** — §3
   items now carry **[FIXED]** / **[OPEN]** / *partly* tags, and §4's phases are marked
   ✅ / ⚠️ with the residual work named (e.g. `cli.js` still duplicates `KINDS`;
@@ -478,16 +632,28 @@ Docs are consistent and CI is green. These are the remaining **code** items:
 | 9 | ~~`cli.js` → `eval` only; drop `toki`/`teru`; error on unknown `--powers`~~ | ✅ done | KI-05 |
 | 10 | ~~npm workspaces: one `npm ci`, one lockfile, single `riichi`/`syanten`~~ | ✅ done | KI-02 |
 | 11 | ~~`game.js` export guard + `engine/tests/offline-rules.test.js` (31 tests)~~ | ✅ done | KI-04 (partial) |
-| 12 | Reject `Hello` on `protocol_version` mismatch | 20 min | KI-09 |
-| 13 | Warn on dropped `SAKI_POWER_SEATS` values instead of discarding silently | 15 min | KI-09 |
-| 14 | Add a LICENSE; record `server/public/` provenance | 1 h | KI-08, KI-12 |
-| 15 | Add an `.nvmrc` | 2 min | KI-06 |
-| 16 | Characterise `game.js` `main()` closures with unit tests | 4 h | prerequisite for 18 |
-| 17 | Add client tests (Vitest + jsdom) for `store.ts` and tile rendering | 1 d | KI-07 |
-| 18 | Consolidate the two rule front-ends behind one shared layer | 2–3 d | KI-04 |
-| 19 | Split `Table` out of `server/room.js` | 3 h | KI-11, unblocks 16–18 |
+| 12 | ~~Reject `Hello` on `protocol_version` mismatch~~ | ✅ done | KI-09 |
+| 13 | ~~Warn on dropped `SAKI_POWER_SEATS` values~~ | ✅ done | KI-09 |
+| 14 | ~~Cover `yaku-map.js`; fix the dropped Toitoi/Sanankou~~ | ✅ done | KI-13 |
+| 15 | ~~Assert score conservation; fix riichi sticks lost at an exhaustive draw~~ | ✅ done | KI-14 |
+| 16 | ~~Log 500s distinctly from 404s in the static handler~~ | ✅ done | KI-09 |
+| 17 | Add a LICENSE; record `server/public/` provenance | 1 h | KI-08, KI-12 |
+| 17a | Sweep `resolveCallWindow` and the scoring path for the same duplicated-rule pattern as KI-15 | 3 h | KI-04 |
+| 18 | Add an `.nvmrc` | 2 min | KI-06 |
+| 19 | ~~Pin the kan/riichi rules across every decision site + `doOwnKan`~~ | ✅ done | KI-15 |
+| 20 | ~~Cover `botDecision` and the `doOwnKan` choke point~~ | ✅ done | KI-15 |
+| 21 | Characterise `game.js` `main()` closures with unit tests | 4 h | prerequisite for 23 |
+| 22 | Add client tests (Vitest + jsdom) for `store.ts` and tile rendering | 1 d | KI-07 |
+| 23 | Consolidate the two rule front-ends behind one shared layer | 2–3 d | KI-04 |
+| 24 | Split `Table` out of `server/room.js` | 3 h | KI-11, unblocks 21–23 |
 
-The one genuinely large remaining item is **18**, and it should not be started before
-**16**: `main()`'s orchestration is the only significant block of logic in the repo with
+The one genuinely large remaining item is **23**, and it should not be started before
+**21**: `main()`'s orchestration is the only significant block of logic in the repo with
 thin coverage, so consolidating it before characterising it would mean rewriting the
 weakest-tested code in the project.
+
+**The method that found KI-13 and KI-14 is cheaper than any refactor here.** Neither
+bug was on this register. Both came from two questions: *which source file has no test
+touching it?* and *what invariant is asserted nowhere?* `server/yaku-map.js` answered
+the first, score conservation answered the second. `server/room.js` is the same shape
+and bigger — **19** continues that sweep, and needs no design decisions at all.

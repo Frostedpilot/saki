@@ -436,7 +436,14 @@ async function main() {
                 if (c.startsWith('y')) { winner = -3; winBy = { type: 'chombo', offender: turn }; break; }
               } else kanChoice = { kind: 'ankan', tile: ankanTile };
             }
-            else if (a.startsWith('kakan') && ponUp) kanChoice = { kind: 'kakan', tile: norm(ponUp.tiles[0]) };
+            else if (a.startsWith('kakan') && ponUp) {
+              // Adding a kan to an existing pon moves a tile out of the concealed
+              // hand and into the meld, which can change the wait. Standard
+              // riichi forbids it outright while in riichi (unlike ankan, which
+              // is legal if the waits are unchanged).
+              if (me.riichi) console.log('  ILLEGAL: cannot add a kan to a pon while in riichi (chombo).');
+              else kanChoice = { kind: 'kakan', tile: norm(ponUp.tiles[0]) };
+            }
           }
         } else {
           if (ankanTile && Math.random() < 0.5) {
@@ -444,7 +451,11 @@ async function main() {
             if (!me.riichi || ankanKeepsWaits(me, ankanTile)) kanChoice = { kind: 'ankan', tile: ankanTile };
             else console.log(`  ${names[me.id]} skips ANKAN ${ankanTile} (would change riichi waits)`);
           }
-          else if (ponUp && Math.random() < 0.35) kanChoice = { kind: 'kakan', tile: norm(ponUp.tiles[0]) };
+          else if (ponUp && Math.random() < 0.35) {
+            // bots never chombo: no kakan while in riichi (see above)
+            if (me.riichi) console.log(`  ${names[me.id]} skips KAKAN (illegal while in riichi)`);
+            else kanChoice = { kind: 'kakan', tile: norm(ponUp.tiles[0]) };
+          }
         }
       }
       let afterKan = false;

@@ -151,7 +151,10 @@ function waitsSetEq(a, b) {
 function ankanKeepsWaits(pl, kanTile) {
   // Fail closed: unknown waits or missing copies => treat as wait-changing
   // (caller rejects the kan with a message instead of crashing or chomboing).
-  if (!pl.riichiWaits) return false;
+  // An empty array counts as unknown: it is truthy, so a bare `!riichiWaits`
+  // check would let it through and then compare [] against a computed set.
+  if (!pl.riichiWaits || pl.riichiWaits.length === 0) return false;
+  if (!kanTile) return false;
   const rest = [...pl.hand];
   for (let c = 0; c < 4; c++) {
     const i = rest.findIndex((x) => same(x, kanTile));

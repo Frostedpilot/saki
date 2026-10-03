@@ -218,6 +218,20 @@ test('ankan keeps tanki waits, breaks shanpon waits', () => {
   assert.equal(H.ankanKeepsWaits(plBreak, '3p'), false);
 });
 
+test('ankanKeepsWaits fails closed when the waits are unknown', () => {
+  // `[]` is truthy, so a bare `!riichiWaits` guard let an unknown wait set
+  // through and compared it against a computed one.
+  const hand = ['1m', '1m', '1m', '1m', '2p', '2p', '4p', '5p', '6p', '7s', '8s', '9s', '5z', '5z'];
+  assert.equal(H.ankanKeepsWaits({ hand, melds: [], riichiWaits: [] }, '1m'), false);
+  assert.equal(H.ankanKeepsWaits({ hand, melds: [], riichiWaits: null }, '1m'), false);
+  assert.equal(H.ankanKeepsWaits({ hand, melds: [], riichiWaits: undefined }, '1m'), false);
+  // With the real waits the same hand is fine.
+  const good = { hand, melds: [], riichiWaits: ['2p', '5z'] };
+  assert.equal(H.ankanKeepsWaits(good, '1m'), true);
+  // A kan tile that is not in the hand must also refuse rather than throw.
+  assert.equal(H.ankanKeepsWaits(good, '9z'), false);
+});
+
 // ---- J. nagashi / oka-uma ----
 test('nagashi: closed all-terminal discards only', () => {
   assert.equal(H.isNagashi({ melds: [], discards: ['1m', '9p', '1z', '9s', '2z'] }), true);

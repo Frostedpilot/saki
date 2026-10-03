@@ -44,8 +44,8 @@ If you only want the offline engine: `npm ci && npm run test:engine`.
 | Command | What it does |
 |---|---|
 | `npm test` | everything CI runs: engine + server + client build |
-| `npm run test:engine` | 341 engine unit tests + the 43-check rule selftest |
-| `npm run test:server` | 3 headless end-to-end tests over a real WebSocket |
+| `npm run test:engine` | 342 engine unit tests + the 43-check rule selftest |
+| `npm run test:server` | 71 server tests: protocol codec, handshake, 2 full matches, yaku translation, settlement, validation |
 | `npm run test:client` | `tsc` type-check + production build (no client tests exist) |
 | `npm run links` | verify every relative markdown link resolves |
 | `npm run smoke` | one short deterministic hand; proves the CLI arg parser works |
@@ -200,8 +200,8 @@ built-in runner (`node:test` + `node:assert/strict`) — no Jest/Mocha/Vitest de
 
 ```bash
 npm test              # everything CI runs (~2 min)
-npm run test:engine   # 341 unit tests + 43 selftest checks
-npm run test:server   # 3 end-to-end tests
+npm run test:engine   # 342 unit tests + 43 selftest checks
+npm run test:server   # 71 server tests
 npm run test:client   # tsc + production build
 npm run links         # markdown link check
 npm run smoke         # one short deterministic hand
@@ -223,9 +223,9 @@ Raw invocations, if you need them: `node --test tests/*.test.js` (engine),
 
 | Layer | Command | Scope |
 | --- | --- | --- |
-| Engine unit tests | `npm run test:engine` | 25 files, 341 tests. Per-character rosters, `dynamicPool`, `trajectoryPlanner`, `flowManager`, `nodokaEval`, `core` phases, scoring/tiles/rng, plus `crossCharacter` (multi-seat power interaction), `edge` (bug-hunting), and **`offline-rules`** (the `game.js`-only layer: CLI arg parsing, `buildWall`, `countVisible`, `powerDraw`, bot decision injection). |
+| Engine unit tests | `npm run test:engine` | 25 files, 342 tests. Per-character rosters, `dynamicPool`, `trajectoryPlanner`, `flowManager`, `nodokaEval`, `core` phases, scoring/tiles/rng, plus `crossCharacter` (multi-seat power interaction), `edge` (bug-hunting), and **`offline-rules`** (the `game.js`-only layer: CLI arg parsing, `buildWall`, `countVisible`, `powerDraw`, bot decision injection). |
 | Engine rule selftest | `node engine/game.js --selftest=1` | 43 in-engine checks covering yaku, fu, dora, aborts, kuikae, oka/uma, invariants. |
-| Server E2E | `npm run test:server` | `server/test/bridge.test.js` spawns the real server, connects a mock protocol-v6 client over `ws`, and plays a full match to `GameOver`. Also unit-tests the red-dora tile codec and the Yuu Matsumi passive. |
+| Server E2E | `npm run test:server` | Four files. `bridge.test.js` spawns the real server, connects a mock protocol-v6 client over `ws`, and plays full matches to `GameOver`; also covers the handshake (including `VersionMismatch` rejection), the red-dora tile codec, and **score conservation** on every `RoundWon` snapshot and the final total. `yaku-map.test.js` covers the riichi-lib → protocol `Kind` translation, cross-checked against the enums recovered from the vendored WASM client. `settlement.test.js` drives `finishHand` headlessly and deterministically over exhaustive draws (0/2/3/4 tenpai), tsumo, single and double ron, and match teardown — the layer where riichi sticks were being lost. `validation.test.js` pins `classifyHumanKan`, `validateAct`, `botDecision` and `doOwnKan`: ankan/kakan detection, both riichi-kan rules, every action rejection path, and the kan choke point that refuses kakan from a riichi hand. |
 | Client types | `npm run test:client` | `tsc` with `strict: true`. **The client has no behavioural tests at all** — a UI regression will not be caught. See [`known-issues.md`](known-issues.md#ki-07). |
 | Markdown links | `npm run links` | `scripts/check-links.mjs`: every relative link in every `.md` resolves. |
 | CLI smoke | `npm run smoke` | Plays one hand and greps for a discard, catching the arg-parser class of bug where the engine silently completes zero hands. |
