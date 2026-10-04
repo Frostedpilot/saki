@@ -13,8 +13,8 @@ libraries, but have different wall models:
 | Layer | Files | Wall model | Used by |
 |---|---|---|---|
 | Offline reference game | `engine/game.js`, `engine/cli.js` | Pre-shuffled 136-array, `wall.pop()` | CLI demo, `--selftest`, rule truth |
-| Modular match core | `engine/core.js`, `engine/tiles.js`, `engine/scoring.js`, `engine/rng.js`, `engine/powers/dynamicPool.js`, `engine/powers/index.js`, `engine/powers/flowManager.js`, `engine/powers/trajectoryPlanner.js` | `DynamicPool` inventory + weighted sample | `server/room.js` `Table` (network game) |
-| Netplay glue | `server/room.js`, `engine/helpers.js`, `server/protocol.js` | Delegates draws to `core.executeDrawStep` | Real client matches |
+| Modular match core | `engine/core.js`, `engine/tiles.js`, `engine/scoring.js`, `engine/rng.js`, `engine/powers/dynamicPool.js`, `engine/powers/index.js`, `engine/powers/flowManager.js`, `engine/powers/trajectoryPlanner.js` | `DynamicPool` inventory + weighted sample | `server/table.js` `Table` (network game) |
+| Netplay glue | `server/table.js`, `server/room.js`, `engine/helpers.js`, `server/protocol.js` | Delegates draws to `core.executeDrawStep` | Real client matches |
 | Reused rule math | `riichi` (yaku/score), `syanten` (shanten/hairi) npm packages | — | Both layers |
 
 `engine/helpers.js` is an explicit extract of `engine/game.js` logic so the
@@ -66,7 +66,7 @@ a genuine (small) duplication. Behavior is the same.
 
 Important: the lib returns `isAgari=true` for any complete shape even with no
 yaku. Both game layers therefore require `r.yakuman > 0 || r.han >= 1`
-(`Table.isAWin` in `server/room.js`; the `tsumoOk` / `tryRon` gates in
+(`Table.isAWin` in `server/table.js`; the `tsumoOk` / `tryRon` gates in
 `engine/game.js`). Overtime adds `minHan=2` (see §7).
 
 `shantenOf` / `hairiOf` in `engine/helpers.js` are thin
@@ -112,7 +112,7 @@ buildWall() // 4x each of 34 kinds, swap one 5m/5p/5s -> 0m/0p/0s, Fisher-Yates
 
 The server uses this path: `core.createMatchState`, `core.setupDeadWall`,
 `core.dealHands`, then `core.executeDrawStep(seat, state)` every turn
-(`Table` constructor and `Table.playTurn` in `server/room.js`).
+(`Table` constructor and `Table.playTurn` in `server/table.js`).
 
 ---
 
@@ -136,24 +136,24 @@ State: `scores=[25000 x4]`, `dealer=0`, `honba=0`, `riichiCarry=0`
 - `drawsThisKyoku` + `callsMade` + `me.discards/melds` lengths jointly define
   "first turn" for double riichi / tenhou / chihou.
 
-### 3.2 Server equivalent — `server/room.js` `Table`
+### 3.2 Server equivalent — `server/table.js` `Table`
 
 `Table.run()` loops `playOneHand()` until `kyoku == totalRounds` (East-only 4).
 `playOneHand()` builds seeded `state`, registers powers, deals, then loops
 `playTurn(turn)` until `poolTotal() == 0` or a win object returns.
 `keepDealer` / `honba` / `kyoku--` replay logic mirrors `game.js` (§7), minus
-abortive draws (explicitly unimplemented — see the `room.js` header).
+abortive draws (explicitly unimplemented — see the `table.js` header).
 `resolveCallWindow` returns `{end:false,next}` or `{end:true,winner,winBy}`.
 
 ---
 
 ## 4. Draw → tsumo → discard
 
-Per turn (`engine/game.js` turn body; `Table.playTurn` in `server/room.js`):
+Per turn (`engine/game.js` turn body; `Table.playTurn` in `server/table.js`):
 
 1. Temp furiten clears on your own draw — **but only when you are not riichi**:
    `if (!me.riichi && !me.doubleRiichi) me.tempFuriten = false;` in `game.js`,
-   and `H.clearTempFuritenOnDraw(me)` in `room.js`. Permanent furiten while
+   and `H.clearTempFuritenOnDraw(me)` in `table.js`. Permanent furiten while
    riichi is correct standard behaviour and is pinned by
    `engine/tests/furiten-riichi.test.js`. (An earlier revision of this document
    described this as an open bug; it was fixed.)
@@ -227,7 +227,7 @@ suukaikan check, rinshan draw `dead[rinshanIdx++]`, rinshan tsumo check with
 - Rinshan win calls `tsumoWin(..., rinshan=true)`; else fall through to the
   normal discard path (`discardAfterCall`).
 - Kan dora: `revealKanDora` exposes the next indicator pair and rebroadcasts
-  (`server/room.js`); `ctx.dora = baseDora()` refreshes.
+  (`server/table.js`); `ctx.dora = baseDora()` refreshes.
 - Ankan after riichi: legal only if waits are unchanged
   (`ankanKeepsWaits` in `engine/helpers.js`, comparing `riichiWaits` before
   vs after). Offline humans can force it and eat a chombo mangan penalty +
@@ -372,7 +372,7 @@ these are enabled in `RULES.aborts` and disabled in `RULES.serverAborts`
 3. `engine/helpers.js`: same pure rules, importable by the server.
 4. `engine/core.js` + `engine/powers/dynamicPool.js`: stateful pool version of
    deal/draw/slots with audit.
-5. `server/room.js` `Table`: event-driven mirror of (2) — `playTurn` (= draw +
+5. `server/table.js` `Table`: event-driven mirror of (2) — `playTurn` (= draw +
    kan + tsumo + discard), `resolveCallWindow` (= ron/pon/chi arbitration),
    `doOwnKan` / `doOpenCall` / `doOpenChi`, `finishHand` (= settlement +
    rotation). Draws go through `core.executeDrawStep`; all other rulings reuse

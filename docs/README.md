@@ -28,6 +28,7 @@ When two documents disagree, resolve it in this order:
 | [`protocol.md`](protocol.md) | — | current | Protocol v6 wire contract |
 | [`conventions.md`](conventions.md) | — | current | Code style, module boundaries, how to add a character |
 | [`known-issues.md`](known-issues.md) | — | current | Structural fragility register + doc rot |
+| [`provenance.md`](provenance.md) | — | current | The vendored prebuilt WASM client and third-party art: what is verified, what is unknown |
 | [`engine-implementation.md`](engine-implementation.md) | 384 | mostly current | How a game runs end to end. **`file:line` citations are 30–100 lines stale.** |
 | [`engine-design.md`](engine-design.md) | 269 | design | The 6 primitives, Flow economy, lifecycle. Some numbers and the roster tree are wrong. |
 | [`architecture-comparison.md`](architecture-comparison.md) | 127 | current | Ours vs upstream `riichi_advanced`. Best-maintained doc here. |
@@ -109,7 +110,7 @@ banner separating the two, and unimplemented entries with missing values are mar
 - `path/to/file.js` — a real path in this repo. If it is prefixed `reference/`, it only
   exists if you cloned the upstream engine yourself, and citations there are unverified.
 - **Cite symbols, not line numbers.** Every `file:line` citation that existed here went
-  stale the moment code moved; prefer `` `room.js` `resolveCallWindow` ``. The
+  stale the moment code moved; prefer `` `table.js` `resolveCallWindow` ``. The
   `file:line` remaining in `known-issues.md` is quoting the old text on purpose.
 - Anything marked **[OPEN]** or ⚠️ in `known-issues.md` should not be trusted without
   checking the code. Part B is fully resolved; Part A (structural fragility) is not.

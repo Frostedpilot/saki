@@ -20,7 +20,7 @@ run directly on Node.
 
 ### `'use strict'`
 
-Present at the top of every file in `server/` (`index.js`, `room.js`, `protocol.js`,
+Present at the top of every file in `server/` (`index.js`, `room.js`, `table.js`, `protocol.js`,
 `helpers.js`, `yaku-map.js`) and in `engine/rules-config.js`, but **not** consistently
 in `engine/` (`game.js`, `core.js`, `tiles.js` omit it). Node defaults to sloppy
 mode for CommonJS, so this is a real behavioural difference, not decoration. Prefer
@@ -112,7 +112,7 @@ ignore). Write hooks that assume nothing about state shape.
 
 | | Offline | Network |
 | --- | --- | --- |
-| Driver | `engine/game.js` `main()` | `engine/core.js` + `server/room.js` `Table` |
+| Driver | `engine/game.js` `main()` | `engine/core.js` + `server/table.js` `Table` |
 | Wall | pre-shuffled array, `wall.pop()` | `DynamicPool` weighted sampling |
 | Powers | **inline simplified `powerDraw()`** — *not* the roster framework | full `PowerDispatcher` |
 | Aborts | all five | none (`RULES.serverAborts`) |
@@ -131,14 +131,14 @@ logic lives in `engine/tiles.js`, `engine/scoring.js`, `engine/rng.js` and
 > engine's own tests reach into `server/`, and it has been undone.
 
 **What is still duplicated** is the per-hand *orchestration*: `game.js`'s `main()` and
-`room.js`'s `Table` each drive a hand independently (`declareRiichi`, `collectRon`,
+`table.js`'s `Table` each drive a hand independently (`declareRiichi`, `collectRon`,
 call-window arbitration, settlement). Those closures have no unit tests beyond the
 43-check selftest. See [`known-issues.md`](known-issues.md#ki-04) before touching them.
 
 ### 4.4 Rules are data
 
 Numeric rule values belong in `engine/rules-config.js` (`RULES`), not inline. Both
-`game.js` and `server/room.js` read it. Abort flags are paired — `RULES.aborts` for the
+`game.js` and `server/table.js` read it. Abort flags are paired — `RULES.aborts` for the
 offline engine, `RULES.serverAborts` for the server — with the comment "flip a flag only
 together with its handler".
 
@@ -251,7 +251,7 @@ instead of a meter. Do not fake a normal power as a flow power with zero costs.
 
 ### Step 3 — register it on the server
 
-Add a `try/catch` require to the `ROSTERS` block in `server/room.js` (~line 24):
+Add a `try/catch` require to the `ROSTERS` block in `server/rosters.js`:
 
 ```js
 try { ROSTERS.<key> = require('../engine/powers/rosters/<key>').create<Name>Hooks; }
@@ -276,7 +276,7 @@ table if the character uses a new primitive.
 
 ## 8. Things not to do
 
-- **Do not cite `file:line` in docs.** Cite symbols — `room.js` `resolveCallWindow`.
+- **Do not cite `file:line` in docs.** Cite symbols — `table.js` `resolveCallWindow`.
   Line citations rot the moment anyone edits above them.
 - **Do not copy a rule helper.** Add it to `engine/helpers.js`, or put the number in
   `engine/rules-config.js`. Do not re-implement waits, furiten, bot decisions, abort
@@ -298,4 +298,5 @@ table if the character uses a new primitive.
 - **Do not treat `server/public/` as build output.** It is a vendored upstream WASM
   client tracked in git; nothing here regenerates it.
 - **Do not add a client test framework without also wiring it into CI.**
-  `npm run test:client` currently only runs `tsc`.
+  `npm run test:client` runs Vitest and `tsc`, and `npm test` at the root includes
+  it. A test runner that CI does not call is not a test runner.

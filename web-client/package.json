@@ -9,6 +9,8 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "preview": "vite preview"
   },
   "dependencies": {
@@ -16,8 +18,10 @@
     "syanten": "^1.6.0"
   },
   "devDependencies": {
+    "jsdom": "^29.1.1",
     "sass": "^1.83.4",
     "typescript": "^5.7.3",
-    "vite": "^6.0.7"
+    "vite": "^6.0.7",
+    "vitest": "^5.0.3"
   }
 }

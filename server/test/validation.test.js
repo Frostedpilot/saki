@@ -15,7 +15,7 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 
-const { Table } = require('../room');
+const { Table } = require('../table');
 
 // A kan is declared on your own turn *after* drawing, so the hand has 14 tiles.
 // The helpers recompute waits from the remainder after the 4 kan tiles are

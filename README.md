@@ -61,7 +61,7 @@ Full flag list and more: [`docs/development.md`](docs/development.md#33-running-
 The engine implements two deliberately different rule sets. This trips people up, so
 it is stated here once and cross-linked everywhere else:
 
-| | Offline (`engine/game.js`) | Network (`server/room.js`) |
+| | Offline (`engine/game.js`) | Network (`server/table.js`) |
 | --- | --- | --- |
 | Length | Tonpuusen (4) or hanchan (8), `--kyoku` | **Tonpuusen only**, 4 rounds |
 | Abortive draws | **All five enabled** | **All five disabled** |
@@ -86,7 +86,7 @@ saki/
 │   ├── tiles.js             34 kinds -> 37 physical tile kinds (aka) -> 136 tiles
 │   ├── scoring.js           thin wrapper over the `riichi` npm package
 │   ├── rng.js               deterministic seeded RNG (mulberry32)
-│   ├── rules-config.js      rules as data (shared by game.js and room.js)
+│   ├── rules-config.js      rules as data (shared by game.js and table.js)
 │   ├── invariants.js        per-turn tile-conservation checks
 │   ├── replay.js            deterministic action journal + verifier
 │   ├── input.js             human discard-index parsing
@@ -108,11 +108,13 @@ saki/
 │
 ├── server/                  WebSocket bridge (node:http + ws)
 │   ├── index.js             static host for public/ + WebSocketServer at /ws
-│   ├── room.js              Room (lobby/seats) + Table (hand driver)  <- largest file
+│   ├── room.js              Room: lobby, seats, power assignment
+│   ├── table.js             Table: the hand driver  <- largest file
+│   ├── rosters.js           power roster registry, loaded defensively
 │   ├── protocol.js          protocol v6 JSON codec
 │   ├── yaku-map.js          riichi lib yaku names -> protocol Kind/DoraLabel
 │   ├── public/              vendored prebuilt WASM client (upstream build, ~12 MB)
-│   └── test/bridge.test.js  headless end-to-end protocol test
+│   └── test/                bridge (E2E), settlement, validation, call-window, yaku-map
 │
 ├── web-client/              Vite + lit-html + strict TypeScript client
 │   └── src/
@@ -139,9 +141,9 @@ via Node's built-in test runner.
 
 ```bash
 npm test              # everything CI runs (~2 min)
-npm run test:engine   # 342 tests + 43 rule checks
-npm run test:server   # 80 server tests
-npm run test:client   # tsc type-check (no client unit tests)
+npm run test:engine   # 358 tests + 43 rule checks
+npm run test:server   # 82 server tests
+npm run test:client   # 80 client tests + tsc type-check
 npm run links         # markdown link check
 npm run smoke         # one short deterministic hand
 ```

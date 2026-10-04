@@ -11,7 +11,7 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 
-const { Table } = require('../room');
+const { Table } = require('../table');
 
 // Two-tile copies so a pon is available; a 13-tile shape that is not tenpai on
 // the discarded tile so nobody can ron by accident.

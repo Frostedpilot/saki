@@ -16,7 +16,7 @@ Compares ours (`docs/engine-implementation.md`) vs reference
 | Paradigm | Imperative JS: rules are code | Data-driven: `.majs`/`.json` interpreted by Elixir + Rust + Z3 |
 | Wall | Shuffled array `wall.pop()` (`engine/game.js` `buildWall`) or counted `DynamicPool.sample()` (`engine/powers/dynamicPool.js`) | Declared `wall[]` + `reserved_tiles` + `revealed_tiles`, mutated by verbs (`swap_tiles`, `extend_*_wall_with_marked`, `reveal_tile`) |
 | Scoring | Delegated to `riichi` + `syanten` npm libs (`engine/scoring.js` `scoreHand`) | Own engine: `yaku_lists`, fu constants, Rust matcher, Z3 joker solver |
-| Turn flow | `while` loop: draw → kan → tsumo → discard → ron → calls (`engine/game.js` `main`; `server/room.js` `Table.playTurn`) | Event hooks: `after_start`, `before/after_turn_change`, `before/after_call`, `after_draw`, `before_win` (`saki.json`) |
+| Turn flow | `while` loop: draw → kan → tsumo → discard → ron → calls (`engine/game.js` `main`; `server/table.js` `Table.playTurn`) | Event hooks: `after_start`, `before/after_turn_change`, `before/after_call`, `after_draw`, `before_win` (`saki.json`) |
 | Powers | Per-character JS hook objects: Flow 0–150, draw weights, slot reservation (`engine/powers/rosters/*`) | Per-card JSON buttons: `status` + `show_when` + `actions`; aliases + counters; draft at start (`saki.ex`, `saki.json`) |
 
 Same skeleton (136 + aka, 13 tiles, kamicha-only chii, pon > chii, ron > all,
@@ -41,7 +41,7 @@ Neither wins outright.
 
 For this repo (solo/small team, JS full stack, one game), ours is the better
 fit. Do not import their stack. Steal four ideas: powers return intents while
-`core.js`/`room.js` executes (already started with `reserveSlot`,
+`core.js`/`table.js` executes (already started with `reserveSlot`,
 `exchangeDeadWallSlot`/`sampleRinshan`, `flow.consume`); card identity as
 `status` + `-disabled` (`saki.ex`); aborts/scoring as config, not
 branches; draft up front (`draft_saki_card`, `after_saki_start`).
@@ -53,7 +53,7 @@ Status tags: **[FIXED]** landed — see §5. **[OPEN]** still true.
 1. **Duplicated truth.** *Partly fixed.* `engine/game.js` now imports from
    `engine/tiles.js` instead of re-implementing it (Phase 2). Still duplicated:
    `engine/cli.js` re-declares `KINDS` and its own `buildWall`; `engine/helpers.js`
-   re-extracts helper logic from `game.js`; `server/room.js` `Table` mirrors the turn
+   re-extracts helper logic from `game.js`; `server/table.js` `Table` mirrors the turn
    loop as events. Drift remains possible between `cli.js` and `tiles.js`, and between
    the offline and server rule paths (different abort configuration).
 2. **Black-box scoring.** *Partly fixed.* String-built input to `riichi` + `syanten`
@@ -95,7 +95,7 @@ It is less reliable as a runtime for us (new stack, own matcher bugs to own).
   - Still open: `engine/cli.js` re-declares `KINDS` and its own `buildWall`.
 - **Harmonize Rule Helpers**: ⚠️ partly done
   - Canonical copies of the abort/nagashi helpers live in `engine/helpers.js`.
-  - Still open: wait generation, kuikae checking, and call arbitration are still separate implementations in `engine/game.js` and `server/room.js`.
+  - Still open: wait generation, kuikae checking, and call arbitration are still separate implementations in `engine/game.js` and `server/table.js`.
 
 ### Phase 3: Exact Pinning & Comprehensive Scoring Test Corpus
 - **Pin Dependencies**: ✅ done — exact versions (`riichi` `1.2.0`, `syanten` `1.6.0`) in both `engine/package.json` and `server/package.json`.

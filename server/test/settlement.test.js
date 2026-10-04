@@ -10,7 +10,7 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 
-const { Table, START_SCORE } = require('../room');
+const { Table, START_SCORE } = require('../table');
 
 const TOTAL = 4 * START_SCORE; // 100000
 
@@ -215,28 +215,65 @@ test('double ron charges the discarder for both winners and conserves points', a
 
 // ----------------------------------------------------------- match teardown
 
-test('a carry left when the match ends is returned evenly, not orphaned', () => {
+// These replace an earlier version that computed the expected redistribution in
+// the test body and then asserted on its own arithmetic. They passed whether or
+// not table.js did anything at all — a test that cannot fail is worse than no
+// test, so they now drive run() and read what it actually broadcasts.
+
+// Run a match that plays no hands, with `carry` left on the table beforehand.
+// run() owns the teardown, so this exercises the real code path.
+async function runToGameOver(t, carry) {
+  const sent = [];
+  t.broadcastMessage = (m) => sent.push(m);
+  t.room.afterGameOver = () => {};
+  t.playOneHand = async () => {};   // no hands: we are testing teardown only
+  t.riichiCarry = carry;
+  await t.run('ROOM');
+  return sent;
+}
+
+function gameOverScores(sent) {
+  const go = sent.find((m) => m && m.GameOver);
+  assert.ok(go, 'run() did not broadcast GameOver');
+  return go.GameOver.final_scores;
+}
+
+test('uncollected riichi sticks are forfeited at match end, not redistributed', async () => {
   const t = makeTable();
-  // Fund the pot, then carry it past the final hand exactly as the game does.
+  // Fund the pot from a seat's score, exactly as a riichi declaration does.
   t.scores[0] -= 1000;
-  t.riichiCarry = 1000;
-  assert.equal(sum(t), TOTAL - 1000, 'the stick is off the scores but still on the table');
+  assert.equal(sum(t), TOTAL - 1000, 'the stick left the scores and is on the table');
 
-  // run()'s settlement: a quarter of the pot each. 1000/4 is exact.
-  const each = t.riichiCarry / 4;
-  for (let s = 0; s < 4; s++) t.scores[s] += each;
-  t.riichiCarry = 0;
+  const scores = gameOverScores(await runToGameOver(t, 1000));
 
-  assert.equal(sum(t), TOTAL, 'the match total is conserved');
-  assert.deepEqual(t.scores, [24250, 25250, 25250, 25250]);
+  assert.equal(
+    scores.reduce((a, b) => a + b, 0), TOTAL - 1000,
+    'the leftover stick must be lost, not handed back',
+  );
+  assert.deepEqual(scores, [24000, 25000, 25000, 25000],
+    'no seat may receive a share of the forfeited pot');
 });
 
-test('three carried sticks also divide evenly', () => {
+test('three forfeited sticks leave the total short by 3000', async () => {
   const t = makeTable();
   t.scores[0] -= 3000;
-  const each = 3000 / 4;
-  for (let s = 0; s < 4; s++) t.scores[s] += each;
+  const scores = gameOverScores(await runToGameOver(t, 3000));
+  assert.equal(scores.reduce((a, b) => a + b, 0), TOTAL - 3000);
+  assert.deepEqual(scores, [22000, 25000, 25000, 25000]);
+});
 
-  assert.equal(sum(t), TOTAL);
-  assert.deepEqual(t.scores, [22750, 25750, 25750, 25750]);
+test('a match that ends with an empty table still totals 100000', async () => {
+  const t = makeTable();
+  const scores = gameOverScores(await runToGameOver(t, 0));
+  assert.equal(scores.reduce((a, b) => a + b, 0), TOTAL);
+  assert.deepEqual(scores, [25000, 25000, 25000, 25000]);
+});
+
+test('run() does not zero the carry — it is reported, not silently cleared', async () => {
+  // Keeps the teardown observable: the pot is left intact on the Table so the
+  // final score gap can be explained, rather than vanishing mid-teardown.
+  const t = makeTable();
+  t.scores[0] -= 2000;
+  await runToGameOver(t, 2000);
+  assert.equal(t.riichiCarry, 2000, 'the forfeited pot should still be readable on the table');
 });

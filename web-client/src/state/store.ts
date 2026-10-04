@@ -728,12 +728,18 @@ export class GameStore {
       }
       let userFriendlyMsg = errMsg;
       let details: string | undefined;
-      if (errMsg.toLowerCase().includes('kuikae')) {
+      // Match on the *code* as well as the message. The code is the stable token —
+      // `NotInTurn`, `CallWindowClosed` — whereas the messages are prose
+      // ("not your turn to act"), so testing the message for the concatenated code
+      // never matched and two of these three translations were dead code: the player
+      // saw the raw lowercase server string instead.
+      const haystack = `${errCode}${errMsg}`.toLowerCase().replace(/[^a-z]/g, '');
+      if (haystack.includes('kuikae')) {
         userFriendlyMsg = `Kuikae rule (喰い替え): Cannot discard this tile right after that call!`;
         details = 'Kuikae prohibits discarding the same tile or the opposite sequence end right after making a call.';
-      } else if (errMsg.toLowerCase().includes('notinturn')) {
+      } else if (haystack.includes('notinturn')) {
         userFriendlyMsg = 'Wait for your turn to act.';
-      } else if (errMsg.toLowerCase().includes('callwindowclosed')) {
+      } else if (haystack.includes('callwindowclosed')) {
         userFriendlyMsg = 'Call window is already closed.';
       }
       this.showToast(userFriendlyMsg, 'error');

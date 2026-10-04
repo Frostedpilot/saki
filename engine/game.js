@@ -58,14 +58,35 @@ function parseArgs(argv) {
   return out;
 }
 const args = parseArgs(process.argv.slice(2));
-const SEAT_POWERS = ((args.powers || 'none,none,none,none').split(',').concat(['none', 'none', 'none', 'none'])).slice(0, 4);
+
+// Flags that take a value. Given bare (`--powers` with nothing after it) the
+// generic parser above stores boolean `true`, and that used to fail in three
+// different ways depending on the flag: `--powers` threw a raw TypeError on
+// `true.split(',')`, `--seed` seeded the RNG from NaN, and `--human` compared
+// `seat === NaN` so it silently played an all-bot match as if you had asked for
+// seat -1. Require the value and name the flag that was wrong.
+function valueOf(key, example) {
+  const v = args[key];
+  if (v === undefined) return undefined;
+  if (v !== true) return v;
+  console.error(`--${key} needs a value, e.g. ${example}`);
+  process.exit(1);
+}
+
+const rawPowers = valueOf('powers', '--powers none,none,saki,none');
+const SEAT_POWERS = ((rawPowers === undefined ? 'none,none,none,none' : rawPowers).split(',').concat(['none', 'none', 'none', 'none'])).slice(0, 4);
 const badPowers = SEAT_POWERS.filter(p => !POWERS.includes(p));
 if (badPowers.length) {
   console.error(`unknown --powers value(s): ${badPowers.join(',')}`);
   console.error(`valid powers: ${POWERS.join(', ')}`);
   process.exit(1);
 }
-const HUMAN = args.human === undefined ? -1 : parseInt(args.human, 10);
+const rawHuman = valueOf('human', '--human 0');
+const HUMAN = rawHuman === undefined ? -1 : parseInt(rawHuman, 10);
+if (!Number.isInteger(HUMAN) || HUMAN < -1 || HUMAN > 3) {
+  console.error(`--human must be -1 (all bots) or a seat 0-3 (got ${JSON.stringify(args.human)})`);
+  process.exit(1);
+}
 const KYOKU_N = parseInt(args.kyoku || '8', 10); // 4 = tonpuusen, 8 = full hanchan
 if (!Number.isFinite(KYOKU_N) || KYOKU_N < 1) {
   console.error(`--kyoku must be a positive integer (got ${JSON.stringify(args.kyoku)})`);
@@ -78,8 +99,14 @@ const RIICHI_ALWAYS = args['riichi-always'] === '1' || args['riichi-always'] ===
 // --demo-abort=NAME fires the shared abortive-draw settlement after the next
 // clean discard (demo rare rulings on demand; trigger conditions unit-tested)
 const DEMO_ABORT = args['demo-abort'] || null;
-if (args.seed) { // deterministic RNG for tests (mulberry32 via engine/rng.js)
-  const rng = createRNG(parseInt(args.seed, 10));
+const rawSeed = valueOf('seed', '--seed 42');
+if (rawSeed !== undefined) { // deterministic RNG for tests (mulberry32 via engine/rng.js)
+  const seed = parseInt(rawSeed, 10);
+  if (!Number.isFinite(seed)) {
+    console.error(`--seed must be an integer (got ${JSON.stringify(args.seed)})`);
+    process.exit(1);
+  }
+  const rng = createRNG(seed);
   Math.random = () => rng.next();
 }
 

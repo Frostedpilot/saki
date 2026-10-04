@@ -42,8 +42,9 @@ jobs:
       - name: Server end-to-end tests
         run: npm run test:server
 
-      # No client test suite exists yet (KI-07); `tsc` is the only gate.
-      - name: Client type-check and build
+      # Client: vitest unit tests (tile logic, rendering, store) plus the `tsc`
+      # and production-build gate.
+      - name: Client tests, type-check and build
         run: npm run test:client
 
       # Guards against the arg-parser regression where `--kyoku 1` parsed as

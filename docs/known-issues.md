@@ -95,7 +95,7 @@ rules on the engine side where they belong. Four call sites updated:
 
 | File | Change |
 |---|---|
-| `server/room.js` | `require('./helpers')` → `require('../engine/helpers')` |
+| `server/table.js` | `require('./helpers')` → `require('../engine/helpers')` |
 | `engine/tests/edge.test.js` | `require('../../server/helpers')` → `require('../helpers')` |
 | `engine/tests/furiten-riichi.test.js` | same |
 | `engine/tests/rules.test.js` | same |
@@ -115,7 +115,7 @@ on two seeded 4-hand matches before and after, plus the 43-check selftest.
 
 The same rules are implemented twice, and the two copies disagree:
 
-| | Offline — `engine/game.js` | Network — `engine/core.js` + `server/room.js` |
+| | Offline — `engine/game.js` | Network — `engine/core.js` + `server/table.js` |
 | --- | --- | --- |
 | Wall | pre-shuffled array, `wall.pop()` | `DynamicPool` weighted sampling |
 | Length | tonpuusen or hanchan (`--kyoku`) | tonpuusen only |
@@ -123,7 +123,7 @@ The same rules are implemented twice, and the two copies disagree:
 | Nagashi mangan, oka/uma | yes | no |
 | Character powers | **inline `powerDraw()`, not the roster framework** | full `PowerDispatcher` + `rosters/` |
 
-**Still open.** A rule fixed in `game.js` is not automatically fixed in `room.js`. This
+**Still open.** A rule fixed in `game.js` is not automatically fixed in `table.js`. This
 has already happened: the permanent-riichi-furiten bug existed on both sides and needed
 two fixes plus a regression suite. The divergence is at least *declared* in
 `engine/rules-config.js` (`RULES.aborts` vs `RULES.serverAborts`) — but the comment
@@ -132,7 +132,7 @@ there, "Flip a flag only together with its handler", is a warning that this is a
 **Reduced, not closed.** The *shared rule functions* are no longer duplicated —
 `engine/helpers.js` is now the single definition for waits, furiten, bot decisions,
 abort conditions and oka/uma, and `game.js` imports all of them (see KI-03). What still
-differs is the **rule front-ends**: `game.js`'s `main()` and `server/room.js`'s
+differs is the **rule front-ends**: `game.js`'s `main()` and `server/table.js`'s
 `Table` each orchestrate a hand independently, and that orchestration is not shared.
 
 `engine/cli.js` also re-declared `KINDS` and re-implemented `buildWall`; that copy is
@@ -178,7 +178,7 @@ had copied the key list without the display layer.
 
 **Still true (part of KI-04):** `game.js --powers X` does not exercise a roster. The
 Flow gauge, tiers, `PowerDispatcher`, `dynamicPool` reservations and `awakening.js` are
-reachable only via `server/room.js` and the engine unit tests.
+reachable only via `server/table.js` and the engine unit tests.
 
 ---
 
@@ -186,30 +186,63 @@ reachable only via `server/room.js` and the engine unit tests.
 
 - **CI: ✅ fixed.** `.github/workflows/ci.yml` runs on push and PR: `npm ci`, engine
   tests, server E2E, client type-check + build, a CLI smoke check, and the markdown link
-  checker. The 344 tests plus the 43-check selftest now run automatically.
+  checker. The 358 tests plus the 43-check selftest now run automatically.
 - **Markdown link checking: ✅ added.** `scripts/check-links.mjs` (`npm run links`)
   verifies every relative link in every `.md` resolves. It caught real breakage during
   this work and is cheap to run locally.
 - **No linter or formatter.** Still no ESLint, Prettier, or `.editorconfig`.
 - **Node version: ✅ pinned.** `"engines": { "node": ">=22" }` in all three
-  `package.json`s plus the root, and CI runs Node 22 explicitly. No `.nvmrc` yet.
+  `package.json`s plus the root, CI runs Node 22 explicitly, and a root `.nvmrc`
+  pins `22` for version managers.
 - **Three unrelated versions**: `engine@1.0.0`, `server@0.1.0`, `web-client@1.0.0`,
   with no release process, no changelog, and commit messages like `update`.
 
 ---
 
-## <a id="ki-07"></a>KI-07 🟠 The web client has no tests
+## <a id="ki-07"></a>KI-07 ✅ FIXED — the web client had no tests
 
-`web-client/` has no test runner, no `*.test.*`, no test script. Its only automated
-gate is `tsc` inside `npm run build` — a pure type-check.
+`web-client/` had no test runner, no `*.test.*`, no test script. Its only automated
+gate was `tsc` inside `npm run build` — a pure type-check.
 
-The highest-risk surface in the repo is therefore the least protected: a 1141-line
+The highest-risk surface in the repo was therefore the least protected: a 1199-line
 reactive store, 11 render modules, a Vite proxy, and hand-rolled SVG tile rendering,
-all verified by nothing but "does it compile". A UI regression ships silently.
+all verified by nothing but "does it compile". A UI regression shipped silently.
+
+**Fixed** — Vitest 5 + jsdom, three files, **80 tests**, wired into `npm test`,
+`npm run check` and CI (which had been carrying a comment saying no suite existed).
+
+| File | Tests | Covers |
+| --- | ---: | --- |
+| `src/tiles/tile-utils.test.ts` | 40 | wire index ↔ face for all 34 tiles, red-5 handling, hand sorting, kuikae bans, the dora-indicator cycle, shanten/hairi |
+| `src/tiles/svg-tiles.test.ts` | 14 | `renderTile` markup, every state class, the dora title, click/hover wiring, sprite injection |
+| `src/state/store.test.ts` | 26 | `RoomState`, `GameStarted`, errors, reconnect, `GameOver` |
+
+**It found a real bug on the first run.** `store.ts` translated three server errors
+into friendlier text by testing `errMsg.toLowerCase().includes('notinturn')` — but
+`errMsg` is the server's *prose* message (`'not your turn to act'`), while the stable
+token lives in the separate `code` field (`'NotInTurn'`). Two of the three translations
+could therefore never fire, and the player saw the raw lowercase server string. The
+`kuikae` case only worked by luck, because that word genuinely appears in its message.
+Now matches on code **and** message, with all three payloads copied from `table.js`.
+
+Three things the suite deliberately does **not** claim:
+
+- **Shanten parity with the engine is asserted, not assumed.** The client wraps the
+  `syanten` package; the values were cross-checked against `engine/helpers.js`
+  `shantenOf` on seven hands (0 mismatches) and those are the values pinned. An empty
+  hand returns `-2` from the upstream package on **both** sides — recorded rather than
+  "fixed", because changing only the client would create a KI-04 divergence.
+- **The dora cycle is the engine's, not the textbook one.** Winds cycle
+  `1z→2z→3z→4z→1z` and dragons `5z→6z→7z→5z`, so a North indicator points at East,
+  not at White. The client's table already matched `engine/tiles.js`; the first version
+  of the test asserted the textbook rule and failed.
+- **`injectTileSprite` is guarded by a module-level flag**, so it cannot be re-run once
+  the DOM node is gone. Harmless in the app (the body persists) but it makes the
+  function untestable in place, so its tests reset the module registry instead.
 
 ---
 
-## <a id="ki-08"></a>KI-08 🟠 A 12 MB vendored binary with no recorded provenance
+## <a id="ki-08"></a>KI-08 🟡 A 12 MB vendored binary with no recorded provenance — now recorded, upstream commit still unknown
 
 `server/public/` contains a **prebuilt WASM client from upstream `riichi_mahjong_rs`**,
 committed to git:
@@ -220,14 +253,32 @@ mq_js_bundle.382096af.js      minified glue
 ws.596d430a.js  storage.c489e133.js  loading.32d3b0bf.js  index.html  favicon.png
 ```
 
-Nothing in this repo builds it, and **no document records which upstream commit it came
-from or how to regenerate it**. The content-hashed filenames are the only provenance
-signal. If upstream ships a protocol change, there is no documented way to update this
-build, and `web-client/README.md` does not even mention that it exists.
+Nothing in this repo builds it, and **no document recorded which upstream commit it came
+from or how to regenerate it**. The content-hashed filenames were the only provenance
+signal. If upstream ships a protocol change, there was no documented way to update this
+build, and `web-client/README.md` did not even mention that it exists.
 
-The repo also ships two hand-curated third-party assets with the same problem:
-`web-client/src/assets/fluffy-stuff.svg` (218 KB tile sheet) and
-`web-client/public/images/sakicardsv13.png` (23 MB card sheet).
+**Fixed by [`provenance.md`](provenance.md)**, which records the full inventory with
+SHA-256s, a re-verification command, and the manual update procedure. Two things worth
+recording about how that was done:
+
+- **The upstream commit is still unknown, and the new doc says so rather than guessing.**
+  The filename suffixes are bundler content hashes; nothing in the artefacts maps them to
+  a commit. The bundles were searched for version/commit literals (`aa938046`,
+  `382096af`, `protocol_version`, `version`) and **contain none**. So "which commit?" is
+  only answerable by rebuilding upstream and re-recording — the doc is honest about that
+  instead of inferring an answer from a filename.
+- **The doc also records a confusion worth naming: there are two clients.** `server/public/`
+  is the prebuilt upstream one; `web-client/` is the separate Vite + lit client under
+  development. They are independent, and conflating them is easy.
+
+What remains genuinely open is that `server/protocol.js` speaks `PROTOCOL_VERSION = 6`
+and **nothing in the repo proves this build is v6-compatible** — it is the build the
+server was developed against, which is belief, not evidence.
+
+Still unrecorded, and now listed as such in `provenance.md`: the upstream revision behind
+`web-client/src/assets/fluffy-stuff.svg` (218 KB tile sheet) and the source plus
+redistribution terms for `web-client/public/images/sakicardsv13.png` (23 MB card sheet).
 
 ---
 
@@ -238,7 +289,7 @@ rather than a diagnostic. All are now either logged or rejected outright:
 
 | Where | Was | Now |
 | --- | --- | --- |
-| `server/room.js` roster registry | `try { ROSTERS.x = require(...) } catch {}` | `loadRoster(key, load)` logs `console.warn` naming the key and error, and rejects a module that doesn't export a factory |
+| `server/rosters.js` roster registry | `try { ROSTERS.x = require(...) } catch {}` | `loadRoster(key, load)` logs `console.warn` naming the key and error, and rejects a module that doesn't export a factory |
 | `engine/powers/index.js` hook calls | every hook wrapped in `try/catch` with no log | warns **once per hook name** (rate-limited: `drawWeight` fires on every draw) |
 | `server/room.js` `SAKI_POWER_SEATS` | `.filter(...)` silently dropped bad values | names each rejected entry and why: `ignoring 9 (seat must be 0-3), x (not a number)` |
 | `server/index.js` `Hello` | answered `Welcome` **without validating `protocol_version`** | rejects an explicit mismatch with `Error{code:'VersionMismatch'}`; omitting the field is still accepted, since it's optional |
@@ -255,6 +306,93 @@ prints
 ```
 
 once per hook, and `resetHookWarnings()` is exported for tests.
+
+---
+
+## <a id="ki-18"></a>KI-18 ✅ FIXED — the two front-ends disagreed about leftover riichi sticks at match end
+
+Found by item 21's characterisation tests, which is the point of writing them: the
+offline match total does not always come to 100 000, and the reason was a rule decision
+nobody had written down.
+
+`game.js` `main()` settles the riichi pot after every hand but **not at match
+teardown**. Whatever is on the table when the loop ends is dropped, so `FINAL(raw)` is
+short by that amount:
+
+```
+=== EAST 4 dealer=P3(none) honba=3 dora=8p(9p) scores=21000/28000/28000/21000 ===
+...
+FINAL(raw): 21000/28000/28000/21000     <- 98 000; the 2000 carry is gone
+```
+
+`table.js` did the opposite — `run()` returned the leftover pot evenly across the four
+seats before emitting `GameOver`, specifically so the bridge would always total
+100 000. So the front-ends disagreed, which is a KI-04 instance.
+
+**Which side was right:** losing the pot is the standard rule. The World Riichi
+Championship rules state it outright — *"riichi deposits remaining on the table at the
+end of the hanchan are lost"* — and the official riichi rules sheet agrees. Returning
+them evenly was **not** a rule; it was a rule bent to satisfy a test, which is the tail
+wagging the dog. It was introduced during KI-14, where the conservation assertion was
+written first and the settlement adjusted to fit it.
+
+**Decided by the repo owner: forfeit the pot, per the standard rules.** `table.js`
+`run()` no longer redistributes; it logs the forfeited sticks and leaves the pot
+readable on the Table rather than silently zeroing it.
+
+Consequences handled:
+
+- `server/test/bridge.test.js` no longer asserts `final_scores` totals exactly 100 000.
+  It asserts the shortfall is `>= 0` **and a whole multiple of 1000** — which still
+  catches fractional-score corruption while permitting a forfeited pot. Per-hand
+  `RoundWon` snapshots must still total exactly 100 000, since those are mid-match.
+- `server/test/settlement.test.js` gained four deterministic teardown tests.
+- The web client needed no change: it renders `final_scores` and never asserts a total.
+- The offline regression hash is **unchanged** — `main()` already behaved this way.
+
+**Also fixed: two tests that could not fail.** The previous "match teardown" tests in
+`settlement.test.js` computed the expected redistribution *in the test body* and then
+asserted on their own arithmetic, so they passed regardless of what `table.js` did. They
+now drive `run()` and read what it actually broadcasts. Written before this decision,
+they would have quietly locked in the wrong rule.
+
+---
+
+## <a id="ki-17"></a>KI-17 ✅ FIXED — bare `--powers` crashed; `--seed`/`--human` silently ran on `NaN`
+
+Found while re-verifying the offline regression hashes after the `Table` split: the
+powers run produced a hash that matched nothing recorded, so the invocation was run by
+hand — and it threw.
+
+```js
+const SEAT_POWERS = ((args.powers || 'none,none,none,none').split(',')...)
+//                                        ^^^^^^^ true.split is not a function
+```
+
+`parseArgs` deliberately maps a bare flag to boolean `true` (`--selftest` depends on
+it), but the flags that take a value never handled that. Three flags, three different
+failures:
+
+| Invocation | Old behaviour |
+| --- | --- |
+| `game.js --powers` | **Raw `TypeError`** — crashed before the "unknown --powers value" check below it could run |
+| `game.js --seed` | `parseInt(true)` → `NaN`, so `createRNG(NaN)` seeded mulberry32 from `NaN` and every subsequent draw was garbage |
+| `game.js --human` | `HUMAN = NaN`, so `seat === HUMAN` was never true and the match silently played **all bots**, exactly as if you had asked for seat `-1` |
+
+Only `--kyoku` was safe, because it already validated its own result.
+
+**Fixed** with one shared guard, `valueOf(key, example)`, which refuses a bare
+value-taking flag with a usage hint, plus range checks that were missing on the two
+flags that had none: `--human` must be `-1` or a seat `0-3`, and `--seed` must be an
+integer.
+
+**Tests:** four new cases in `engine/tests/offline-rules.test.js` drive the real
+process, because this parsing happens at require time rather than in a testable
+function. They assert no raw `TypeError`, that the offending flag is named, and that a
+valid invocation still exits `0`. Reverting the guard makes them fail.
+
+**Behaviour-preserving:** all four `--powers` configurations produce byte-identical
+output against `HEAD`, so this adds validation without changing any valid run.
 
 ---
 
@@ -324,9 +462,9 @@ implementation — and, on the server, in **two further places**:
 | --- | --- | --- |
 | `engine/game.js` human kan offer | offline human | `else if (a.startsWith('kakan') && ponUp) kanChoice = …` — no riichi test |
 | `engine/game.js` bot kan offer | offline bots | `else if (ponUp && Math.random() < 0.35) kanChoice = …` — bots would do it too |
-| `room.js` `classifyHumanKan`, explicit-tile branch | networked human | returned `{kind:'kakan'}` with no riichi test |
-| `room.js` `classifyHumanKan`, auto-detect branch | networked human | returned `{kind:'kakan'}` with no riichi test |
-| **`room.js` CPU kan offer (`playTurn`)** | **networked bots** | `kanChoice = { kind: 'kakan' }` — no riichi test |
+| `table.js` `classifyHumanKan`, explicit-tile branch | networked human | returned `{kind:'kakan'}` with no riichi test |
+| `table.js` `classifyHumanKan`, auto-detect branch | networked human | returned `{kind:'kakan'}` with no riichi test |
+| **`table.js` CPU kan offer (`playTurn`)** | **networked bots** | `kanChoice = { kind: 'kakan' }` — no riichi test |
 
 The server has **two** independent implementations of "may this seat declare a kan":
 `classifyHumanKan` for humans and an inline block in `playTurn` for CPU seats. The
@@ -486,26 +624,40 @@ The server side is unchanged — resume is still genuinely unsupported, now hone
 
 | File | Lines | Concern |
 | --- | --- | --- |
-| `server/room.js` | **1800** | `Room` (lobby, seats, power assignment) **and** `Table` (the entire hand driver) in one file |
+| `server/table.js` | **1695** | `Table` — the entire hand driver. Split out of `room.js`, which was **1800** with `Room` in it |
 | `web-client/src/state/store.ts` | **1198** | All game state *and* all outbound protocol calls in one class |
 | `engine/game.js` | **898** | Game loop, bot AI, power rig, and the 43-check selftest (was 1006; 131 lines of duplicated helpers removed) |
 | `engine/powers/rosters/kiyosumi.js` | 571 | One character's full skill tree |
 | `engine/tests/crossCharacter.test.js` | 578 | — |
 
-`room.js` is the direct cause of several items above: the roster registry, the env-var
-parsing, the bot pacing, and the rule divergence all live together with no seam.
-Splitting `Table` out of `Room` would make KI-04 tractable. Purely mechanical and
-low-risk, but it changes no behaviour, so it is not urgent.
+`room.js` was the direct cause of several items above: the roster registry, the env-var
+parsing, the bot pacing and the rule divergence all lived together with no seam. It is
+now split into three modules — `room.js` (`Room`: lobby, seats, power assignment),
+`table.js` (`Table`: the hand driver) and `rosters.js` (the registry both share, so
+neither has to require the other) — which makes KI-04 tractable. **Partly resolved:**
+`table.js` is still large, but it is now one coherent subsystem rather than two, and
+the split was purely mechanical: both class bodies were moved by line range and
+verified byte-identical, with all 1740 original substantive lines accounted for.
+
+Remaining size is deliberate — `table.js` is still only safe to shrink by extracting the
+rule layer (item 23), which is behaviour-changing and not yet characterised (item 21).
 
 ---
 
-## <a id="ki-12"></a>KI-12 ⚪ No LICENSE
+## <a id="ki-12"></a>KI-12 ✅ CLOSED — No LICENSE (decision: repo is private)
 
-No `LICENSE` file, despite `engine/` and `server/` depending on the third-party
-`riichi` and `syanten` packages and vendoring a FluffyStuff SVG sheet and official
-Saki card art. Redistribution terms for the vendored assets are undefined.
+**Decided by the repo owner: not adding a LICENSE.** The repository is private, so there
+is no redistribution to license. Recorded here so this stops being re-raised as an open
+item — it is a decision, not an oversight.
 
-Deliberately deferred — this needs a decision from the repo owner, not a code change.
+The original concern was that `engine/` and `server/` depend on third-party `riichi` and
+`syanten` and vendor a FluffyStuff SVG sheet plus official Saki card art, leaving
+redistribution terms undefined. That remains factually true and is documented in
+[`provenance.md`](provenance.md); it simply does not need resolving while the repo is
+private.
+
+**If this repo is ever made public, revisit this** — vendored third-party art would then
+need actual redistribution rights.
 
 # Part B — Documentation rot
 
@@ -624,7 +776,7 @@ The 8-implemented / ~20-design-intent split is now stated in a banner at the top
 
 - *"node --test tests/ — 254 pass"* → **342**, and the command is now the working glob
   form.
-- *"server npm test — 2 pass"* → **80**.
+- *"server npm test — 2 pass"* → **82**.
 - §3 listed the furiten bug as a live risk while §5 listed it fixed. **Fixed** — §3
   items now carry **[FIXED]** / **[OPEN]** / *partly* tags, and §4's phases are marked
   ✅ / ⚠️ with the residual work named (e.g. `cli.js` still duplicates `KINDS`;
@@ -685,15 +837,16 @@ Docs are consistent and CI is green. These are the remaining **code** items:
 | 14 | ~~Cover `yaku-map.js`; fix the dropped Toitoi/Sanankou~~ | ✅ done | KI-13 |
 | 15 | ~~Assert score conservation; fix riichi sticks lost at an exhaustive draw~~ | ✅ done | KI-14 |
 | 16 | ~~Log 500s distinctly from 404s in the static handler~~ | ✅ done | KI-09 |
-| 17 | Add a LICENSE; record `server/public/` provenance | 1 h | KI-08, KI-12 |
+| 17 | ~~Record `server/public/` provenance~~ (LICENSE skipped: private repo) | ✅ done | KI-08, KI-12 |
 | 17a | ~~Sweep `resolveCallWindow` and the scoring path~~ | ✅ done | KI-16 |
-| 18 | Add an `.nvmrc` | 2 min | KI-06 |
+| 17b | ~~Guard bare value-taking CLI flags (`--powers` crashed on `true.split`)~~ | ✅ done | KI-17 |
+| 18 | ~~Add an `.nvmrc`~~ | ✅ done | KI-06 |
 | 19 | ~~Pin the kan/riichi rules across every decision site + `doOwnKan`~~ | ✅ done | KI-15 |
 | 20 | ~~Cover `botDecision` and the `doOwnKan` choke point~~ | ✅ done | KI-15 |
-| 21 | Characterise `game.js` `main()` closures with unit tests | 4 h | prerequisite for 23 |
-| 22 | Add client tests (Vitest + jsdom) for `store.ts` and tile rendering | 1 d | KI-07 |
+| 21 | ~~Characterise `game.js` `main()` orchestration (12 tests)~~ | ✅ done | KI-18 |
+| 22 | ~~Client tests: Vitest + jsdom (80 tests)~~ | ✅ done | KI-07 |
 | 23 | Consolidate the two rule front-ends behind one shared layer | 2–3 d | KI-04 |
-| 24 | Split `Table` out of `server/room.js` | 3 h | KI-11, unblocks 21–23 |
+| 24 | ~~Split `Table` out of `server/room.js`~~ | ✅ done | KI-11 |
 
 The one genuinely large remaining item is **23**, and it should not be started before
 **21**: `main()`'s orchestration is the only significant block of logic in the repo with
@@ -703,5 +856,9 @@ weakest-tested code in the project.
 **The method that found KI-13 and KI-14 is cheaper than any refactor here.** Neither
 bug was on this register. Both came from two questions: *which source file has no test
 touching it?* and *what invariant is asserted nowhere?* `server/yaku-map.js` answered
-the first, score conservation answered the second. `server/room.js` is the same shape
-and bigger — **19** continues that sweep, and needs no design decisions at all.
+the first, score conservation answered the second.
+
+That sweep has since paid out twice more, with no design decisions at all: **19** read
+the hand driver (then the un-split `room.js`) for the same duplicated-rule pattern and
+found KI-15, and **17a** found KI-16 — call arbitration ordered by response arrival
+rather than turn order. Neither was on this register either.

@@ -69,6 +69,63 @@ test('parseArgs: non-flag arguments are ignored', () => {
   assert.deepEqual(parseArgs(['stray', '--kyoku=4', 'other']), { kyoku: '4' });
 });
 
+// ------------------------------------------------- value-taking flag guards
+//
+// parseArgs deliberately maps a bare flag to boolean `true` (--selftest relies on
+// it). The flags that take a value therefore have to cope with `true` themselves,
+// and each used to fail differently: `--powers` threw a raw TypeError from
+// `true.split(',')`, `--seed` seeded mulberry32 from NaN, and `--human` compared
+// `seat === NaN` so it silently played an all-bot match as though you had asked
+// for seat -1. These read the guards through a real process, because the parsing
+// of these flags happens at require time rather than in a testable function.
+
+const { spawnSync } = require('node:child_process');
+const path = require('node:path');
+
+function runGame(...argv) {
+  return spawnSync(process.execPath, [path.join(__dirname, '..', 'game.js'), ...argv], {
+    encoding: 'utf8',
+    timeout: 60000,
+  });
+}
+
+test('flags: a bare value-taking flag is refused with a usage hint, not a TypeError', () => {
+  for (const flag of ['--powers', '--human', '--seed', '--kyoku']) {
+    const r = runGame(flag);
+    assert.notEqual(r.status, 0, `${flag} alone should exit non-zero`);
+    const err = r.stderr || '';
+    assert.doesNotMatch(err, /TypeError|is not a function/, `${flag} must not crash with a raw TypeError:\n${err}`);
+    assert.match(err, /needs a value|must be/, `${flag} should explain itself, got:\n${err}`);
+    assert.match(err, new RegExp(flag.replace(/^--/, '--')), `${flag} should be named in the error:\n${err}`);
+  }
+});
+
+test('flags: an out-of-range or non-numeric value is refused by name', () => {
+  const human = runGame('--human', '9');
+  assert.notEqual(human.status, 0);
+  assert.match(human.stderr, /--human must be -1/);
+
+  const seed = runGame('--seed', 'abc');
+  assert.notEqual(seed.status, 0);
+  assert.match(seed.stderr, /--seed must be an integer/);
+
+  const kyoku = runGame('--kyoku', '0');
+  assert.notEqual(kyoku.status, 0);
+  assert.match(kyoku.stderr, /--kyoku must be a positive integer/);
+});
+
+test('flags: an unknown --powers key is still refused by name', () => {
+  const r = runGame('--powers', 'toki', '--kyoku', '1');
+  assert.notEqual(r.status, 0);
+  assert.match(r.stderr, /unknown --powers value/);
+});
+
+test('flags: a valid invocation still runs and exits cleanly', () => {
+  const r = runGame('--seed', '3', '--kyoku', '1', '--powers', 'none,none,none,none');
+  assert.equal(r.status, 0, r.stderr);
+  assert.match(r.stdout, /EAST 1|Match complete|scores=/);
+});
+
 // ---------------------------------------------------------------- buildWall
 
 test('buildWall: produces exactly 136 tiles', () => {

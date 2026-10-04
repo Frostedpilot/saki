@@ -44,9 +44,9 @@ If you only want the offline engine: `npm ci && npm run test:engine`.
 | Command | What it does |
 |---|---|
 | `npm test` | everything CI runs: engine + server + client build |
-| `npm run test:engine` | 342 engine unit tests + the 43-check rule selftest |
-| `npm run test:server` | 80 server tests: protocol codec, handshake, 2 full matches, yaku translation, settlement, validation, call-window |
-| `npm run test:client` | `tsc` type-check + production build (no client tests exist) |
+| `npm run test:engine` | 358 engine unit tests + the 43-check rule selftest |
+| `npm run test:server` | 82 server tests: protocol codec, handshake, 2 full matches, yaku translation, settlement, validation, call-window |
+| `npm run test:client` | 80 client tests (Vitest + jsdom) + `tsc` type-check + production build |
 | `npm run links` | verify every relative markdown link resolves |
 | `npm run smoke` | one short deterministic hand; proves the CLI arg parser works |
 | `npm run check` | `test` + `links` |
@@ -133,7 +133,15 @@ form, so `--kyoku 4` set the flag to boolean `true`, `parseInt(true)` was `NaN`,
 match result having played **zero hands**. `npm run smoke` in CI now guards this, and
 `engine/tests/offline-rules.test.js` pins both forms.
 
-An unrecognised `--powers` key is now a **hard error** naming the valid keys, rather
+The same parser treats a bare flag as boolean `true` (`--selftest` relies on it), so
+every flag that *takes a value* has to cope with `true` itself. That was unguarded, and
+each failed differently: `--powers` threw a raw `TypeError` from `true.split(',')`,
+`--seed` seeded the RNG from `NaN`, and `--human` compared `seat === NaN` so it quietly
+played an all-bot match. All four value-taking flags are now refused with a usage hint
+when given bare, and `--human` / `--seed` gained the range checks they never had. See
+[`known-issues.md`](known-issues.md#ki-17).
+
+An unrecognised `--powers` key is a **hard error** naming the valid keys, rather
 than silently degrading to `none`.
 
 Accepted `--powers` keys: `none`, `saki`, `kuro`, `koromo`, `yuuki`, `hisa`.
@@ -174,7 +182,7 @@ deploy is ~280 kB of JS + 46 kB of CSS **plus 23 MB of art**.
 
 ## 4. Environment variables
 
-Read by the server (`server/index.js`, `server/room.js`). **None are documented
+Read by the server (`server/index.js`, `server/table.js`). **None are documented
 elsewhere in the repo.**
 
 | Variable | Default | Effect |
@@ -200,9 +208,9 @@ built-in runner (`node:test` + `node:assert/strict`) — no Jest/Mocha/Vitest de
 
 ```bash
 npm test              # everything CI runs (~2 min)
-npm run test:engine   # 342 unit tests + 43 selftest checks
-npm run test:server   # 80 server tests
-npm run test:client   # tsc + production build
+npm run test:engine   # 358 unit tests + 43 selftest checks
+npm run test:server   # 82 server tests
+npm run test:client   # 80 client tests + tsc + production build
 npm run links         # markdown link check
 npm run smoke         # one short deterministic hand
 npm run check         # test + links
@@ -223,10 +231,10 @@ Raw invocations, if you need them: `node --test tests/*.test.js` (engine),
 
 | Layer | Command | Scope |
 | --- | --- | --- |
-| Engine unit tests | `npm run test:engine` | 25 files, 342 tests. Per-character rosters, `dynamicPool`, `trajectoryPlanner`, `flowManager`, `nodokaEval`, `core` phases, scoring/tiles/rng, plus `crossCharacter` (multi-seat power interaction), `edge` (bug-hunting), and **`offline-rules`** (the `game.js`-only layer: CLI arg parsing, `buildWall`, `countVisible`, `powerDraw`, bot decision injection). |
+| Engine unit tests | `npm run test:engine` | 26 files, 358 tests. Per-character rosters, `dynamicPool`, `trajectoryPlanner`, `flowManager`, `nodokaEval`, `core` phases, scoring/tiles/rng, plus `crossCharacter` (multi-seat power interaction), `edge` (bug-hunting), and **`offline-rules`** (the `game.js`-only layer: CLI arg parsing plus its bare-flag guards, `buildWall`, `countVisible`, `powerDraw`, bot decision injection). **`main-orchestration`** characterises `main()` itself — the 630-line turn loop that had no direct coverage: per-hand terminal shape, conservation including the table carry, abort-settlement rules, exhaustive-draw exchange, dealer continuation, and final standings. |
 | Engine rule selftest | `node engine/game.js --selftest=1` | 43 in-engine checks covering yaku, fu, dora, aborts, kuikae, oka/uma, invariants. |
 | Server E2E | `npm run test:server` | Five files. `bridge.test.js` spawns the real server, connects a mock protocol-v6 client over `ws`, and plays full matches to `GameOver`; also covers the handshake (including `VersionMismatch` rejection), the red-dora tile codec, and **score conservation** on every `RoundWon` snapshot and the final total. `yaku-map.test.js` covers the riichi-lib → protocol `Kind` translation, cross-checked against the enums recovered from the vendored WASM client. `settlement.test.js` drives `finishHand` headlessly and deterministically over exhaustive draws (0/2/3/4 tenpai), tsumo, single and double ron, and match teardown — the layer where riichi sticks were being lost. `validation.test.js` pins `classifyHumanKan`, `validateAct`, `botDecision` and `doOwnKan`: ankan/kakan detection, both riichi-kan rules, every action rejection path, and the kan choke point that refuses kakan from a riichi hand. `call-window.test.js` scripts out-of-order human responses to pin pon/ron priority and riichi-stick collection to turn order rather than arrival order. |
-| Client types | `npm run test:client` | `tsc` with `strict: true`. **The client has no behavioural tests at all** — a UI regression will not be caught. See [`known-issues.md`](known-issues.md#ki-07). |
+| Client | `npm run test:client` | 80 Vitest tests under jsdom across `tile-utils` (wire index ↔ face, sorting, kuikae, dora cycle, shanten), `svg-tiles` (markup, state classes, sprite injection) and `store` (RoomState, GameStarted, errors, reconnect, GameOver), then `tsc` with `strict: true` and a production build. |
 | Markdown links | `npm run links` | `scripts/check-links.mjs`: every relative link in every `.md` resolves. |
 | CLI smoke | `npm run smoke` | Plays one hand and greps for a discard, catching the arg-parser class of bug where the engine silently completes zero hands. |
 
@@ -246,7 +254,7 @@ and is covered by `rules.test.js`. `game.js` imports all of them rather than kee
 copies, so the only remaining gap is logic that lives *inside* `game.js`'s `main()` as
 closures — `declareRiichi`, `collectRon`, call-window arbitration, nagashi payout
 distribution and chombo settlement — which the 43-check selftest is the only net for.
-Closing that would mean extracting a rule layer shared with `server/room.js`; see
+Closing that would mean extracting a rule layer shared with `server/table.js`; see
 [`known-issues.md`](known-issues.md#ki-04).
 
 ---
@@ -265,7 +273,7 @@ Closing that would mean extracting a rule layer shared with `server/room.js`; se
 | Scoring tests fail after a dependency change | `riichi`/`syanten` floated past the pinned versions | Re-run `npm ci` in both `engine/` and `server/` |
 | `--powers tok i` / `teru` errors out | Those placeholder keys were removed; they had no `powerDraw` branch and silently behaved like `none` | Use one of `saki` / `kuro` / `koromo` / `yuuki` / `hisa`, or play through the server for the real roster framework |
 | Vite reports `Failed to resolve import` for an SVG asset | Assets use Vite's `?raw` suffix | Import as `import x from './a.svg?raw'`; types live in `web-client/src/vite-env.d.ts` |
-| Engine tests pass but a server game misbehaves | Two rule implementations: `game.js` vs `core.js`/`room.js` (different aborts, different wall model) | Test against the path you'll actually ship — see the rules table in the root README |
+| Engine tests pass but a server game misbehaves | Two rule implementations: `game.js` vs `core.js`/`table.js` (different aborts, different wall model) | Test against the path you'll actually ship — see the rules table in the root README |
 
 ---
 
@@ -274,7 +282,7 @@ Closing that would mean extracting a rule layer shared with `server/room.js`; se
 | Question | File |
 | --- | --- |
 | How does a hand actually play out? | `engine/core.js` (header documents the canonical 4-phase draw step) |
-| How does a networked hand play out? | `server/room.js` — `Room` (lobby/seats) + `Table` (driver) |
+| How does a networked hand play out? | `server/table.js` — `Table`, the hand driver (`server/room.js` owns the lobby and seats) |
 | How do character powers hook in? | `engine/powers/index.js` — `PowerDispatcher`, and each `engine/powers/rosters/*.js` |
 | How is the wall sampled? | `engine/powers/dynamicPool.js` |
 | What is the wire format? | `server/protocol.js` (encode/decode) + `web-client/src/net/protocol-types.ts` (types) |
