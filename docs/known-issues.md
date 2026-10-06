@@ -362,6 +362,97 @@ once per hook, and `resetHookWarnings()` is exported for tests.
 
 ---
 
+## <a id="ki-24"></a>KI-24 ✅ FIXED — `docs/development.md` was overwritten with the whole known-issues register
+
+Not found by inspection: found by noticing that a documentation edit reported success
+against text that should not have been in that file. `docs/development.md` had been
+replaced, wholesale, with a copy of `docs/known-issues.md` — same title, same 22 sections,
+1 113 lines instead of 290.
+
+**How it hid.** Every link into `development.md` still resolved, `npm run links` was
+green, `npm test` was green, and both files had drifted only slightly (23 vs 22 anchors).
+The link checker validates link *targets*, never the content at them, so a document
+replaced by a wrong document is invisible to it. It was also invisible to me for four
+commits, because the edits I was making were mostly to the register text — which the
+clobbered file also contained, identically.
+
+**Cause:** one of my scripted `Get-Content … -Raw` / `Set-Content` doc edits wrote the
+register's content into `development.md`. Which script exactly is not worth reconstructing;
+the lesson is that editing docs with a throwaway shell loop and no read-back is how you
+delete a file without noticing.
+
+**Recovered** from `0ca46d3`, the last commit where it was still the Development guide
+(290 lines, 7 sections). The four legitimate edits made since — test counts, the
+`table.js` split, `main-orchestration` and `rules-config-parity`, the corrected KI-04
+wording, the expanded client test layer — were re-applied and verified. Both anchors
+pointing into it (`#33-running-the-engine`, `#5-testing`) were checked to resolve against
+the restored headings.
+
+**Guard added.** `scripts/check-links.mjs` now fails on **duplicate document titles**,
+because two files claiming the same H1 is almost always one having been overwritten with
+the other, and that is precisely what a link check cannot see. Verified to catch this
+exact case: with `development.md` re-clobbered it exits 1 naming both files. The message
+points at `git log --follow`.
+
+Worth stating plainly: this was my error, caught late, and the reason it survived four
+commits is that nobody — including the tooling — was checking document *identity*, only
+document *links*.
+
+---
+
+## <a id="ki-23"></a>KI-23 ✅ FIXED — the client UI layer had no tests, and testing it found two bugs
+
+Extending item 22 from the store and tile layer to the 14 lit-html components. An audit
+of which source files no test imports put all the remaining risk in one place: the
+engine, the bridge and the store were covered, and every unreferenced production file
+was a component or `socket.ts`.
+
+The first audit said 44 of 52 files were untested, which was **the audit being wrong**:
+this repo imports modules without the `.js` extension (`require('../yaku-map')`), so both
+spellings had to be tried or `yaku-map.js` — which has a whole test file — looked dead.
+
+**Two bugs, both in the "silent, no crash, board lies" class:**
+
+1. **`GameSocket` reported subscriber exceptions as parse failures.** `onmessage` wrapped
+   both `JSON.parse` *and* the handler dispatch in one `try`. A throw inside
+   `GameStore.handleServerMessage` was logged as `[ws] Failed to parse message`, which
+   points an investigator at the wire format when the fault is in the code reacting to
+   it. Worse, `forEach` inside the same `try` meant the first throwing subscriber meant
+   later subscribers never saw the message at all. Parse and dispatch are now guarded
+   separately, and each subscriber is isolated.
+
+2. **The action log was a keyboard trap.** `game-log.ts` marked its header
+   `role="button" tabindex="0"` — and it was the *only* element in the entire client
+   carrying those attributes, with no key handler anywhere in the codebase. So it was
+   focusable and announced as a button to assistive tech while Enter and Space did
+   nothing: a WCAG 2.1.1 Keyboard failure. Now handles both keys, as a native `<button>`
+   would.
+
+**Also fixed in the tests themselves:** `toBe`/`toEqual` were being called with a second
+argument for a message, which `tsc` rejects — and `npm test` was failing on it while the
+test counts still printed green. Worth noting: the counts looking green is not the same
+as the suite passing, and the exit code is the thing to read.
+
+**Two behaviours recorded rather than changed**, because both readings are defensible
+and picking a side is a design call:
+
+- A **kuikae-banned tile still gets the `--clickable` class** while also being grayed.
+  The class gives `cursor: pointer` and a hover lift, so the tile reads "unavailable" and
+  "come click me" at once. Clicking is routed correctly (to the explanatory handler,
+  never to discard), so nothing is lost — but the styling contradicts itself.
+- **`renderSakiCard` has `onClick` and `disabled` props that no caller uses.** All four
+  call sites pass neither, so the `disabled`-does-not-suppress-`onClick` gap is currently
+  unreachable.
+
+**Tests:** 145 new client tests across four files — `components` (melds, discards,
+saki-card), `interactive-components` (hand, action bar), `display-components` (center
+info, game log, power badge) and `socket`. Client suite 80 → **225**.
+
+Untested still: `board.ts` (219 lines, mostly composition), `round-modal.ts` and
+`lobby-view.ts`. Recorded rather than glossed.
+
+---
+
 ## <a id="ki-22"></a>KI-22 ✅ FIXED — kyuushu-kyuuhai counted tiles instead of kinds, and bots declared it illegally
 
 Found by the last part of the item-23 sweep: checking that `main()`'s abort *detection*
@@ -1132,7 +1223,7 @@ Docs are consistent and CI is green. These are the remaining **code** items:
 | 19 | ~~Pin the kan/riichi rules across every decision site + `doOwnKan`~~ | ✅ done | KI-15 |
 | 20 | ~~Cover `botDecision` and the `doOwnKan` choke point~~ | ✅ done | KI-15 |
 | 21 | ~~Characterise `game.js` `main()` orchestration (12 tests)~~ | ✅ done | KI-18 |
-| 22 | ~~Client tests: Vitest + jsdom (80 tests)~~ | ✅ done | KI-07 |
+| 22 | ~~Client tests: Vitest + jsdom (225 tests)~~ | ✅ done | KI-07, KI-23, KI-24 |
 | 23 | ~~Share rule constants via rules-config + parity guard; sweep found KI-19/20/21~~ (orchestration merge still open, see KI-04) | partly done | KI-04, KI-19, KI-20, KI-21 |
 | 24 | ~~Split `Table` out of `server/room.js`~~ | ✅ done | KI-11 |
 

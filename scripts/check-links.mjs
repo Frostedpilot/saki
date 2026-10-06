@@ -42,11 +42,43 @@ for (const rel of files) {
   }
 }
 
-if (dead.length) {
-  console.error(`\n${dead.length} dead relative markdown link(s):\n`);
-  for (const { file, target } of dead) console.error(`  ${file} -> ${target}`);
-  console.error('');
+// Duplicate top-level titles. Two docs claiming the same H1 is almost always one file
+// having been overwritten with another's content, and it is invisible to a link check:
+// the links all still resolve, they just resolve to the wrong document. This caught a
+// real case — docs/development.md had been clobbered with the whole of
+// docs/known-issues.md, title and all, and every link into development.md still "worked".
+const titles = new Map();
+const dupes = [];
+for (const rel of files) {
+  const text = readFileSync(join(ROOT, rel), 'utf8');
+  const m = text.match(/^#\s+(.+)$/m);
+  if (!m) continue;
+  const title = m[1].trim();
+  const relPath = rel.split(/[\\/]/).join('/');
+  if (titles.has(title)) {
+    dupes.push({ title, a: titles.get(title), b: relPath });
+  } else {
+    titles.set(title, relPath);
+  }
+}
+
+if (dead.length || dupes.length) {
+  if (dead.length) {
+    console.error(`\n${dead.length} dead relative markdown link(s):\n`);
+    for (const { file, target } of dead) console.error(`  ${file} -> ${target}`);
+    console.error('');
+  }
+  if (dupes.length) {
+    console.error(`${dupes.length} duplicate markdown title(s):\n`);
+    for (const { title, a, b } of dupes) {
+      console.error(`  "${title}" is claimed by both ${a} and ${b}`);
+    }
+    console.error('\nOne document has probably been overwritten with another. '
+      + 'Check `git log --follow` on the newer one.');
+    console.error('');
+  }
   process.exit(1);
 }
 
 console.log(`OK: ${checked} relative markdown links across ${files.length} files resolve.`);
+console.log(`    ${titles.size} distinct document titles, no duplicates.`);

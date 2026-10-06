@@ -31,11 +31,25 @@ export class GameSocket {
       };
 
       this.ws.onmessage = (event) => {
+        // Parse and dispatch are guarded separately. They used to share one try/catch,
+        // which meant an exception thrown by a subscriber — GameStore's message handler,
+        // most of the time — was reported as "Failed to parse message", sending you
+        // looking at the wire format when the bug was in the code reacting to it.
+        let parsed: ServerMessage;
         try {
-          const parsed = JSON.parse(event.data) as ServerMessage;
-          this.messageHandlers.forEach((h) => h(parsed));
+          parsed = JSON.parse(event.data) as ServerMessage;
         } catch (e) {
           console.error('[ws] Failed to parse message:', event.data, e);
+          return;
+        }
+        for (const h of this.messageHandlers) {
+          try {
+            h(parsed);
+          } catch (e) {
+            // One bad subscriber must not stop the others from seeing the message, and
+            // it must be reported as a handler failure rather than a parse failure.
+            console.error('[ws] Message handler threw:', e);
+          }
         }
       };
 

@@ -7,7 +7,23 @@ export function renderGameLog(store: GameStore): TemplateResult {
 
   return html`
     <aside class="game-log ${isExpanded ? 'game-log--expanded' : 'game-log--collapsed'}" aria-label="Game Action and Rule Log">
-      <div class="game-log__header" @click=${() => store.toggleLog()} role="button" tabindex="0">
+      <div
+        class="game-log__header"
+        @click=${() => store.toggleLog()}
+        @keydown=${(e: KeyboardEvent) => {
+          // role="button" + tabindex="0" promises a keyboard-operable control. This
+          // element was the only one in the client carrying those attributes and it had
+          // no key handler at all, so it was focusable and announced as a button while
+          // Enter and Space did nothing (WCAG 2.1.1). Enter and Space are the two keys
+          // a native <button> responds to, so both are handled here.
+          if (e.key === 'Enter' || e.key === ' ' || e.key === 'Spacebar') {
+            e.preventDefault();
+            store.toggleLog();
+          }
+        }}
+        role="button"
+        tabindex="0"
+      >
         <div class="game-log__title">
           <span class="game-log__icon">📜</span>
           <span class="game-log__label">Action & Rule Log</span>
