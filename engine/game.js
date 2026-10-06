@@ -23,6 +23,9 @@
 // framework in engine/powers/rosters/. To exercise the real Flow-gauge powers,
 // run the bridge server and play through the web client.
 const { KINDS, norm, same, DORA_NEXT } = require('./tiles');
+// Shared rule constants. The server front-end reads the same object, so the two
+// implementations cannot drift on the numbers (see rules-config.js and KI-04).
+const { RULES } = require('./rules-config');
 const { scoreHand, meldStr } = require('./scoring');
 const { createRNG } = require('./rng');
 const { parseDiscardIndex } = require('./input');
@@ -306,7 +309,7 @@ async function main() {
   if (args.selftest !== undefined && args.selftest !== false && (args.selftest === true || args.selftest === '1')) return selftest();
   const readline = HUMAN >= 0 ? require('readline').createInterface({ input: process.stdin, output: process.stdout }) : null;
   const ask = q => new Promise(res => readline.question(q, res));
-  const scores = [25000, 25000, 25000, 25000];
+  const scores = [RULES.startScore, RULES.startScore, RULES.startScore, RULES.startScore];
   const names = SEAT_POWERS.map((p, i) => `P${i}(${p})${i === HUMAN ? '[YOU]' : ''}`);
   let dealer = 0, honba = 0, riichiCarry = 0;
   let demoAbortOnce = DEMO_ABORT; // one-shot for the whole match (else redeal loops forever)
@@ -380,7 +383,7 @@ async function main() {
     const declareRiichi = (pl, firstClass, locked13) => {
       pl.riichi = true; pl.doubleRiichi = firstClass;
       pl.ippatsu = true; // expires on any call or on declarer's next discard
-      scores[pl.id] -= 1000; ctx.riichiPool += 1000;
+      scores[pl.id] -= RULES.riichiValue; ctx.riichiPool += RULES.riichiValue;
       // snapshot waits: later ankans must not change them (else chombo)
       pl.riichiWaits = locked13 ? getWaits({ hand: [...locked13], melds: [] }, P, dead, { dora: [], bakaze, jikaze: 1 }) : [];
       console.log(`  ${names[pl.id]} ${firstClass ? 'DOUBLE RIICHI' : 'RIICHI'}`);
@@ -851,15 +854,15 @@ async function main() {
       if (winBy.type === 'tsumo') {
         const r = winBy.r;
         console.log(`\n*** TSUMO ${names[winner]} ${winBy.tag || ''} ${r.text} ${JSON.stringify(r.yaku)} ten=${r.ten} ***`);
-        if (winner === dealer) { for (let i = 0; i < 4; i++) if (i !== winner) { const pay = r.oya[0] + 100 * honba; scores[i] -= pay; scores[winner] += pay; } }
-        else { for (let i = 0; i < 4; i++) if (i !== winner) { const base = i === dealer ? r.ko[0] : r.ko[1]; const pay = base + 100 * honba; scores[i] -= pay; scores[winner] += pay; } }
+        if (winner === dealer) { for (let i = 0; i < 4; i++) if (i !== winner) { const pay = r.oya[0] + RULES.honbaTsumo * honba; scores[i] -= pay; scores[winner] += pay; } }
+        else { for (let i = 0; i < 4; i++) if (i !== winner) { const base = i === dealer ? r.ko[0] : r.ko[1]; const pay = base + RULES.honbaTsumo * honba; scores[i] -= pay; scores[winner] += pay; } }
         scores[winner] += ctx.riichiPool; ctx.riichiPool = 0;
       } else {
         // ron: single or double. Discarder pays each winner; sticks go to
         // the winner nearest in turn order (wins[0]).
         console.log(`\n*** ${winBy.wins.length > 1 ? 'DOUBLE ' : ''}RON on ${winBy.tile} from ${names[winBy.from]} ${winBy.tag || ''} ***`);
         for (const w of winBy.wins) {
-          const pay = w.r.ten + 300 * honba;
+          const pay = w.r.ten + RULES.honbaRon * honba;
           scores[winBy.from] -= pay; scores[w.seat] += pay;
           console.log(`  -> ${names[w.seat]} ${w.r.text} ${JSON.stringify(w.r.yaku)} +${pay}`);
         }
@@ -900,14 +903,14 @@ async function main() {
         console.log(`NAGASHI MANGAN: ${nagashi.map(i => names[i]).join(' ')} (all discards terminals/honors, closed)`);
         const order = [0, 1, 2, 3].map(k => (dealer + k) % 4).filter(i => nagashi.includes(i));
         for (const w of order) {
-          if (w === dealer) { for (let i = 0; i < 4; i++) if (i !== w) { const pay = 4000 + 100 * honba; scores[i] -= pay; scores[w] += pay; } }
-          else { for (let i = 0; i < 4; i++) if (i !== w) { const pay = (i === dealer ? 4000 : 2000) + 100 * honba; scores[i] -= pay; scores[w] += pay; } }
+          if (w === dealer) { for (let i = 0; i < 4; i++) if (i !== w) { const pay = 4000 + RULES.honbaTsumo * honba; scores[i] -= pay; scores[w] += pay; } }
+          else { for (let i = 0; i < 4; i++) if (i !== w) { const pay = (i === dealer ? 4000 : 2000) + RULES.honbaTsumo * honba; scores[i] -= pay; scores[w] += pay; } }
           console.log(`  -> ${names[w]} mangan tsumo`);
         }
         scores[order[0]] += ctx.riichiPool; ctx.riichiPool = 0;
       } else if (nTen > 0 && nTen < 4) {
         // standard: 1 tenpai: +3000/-1000; 2: +1500/-1500; 3: +1000/-3000
-        const give = [0, 3000, 1500, 1000][nTen], take = [0, 1000, 1500, 3000][nTen];
+        const give = [0, RULES.notenTotal, RULES.notenTotal / 2, RULES.notenTotal / 3][nTen], take = [0, RULES.notenTotal / 3, RULES.notenTotal / 2, RULES.notenTotal][nTen];
         for (let i = 0; i < 4; i++) scores[i] += tenpai[i] ? give : -take;
         console.log(`noten payments (ten ${nTen}: +${give}/-${take})`);
       }

@@ -105,7 +105,8 @@ It is less reliable as a runtime for us (new stack, own matcher bugs to own).
 
 ### Phase 4: Match Loop & Architecture Unification
 - **Align Server & Offline Turn Loop**: ⚠️ partly done
-  - Abortive draws are now gated behind shared config (`engine/rules-config.js`, `RULES.aborts` vs `RULES.serverAborts`) instead of hardcoded omissions.
+  - The shared **numeric** rule values (start score, riichi stake, honba, noten schedule) now come from `engine/rules-config.js` and are read by both front-ends, with `engine/tests/rules-config-parity.test.js` failing if either reintroduces a literal copy.
+  - Abortive draws are **not** gated behind that config, despite `RULES.aborts` / `RULES.serverAborts` existing — nothing reads those two objects, because the server has no abort handlers to switch on. The flags document intent only. See KI-04.
   - Still open: `Table.playTurn` and the `engine/game.js` turn dispatch are separate state machines.
 - **Per-Turn Invariant Assertions**: ✅ done — `engine/invariants.js` (conservation via `DynamicPool.audit`, dead wall length, hand size, zero-sum scores).
 

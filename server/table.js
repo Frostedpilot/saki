@@ -20,6 +20,7 @@ const P = require('./protocol');
 const H = require('../engine/helpers');
 const Y = require('./yaku-map');
 const { ROSTERS } = require('./rosters');
+const { RULES } = require('../engine/rules-config');
 
 // A character hook that throws must not break the match, but it must not be
 // silent either: a power that is quietly inert looks identical to a power that
@@ -36,7 +37,11 @@ function warnOnce(site, e) {
 const KIND_ORDER = {};
 KINDS.forEach((k, i) => { KIND_ORDER[k] = i; });
 
-const START_SCORE = 25000;
+// These used to be bare literals here and in engine/game.js, so the two rule
+// front-ends could drift apart silently. They come from RULES now, and
+// engine/tests/rules-config-parity.test.js fails if either file reintroduces a
+// hardcoded copy.
+const START_SCORE = RULES.startScore;
 const TOTAL_ROUNDS = 4; // East-only, 4 players
 
 const PHASE = {
@@ -507,7 +512,7 @@ try { state.powers.register(s, ROSTERS[power](s, this.persistentPowerState[s]));
       turn = out.next;
     }
 
-    await this.finishHand(winner, winBy);
+    const outcome = await this.finishHand(winner, winBy);
 
     // Carry flow over to the next hand (Spec §6). Settlement hooks
     // (e.g. Saki rinshan burn) and tier consumes already mutated
@@ -523,23 +528,52 @@ try { state.powers.register(s, ROSTERS[power](s, this.persistentPowerState[s]));
       return;
     }
 
-    let keepDealer;
-    if (winBy !== null) {
-      const dealerWon = winBy.type === 'tsumo'
-        ? winner === dealer
-        : winBy.hits.some((h) => h.seat === dealer);
-      if (dealerWon) { this.honba++; this.kyoku--; keepDealer = true; }
-      else { this.honba = 0; keepDealer = false; }
-    } else {
-      this.honba++;
-      this.riichiCarry = this.ctx.riichiPool;
-      keepDealer = this.tenpaiSeats().includes(dealer);
-      if (keepDealer) this.kyoku--;
-    }
+const keepDealer = this.applyPostSettlementFlow(outcome, winBy, dealer);
     if (!keepDealer) this.dealer = (this.dealer + 1) % 4;
     this.kyoku++;
 
     await this.waitForReady();
+  }
+
+  /**
+   * Decide the honba count and whether the dealer repeats, once a hand has been
+   * settled. Returns true if the dealer keeps the deal.
+   *
+   * Extracted from playOneHand because this decision had a bug that finishHand-level
+   * tests structurally could not see: the block used to re-derive the riichi carry
+   * from `ctx.riichiPool` *after* finishHand had already zeroed it, which silently
+   * destroyed the sticks left on a drawn hand. Nothing caught it except the bridge
+   * E2E test, intermittently, because it is seeded from Math.random(). Its own note
+   * said as much. The rule "finishHand owns the carry" is now enforced here, in a
+   * method that can be called directly.
+   */
+  applyPostSettlementFlow(outcome, winBy, winner, dealer) {
+    if (outcome && outcome.aborted) {
+      // Abortive draw (triple ron): the hand is void, so nobody won — the dealer
+      // always repeats and the honba grows. engine/game.js does the same. Do NOT
+      // fall through to the exhaustive branch: that one consults tenpai seats, and an
+      // abortive draw has no tenpai question.
+      this.honba++;
+      this.kyoku--;
+      return true;
+    }
+
+    if (winBy !== null) {
+      const dealerWon = winBy.type === 'tsumo'
+        ? winner === dealer
+        : winBy.hits.some((h) => h.seat === dealer);
+      if (dealerWon) { this.honba++; this.kyoku--; return true; }
+      this.honba = 0;
+      return false;
+    }
+
+    // Exhaustive draw. The riichi carry is NOT touched here: finishHand has already
+    // moved ctx.riichiPool onto this.riichiCarry. Re-deriving it would overwrite a
+    // real carry with 0 — see the note above.
+    this.honba++;
+    const keepDealer = this.tenpaiSeats().includes(dealer);
+    if (keepDealer) this.kyoku--;
+    return keepDealer;
   }
 
   isFirstDraw(me) {
@@ -717,8 +751,8 @@ try { state.powers.register(s, ROSTERS[power](s, this.persistentPowerState[s]));
     me.riichi = true;
     me.doubleRiichi = !!riichiFirst;
     me.ippatsu = true;
-    this.scores[seat] -= 1000;
-    ctx.riichiPool += 1000;
+    this.scores[seat] -= RULES.riichiValue;
+    ctx.riichiPool += RULES.riichiValue;
     this.broadcast(P.evPlayerRiichi({
       player: P.seatWind(seat, ctx.dealer),
       scores: [...this.scores],
@@ -1586,6 +1620,30 @@ try { state.powers.register(s, ROSTERS[power](s, this.persistentPowerState[s]));
           flags: { tsumo: false, winTile: winBy.tile, kan: !!winBy.flags.chankan, last: !!winBy.flags.houtei, tenhou: false },
         }));
 
+      // Triple ron (三家和 / sanchahou) is an ABORTIVE draw, not a three-way win:
+      // the hand is void, nobody is paid, the dealer repeats and a honba is added.
+      // Before this, three simultaneous claims were each paid in full by the
+      // discarder — see docs/known-issues.md KI-20.
+      //
+      // Two claimants is a legal double ron and is paid normally, which is why this
+      // is `>= 3` and not `> 1`. engine/game.js has always aborted here; the two
+      // front-ends disagreed (KI-04).
+      if (!isTsumo && wins.length >= 3) {
+        this.riichiCarry = ctx.riichiPool;
+        ctx.riichiPool = 0;
+        this.broadcast(P.evRoundDraw({
+          scores: [...this.scores],
+          reason: 'TripleRon',
+          tenpai: [],
+          riichiSticks: this.riichiCarry / 1000,
+          playerHands: this.playerHandsInfo(),
+          declarer: null,
+        }));
+        console.log(`[bridge] ABORTIVE triple ron on ${winBy.tile} from P${winBy.from} ` +
+          `(seats ${wins.map((w) => 'P' + w.seat).join('/')}) - hand void, no payments`);
+        return { aborted: true };
+      }
+
       // Apply all payments first so every RoundWon shares the same final scores.
       const awards = [];
       for (const w of wins) {
@@ -1596,7 +1654,7 @@ try { state.powers.register(s, ROSTERS[power](s, this.persistentPowerState[s]));
           if (w.seat === dealer) {
             for (let i = 0; i < 4; i++) {
               if (i === w.seat) continue;
-              const p0 = r.oya[0] + 100 * this.honba;
+              const p0 = r.oya[0] + RULES.honbaTsumo * this.honba;
               this.scores[i] -= p0;
               pay += p0;
             }
@@ -1604,14 +1662,14 @@ try { state.powers.register(s, ROSTERS[power](s, this.persistentPowerState[s]));
             for (let i = 0; i < 4; i++) {
               if (i === w.seat) continue;
               const base = i === dealer ? r.ko[0] : r.ko[1];
-              const p0 = base + 100 * this.honba;
+              const p0 = base + RULES.honbaTsumo * this.honba;
               this.scores[i] -= p0;
               pay += p0;
             }
           }
           this.scores[w.seat] += pay;
         } else {
-          pay = r.ten + 300 * this.honba;
+          pay = r.ten + RULES.honbaRon * this.honba;
           this.scores[winBy.from] -= pay;
           this.scores[w.seat] += pay;
         }
@@ -1652,34 +1710,26 @@ try { state.powers.register(s, ROSTERS[power](s, this.persistentPowerState[s]));
       const tenpai = this.tenpaiSeats();
       const nTen = tenpai.length;
       if (nTen > 0 && nTen < 4) {
-        const give = [0, 3000, 1500, 1000][nTen];
-        const take = [0, 1000, 1500, 3000][nTen];
+        const give = [0, RULES.notenTotal, RULES.notenTotal / 2, RULES.notenTotal / 3][nTen];
+        const take = [0, RULES.notenTotal / 3, RULES.notenTotal / 2, RULES.notenTotal][nTen];
         for (let i = 0; i < 4; i++) this.scores[i] += tenpai.includes(i) ? give : -take;
       }
-      // Riichi sticks must not vanish when a hand is drawn. The win path awards
-      // ctx.riichiPool to the nearest winner; here the standard rule applies —
-      // the sticks go to the tenpai players, split evenly. If nobody is tenpai
-      // they carry to the next hand, and run() settles anything still carried
-      // when the match ends. Without this a riichi declared in a drawn hand
-      // silently destroys 1000 points.
+      // Riichi sticks must not vanish when a hand is drawn, but they are also NOT
+      // awarded to the tenpai players. The standard rule is that they stay on the
+      // table and are claimed by the next player to win a hand: riichi.wiki's
+      // Ryuukyoku page says "any riichi bets left on the table are saved for later
+      // rounds", the EMA rules say they "remain on the table until a player wins a
+      // hand", and the standard riichi rules sheet says the same under "Handling
+      // riichi bets after drawn games".
+      //
+      // An earlier version of this file split the pot between the tenpai seats at an
+      // exhaustive draw. That was wrong, it disagreed with engine/game.js (which has
+      // always carried), and it was introduced by this same file's earlier fix for
+      // KI-14 — see docs/known-issues.md KI-19. Conservation still holds either way:
+      // the pot is on the table in `riichiCarry`, not destroyed.
       const sticks = ctx.riichiPool;
       ctx.riichiPool = 0;
-      let awarded = 0;
-      if (sticks > 0 && tenpai.length > 0) {
-        // Split as evenly as a whole number of points allows: 1000 across 3
-        // tenpai players is 334/333/333, not 1000/0/0.
-        const n = tenpai.length;
-        const each = Math.floor(sticks / n);
-        let remainder = sticks - each * n;
-        for (const s of tenpai) {
-          const amt = each + (remainder > 0 ? 1 : 0);
-          if (remainder > 0) remainder--;
-          this.scores[s] += amt;
-          awarded += amt;
-        }
-      } else {
-        this.riichiCarry = sticks;
-      }
+      this.riichiCarry = sticks;
 
       this.broadcast(P.evRoundDraw({
         scores: [...this.scores],
@@ -1689,8 +1739,11 @@ try { state.powers.register(s, ROSTERS[power](s, this.persistentPowerState[s]));
         playerHands: this.playerHandsInfo(),
         declarer: null,
       }));
-      console.log(`[bridge] EXHAUSTIVE tenpai=${tenpai.map((s) => 'P' + s).join(',')} sticks=${sticks / 1000} awarded=${awarded / 1000} carried=${this.riichiCarry / 1000}`);
+      console.log(`[bridge] EXHAUSTIVE tenpai=${tenpai.map((s) => 'P' + s).join(',')} sticks=${sticks / 1000} carried=${this.riichiCarry / 1000}`);
     }
+    // Every path returns a descriptor, so playOneHand can branch on `aborted`
+    // without having to distinguish "returned nothing" from "returned a falsy value".
+    return { aborted: false };
   }
 }
 

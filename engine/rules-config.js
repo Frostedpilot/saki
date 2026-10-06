@@ -1,8 +1,15 @@
-// rules-config.js — shared rules configuration (Fix plan Phase 4).
-// Documents current behavior as data instead of hardcoded branches.
-// Values below match engine/game.js behavior; the server keeps abortive
-// draws disabled by default (ABORTS all false) to preserve its behavior
-// until the handlers are unified.
+// rules-config.js — shared rules configuration.
+//
+// This is LIVE configuration, not documentation: both rule front-ends read it.
+// `engine/game.js` (offline) and `server/table.js` (networked) used to hardcode the
+// same numbers independently, which is exactly how KI-04 happened — a rule fixed in
+// one was not fixed in the other. Every value below is consumed by at least one
+// front-end, and `engine/tests/rules-config-parity.test.js` fails if either file
+// reintroduces a literal copy of one of them.
+//
+// Not here: the *orchestration*. The two front-ends still drive a hand differently
+// (a CLI turn loop versus an async phase machine), because they have to. See KI-04
+// for what is and is not shared.
 const RULES = {
   startScore: 25000,
   riichiValue: 1000,
@@ -11,6 +18,7 @@ const RULES = {
   honbaRon: 300,   // per win on ron
   minHan: 1,
   overtimeMinHan: 2, // ryanhan-shibari during enchousen
+  notenTotal: 3000,   // points moved at an exhaustive draw (1 tenpai: +3000/-1000)
   maxKan: 4,
   rinshanSlots: 4,
   deadWallLength: 14,

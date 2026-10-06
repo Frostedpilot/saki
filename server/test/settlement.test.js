@@ -77,9 +77,16 @@ test('exhaustive draw with no riichi declared conserves points', async () => {
   assert.equal(sum(t), TOTAL);
 });
 
-// --------------------------------------------- sticks to tenpai at the draw
+// -------------------------------------------------- sticks at an exhaustive draw
+//
+// An exhaustive draw does NOT award the riichi pot to the tenpai players. The sticks
+// stay on the table and are claimed by the next player to win a hand. Three tests in
+// this file previously asserted the opposite (that the pot was split between tenpai
+// seats), which was wrong and disagreed with engine/game.js — see docs/known-issues.md
+// KI-19. What matters for conservation either way is that the pot is not destroyed:
+// it moves from ctx.riichiPool to Table.riichiCarry.
 
-test('all four tenpai: the stick pot is split four ways', async () => {
+test('all four tenpai: the pot carries, and no noten payments happen', async () => {
   const t = makeTable();
   setHands(t, [0, 1, 2, 3]);
   declareRiichi(t, 0, 1);
@@ -87,13 +94,12 @@ test('all four tenpai: the stick pot is split four ways', async () => {
   const before = t.scores.slice();
   await t.finishHand(-1, null);
 
-  // Four tenpai means no noten payments, so the only movement is the stick.
-  assert.equal(sum(t), TOTAL, 'the stick is redistributed, not destroyed');
-  assert.deepEqual(t.scores.map((s, i) => s - before[i]), [250, 250, 250, 250]);
-  assert.equal(t.ctx.riichiPool, 0);
+  assert.deepEqual(t.scores, before, 'four tenpai means no payments of any kind');
+  assert.equal(t.riichiCarry, 1000, 'the stick stays on the table');
+  assert.equal(sum(t) + t.riichiCarry, TOTAL, 'the stick is on the table, not destroyed');
 });
 
-test('two tenpai: both receive the stick, neither noten seat does', async () => {
+test('two tenpai: the noten penalty is paid but the pot still carries', async () => {
   const t = makeTable();
   setHands(t, [1, 3]);
   declareRiichi(t, 0, 1);
@@ -101,19 +107,15 @@ test('two tenpai: both receive the stick, neither noten seat does', async () => 
   const before = t.scores.slice();
   await t.finishHand(-1, null);
 
-  assert.equal(sum(t), TOTAL, 'sticks must not vanish');
-  assert.equal(t.ctx.riichiPool, 0, 'hand pot emptied');
-
-  // Noten payments move everyone; the stick is the difference in their favour.
+  // Two tenpai => +1500 each, -1500 each. The stick is not part of this.
   const gained = t.scores.map((s, i) => s - before[i]);
-  // Two tenpai => +1500 each, -1500 each, then the stick split 1000 as 500/500.
-  assert.deepEqual(gained[1], 2000, 'tenpai seat gains the noten payment plus half the stick');
-  assert.deepEqual(gained[3], 2000, 'tenpai seat gains the noten payment plus half the stick');
-  assert.deepEqual(gained[0], -1500, 'noten seat gains nothing from the stick');
-  assert.deepEqual(gained[2], -1500, 'noten seat gains nothing from the stick');
+  assert.deepEqual(gained, [-1500, 1500, -1500, 1500]);
+  assert.equal(t.riichiCarry, 1000, 'the stick still carries — tenpai does not collect it');
+  assert.equal(t.ctx.riichiPool, 0, 'the hand pot is emptied');
+  assert.equal(sum(t) + t.riichiCarry, TOTAL);
 });
 
-test('an uneven split still distributes every 1000 exactly', async () => {
+test('an uneven tenpai split does not touch the pot', async () => {
   const t = makeTable();
   setHands(t, [0, 1, 2]);
   declareRiichi(t, 0, 1);
@@ -121,12 +123,11 @@ test('an uneven split still distributes every 1000 exactly', async () => {
   const before = t.scores.slice();
   await t.finishHand(-1, null);
 
-  assert.equal(sum(t), TOTAL, 'no points invented or lost in a 3-way split');
-  // Three tenpai => +1000 each, -3000 to the noten seat, plus one whole stick
-  // to a single tenpai seat (1000 does not divide by 3).
+  // Three tenpai => +1000 each, -3000 from the noten seat.
   const gained = t.scores.map((s, i) => s - before[i]);
-  assert.equal(gained[3], -3000, 'noten seat pays the noten penalty only');
-  assert.equal(gained.slice(0, 3).reduce((a, b) => a + b, 0), 3000 + 1000);
+  assert.deepEqual(gained, [1000, 1000, 1000, -3000]);
+  assert.equal(t.riichiCarry, 1000);
+  assert.equal(sum(t) + t.riichiCarry, TOTAL);
 });
 
 test('nobody tenpai: the sticks carry to the next hand instead of vanishing', async () => {
@@ -140,6 +141,45 @@ test('nobody tenpai: the sticks carry to the next hand instead of vanishing', as
   assert.equal(t.riichiCarry, 1000, 'sticks carried forward');
   // The stick is still on the table, so it counts toward the conserved total.
   assert.equal(sum(t) + t.riichiCarry, TOTAL);
+});
+
+test('the pot is carried regardless of how many are tenpai', async () => {
+  // The rule is unconditional, so sweep every tenpai count through it.
+  for (const seats of [[], [0], [0, 1], [0, 1, 2], [0, 1, 2, 3]]) {
+    const t = makeTable();
+    setHands(t, seats);
+    declareRiichi(t, 0, 1);
+    await t.finishHand(-1, null);
+    assert.equal(t.riichiCarry, 1000,
+      `tenpai [${seats}] must not change who holds the stick`);
+    assert.equal(sum(t) + t.riichiCarry, TOTAL, `tenpai [${seats}]: conservation`);
+  }
+});
+
+test('a later hand can still win the carried sticks', async () => {
+  // The carried pot must be collectable, or carrying it would be a stalling bug.
+  const t = makeTable();
+  setHands(t, []);
+  declareRiichi(t, 0, 2);
+  await t.finishHand(-1, null);
+  assert.equal(t.riichiCarry, 2000);
+
+  t.ctx.players[0].hand = TSUMO_HAND.slice();
+  t.ctx.dealer = 0;
+  // Stand in for the next hand's setup, which does `riichiPool: this.riichiCarry`
+  // (table.js) before clearing the Table's copy. Calling finishHand directly skips
+  // that, so without this the win would find an empty table.
+  t.ctx.riichiPool = t.riichiCarry;
+  t.riichiCarry = 0;
+
+  const before = t.scores.slice();
+  await t.finishHand(0, { type: 'tsumo', winTile: '2p', rinshan: false, haitei: false, first: false });
+
+  assert.equal(t.ctx.riichiPool, 0, 'the winner swept the table');
+  assert.equal(t.riichiCarry, 0, 'nothing left to carry');
+  // The two carried sticks went to the winner, on top of the tsumo payments.
+  assert.equal(sum(t), TOTAL, 'the carried sticks were paid out, not duplicated');
+  assert.ok(t.scores[0] - before[0] > 0, 'the winner gained');
 });
 
 test('multiple carried sticks accumulate', async () => {
@@ -211,6 +251,187 @@ test('double ron charges the discarder for both winners and conserves points', a
   assert.equal(t.scores[3] - before[3], 1300, 'second winner takes the hand value');
   assert.equal(t.scores[2] - before[2], -2600, 'discarder pays both winners');
   assert.equal(t.ctx.riichiPool, 0);
+});
+
+// --------------------------------------------------------- triple ron (sanchahou)
+
+test('triple ron is an abortive draw, not a three-way win', async () => {
+  // Three players claiming the same discard voids the hand. Before KI-20 this paid
+  // all three in full, which was also a KI-04 divergence: engine/game.js has always
+  // aborted here.
+  const t = makeTable();
+  t.ctx.players[1].hand = RON_HAND.slice();
+  t.ctx.players[2].hand = RON_HAND.slice();
+  t.ctx.players[3].hand = RON_HAND.slice();
+  declareRiichi(t, 0, 2);
+
+  const before = t.scores.slice();
+  const outcome = await t.finishHand(1, {
+    type: 'ron', from: 0, tile: '2p',
+    flags: { chankan: false, houtei: false },
+    hits: [{ seat: 1 }, { seat: 2 }, { seat: 3 }],
+  });
+
+  assert.deepEqual(t.scores, before, 'nobody is paid on an abortive draw');
+  assert.equal(sum(t) + t.riichiCarry, TOTAL, 'the pot is on the table, not destroyed');
+  assert.equal(t.riichiCarry, 2000, 'riichi sticks carry to the next hand');
+  assert.equal(t.ctx.riichiPool, 0, 'the hand pot is emptied');
+  assert.ok(outcome && outcome.aborted, 'the caller must be told the hand was aborted');
+});
+
+test('triple ron broadcasts a draw, never a win', async () => {
+  const t = makeTable();
+  t.ctx.players[1].hand = RON_HAND.slice();
+  t.ctx.players[2].hand = RON_HAND.slice();
+  t.ctx.players[3].hand = RON_HAND.slice();
+
+  const sent = [];
+  t.broadcast = (m) => sent.push(m);
+  await t.finishHand(1, {
+    type: 'ron', from: 0, tile: '2p',
+    flags: { chankan: false, houtei: false },
+    hits: [{ seat: 1 }, { seat: 2 }, { seat: 3 }],
+  });
+
+  assert.equal(sent.filter((m) => m.RoundWon).length, 0, 'no winner may be announced');
+  const draws = sent.filter((m) => m.RoundDraw);
+  assert.equal(draws.length, 1, 'the client needs exactly one draw event');
+  assert.equal(draws[0].RoundDraw.reason, 'TripleRon');
+});
+
+test('two claimants is still a legal, fully paid double ron', async () => {
+  // The boundary matters: `>= 3` aborts, `2` must not.
+  const t = makeTable();
+  t.ctx.players[1].hand = RON_HAND.slice();
+  t.ctx.players[3].hand = RON_HAND.slice();
+
+  const before = t.scores.slice();
+  const outcome = await t.finishHand(1, {
+    type: 'ron', from: 2, tile: '2p',
+    flags: { chankan: false, houtei: false },
+    hits: [{ seat: 1 }, { seat: 3 }],
+  });
+
+  assert.equal(outcome.aborted, false, 'a double ron must not abort');
+  assert.equal(sum(t), TOTAL);
+  assert.equal(t.scores[1] - before[1], 1300);
+  assert.equal(t.scores[3] - before[3], 1300);
+});
+
+test('a triple ron of one tile is order-independent', async () => {
+  // The claim order must not change the outcome — it is a void hand either way.
+  for (const hits of [[1, 2, 3], [3, 2, 1], [2, 1, 3]]) {
+    const t = makeTable();
+    t.ctx.players[1].hand = RON_HAND.slice();
+    t.ctx.players[2].hand = RON_HAND.slice();
+    t.ctx.players[3].hand = RON_HAND.slice();
+    const before = t.scores.slice();
+    const outcome = await t.finishHand(hits[0], {
+      type: 'ron', from: 0, tile: '2p',
+      flags: { chankan: false, houtei: false },
+      hits: hits.map((seat) => ({ seat })),
+    });
+    assert.deepEqual(t.scores, before, `hits [${hits}] must pay nobody`);
+    assert.ok(outcome && outcome.aborted, `hits [${hits}] must abort`);
+  }
+});
+
+// --------------------------------------- post-settlement flow (the KI-21 seam)
+
+// The riichi carry used to be re-derived in playOneHand AFTER finishHand had already
+// zeroed ctx.riichiPool, which destroyed every stick left on a drawn hand. A
+// finishHand-level test cannot see that: it never runs the code after settlement.
+// These call the extracted method directly, which is the whole point of extracting
+// it.
+
+test('the riichi carry survives the post-settlement flow', async () => {
+  const t = makeTable();
+  setHands(t, []);
+  declareRiichi(t, 0, 3);
+  await t.finishHand(-1, null);
+  assert.equal(t.riichiCarry, 3000, 'finishHand carried the pot');
+
+  t.kyoku = 1;
+  t.applyPostSettlementFlow({ aborted: false }, null, -1, 0);
+
+  assert.equal(t.riichiCarry, 3000,
+    'the post-settlement flow must not overwrite the carry — this is the KI-21 leak');
+  assert.equal(sum(t) + t.riichiCarry, TOTAL, 'and the points are still accounted for');
+});
+
+test('the post-settlement flow never re-derives the carry from a drained pool', () => {
+  // Sweep the branch shapes with the hand pool already drained, which is the state
+  // finishHand always leaves behind.
+  const cases = [
+    ['exhaustive', { aborted: false }, null],
+    ['triple ron abort', { aborted: true }, { type: 'ron', from: 0, tile: '2p', hits: [{ seat: 1 }, { seat: 2 }, { seat: 3 }] }],
+    ['dealer ron', { aborted: false }, { type: 'ron', from: 1, tile: '2p', hits: [{ seat: 0 }] }],
+    ['non-dealer ron', { aborted: false }, { type: 'ron', from: 0, tile: '2p', hits: [{ seat: 2 }] }],
+  ];
+  for (const [label, outcome, winBy] of cases) {
+    const t = makeTable();
+    t.ctx.riichiPool = 0;   // drained by finishHand
+    t.riichiCarry = 1000;   // a real pot waiting on the table
+    t.honba = 0;
+    t.applyPostSettlementFlow(outcome, winBy, winBy && winBy.hits ? winBy.hits[0].seat : -1, 0);
+    assert.equal(t.riichiCarry, 1000, `${label}: the carry must be left alone`);
+  }
+});
+
+test('an abortive draw repeats the dealer and adds a honba', () => {
+  const t = makeTable();
+  t.honba = 0;
+  t.kyoku = 2;
+  const keep = t.applyPostSettlementFlow(
+    { aborted: true },
+    { type: 'ron', from: 0, tile: '2p', hits: [{ seat: 1 }, { seat: 2 }, { seat: 3 }] },
+    1, 0,
+  );
+  assert.equal(keep, true, 'the dealer repeats on an abortive draw');
+  assert.equal(t.honba, 1, 'an abort adds a honba');
+  assert.equal(t.kyoku, 1, 'the same hand is replayed');
+});
+
+test('a non-dealer win rotates the seat and clears the honba', () => {
+  const t = makeTable();
+  t.honba = 2;
+  t.kyoku = 1;
+  const keep = t.applyPostSettlementFlow(
+    { aborted: false },
+    { type: 'ron', from: 0, tile: '2p', hits: [{ seat: 2 }] },
+    2, 0,
+  );
+  assert.equal(keep, false, 'the seat rotates when a non-dealer wins');
+  assert.equal(t.honba, 0, 'the honba counter resets');
+});
+
+test('a dealer win repeats the seat and adds a honba', () => {
+  const t = makeTable();
+  t.honba = 0;
+  t.kyoku = 1;
+  const keep = t.applyPostSettlementFlow(
+    { aborted: false },
+    { type: 'ron', from: 1, tile: '2p', hits: [{ seat: 0 }] },
+    0, 0,
+  );
+  assert.equal(keep, true);
+  assert.equal(t.honba, 1);
+});
+
+test('an exhaustive draw keeps the dealer only when the dealer is tenpai', () => {
+  const withDealerTenpai = makeTable();
+  setHands(withDealerTenpai, [0]);
+  withDealerTenpai.honba = 0;
+  withDealerTenpai.kyoku = 1;
+  assert.equal(withDealerTenpai.applyPostSettlementFlow({ aborted: false }, null, -1, 0), true);
+  assert.equal(withDealerTenpai.honba, 1);
+
+  const withoutDealerTenpai = makeTable();
+  setHands(withoutDealerTenpai, [1]);
+  withoutDealerTenpai.honba = 0;
+  withoutDealerTenpai.kyoku = 1;
+  assert.equal(withoutDealerTenpai.applyPostSettlementFlow({ aborted: false }, null, -1, 0), false);
+  assert.equal(withoutDealerTenpai.honba, 1, 'an exhaustive draw always adds a honba');
 });
 
 // ----------------------------------------------------------- match teardown

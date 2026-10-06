@@ -126,14 +126,61 @@ The same rules are implemented twice, and the two copies disagree:
 **Still open.** A rule fixed in `game.js` is not automatically fixed in `table.js`. This
 has already happened: the permanent-riichi-furiten bug existed on both sides and needed
 two fixes plus a regression suite. The divergence is at least *declared* in
-`engine/rules-config.js` (`RULES.aborts` vs `RULES.serverAborts`) — but the comment
-there, "Flip a flag only together with its handler", is a warning that this is a trap.
+`engine/rules-config.js` (`RULES.aborts` vs `RULES.serverAborts`) — but nothing reads
+those two objects, because the server has no abort handlers to switch on. They document
+intent; they do not enforce it.
 
 **Reduced, not closed.** The *shared rule functions* are no longer duplicated —
 `engine/helpers.js` is now the single definition for waits, furiten, bot decisions,
 abort conditions and oka/uma, and `game.js` imports all of them (see KI-03). What still
 differs is the **rule front-ends**: `game.js`'s `main()` and `server/table.js`'s
 `Table` each orchestrate a hand independently, and that orchestration is not shared.
+
+### `rules-config.js` was dead, and is now live
+
+Worth recording because it is the whole mechanism of this issue in miniature. The file
+claimed to be "shared rules configuration" and `rules.test.js` asserted its values were
+correct — but **no production code imported it**. Both front-ends hardcoded their own
+copies of every number, which is precisely how they drifted.
+
+Both now read it (`engine/game.js`, `server/table.js`), so these cannot diverge:
+
+| Constant | Was | Now |
+| --- | --- | --- |
+| start score | `25000` in both | `RULES.startScore` |
+| riichi stake | `-= 1000` in both | `RULES.riichiValue` |
+| honba per payer (tsumo) | `+ 100 * honba` in both | `RULES.honbaTsumo` |
+| honba per win (ron) | `+ 300 * honba` in both | `RULES.honbaRon` |
+| noten schedule | `[0, 3000, 1500, 1000][n]` inline | `RULES.notenTotal` |
+
+`engine/tests/rules-config-parity.test.js` (7 tests) keeps it that way. It asserts the
+config is *imported and referenced* — not merely correct, which is the check that let
+the file stay dead — and fails if either front-end reintroduces a literal copy of one of
+the expressions above. Verified to bite: reinstating `+ 300 * honba` in `game.js` fails
+it.
+
+### What is genuinely still not shared
+
+Being precise about the remaining scope, because "consolidate the front-ends" reads
+like one task and is not:
+
+- **The turn loop itself.** `game.js main()` is a `while` loop with decisions inline;
+  `Table` is an async phase machine that awaits a WebSocket reply per decision. They
+  have different control architectures because one is a CLI and the other is a server.
+  Merging them means rewriting both, not extracting a shared function — which is why
+  item 23 was scoped at 2–3 days.
+- **Abortive draws.** `game.js` implements all five; `Table` implements none. The
+  handlers do not exist server-side, so no amount of sharing fixes this — it needs
+  writing, and `RULES.aborts` / `RULES.serverAborts` already flag the intent.
+- **Nagashi mangan, oka/uma, agari-yame, enchousen.** Offline only. Oka/uma is a
+  scoring concern with no network equivalent (the client computes its own standings).
+- **Character powers.** `game.js --powers` drives a small inline `powerDraw()` and is
+  explicitly *not* the roster framework; only the server path exercises
+  `PowerDispatcher` + `rosters/`.
+
+None of these is accidental any more; they are declared. The residual risk is that a
+*new* rule gets added to one side only — which is what the parity test now catches for
+the numbers, and what still needs discipline for the orchestration.
 
 `engine/cli.js` also re-declared `KINDS` and re-implemented `buildWall`; that copy is
 now gone (see KI-05).
@@ -186,7 +233,7 @@ reachable only via `server/table.js` and the engine unit tests.
 
 - **CI: ✅ fixed.** `.github/workflows/ci.yml` runs on push and PR: `npm ci`, engine
   tests, server E2E, client type-check + build, a CLI smoke check, and the markdown link
-  checker. The 358 tests plus the 43-check selftest now run automatically.
+  checker. The 365 tests plus the 43-check selftest now run automatically.
 - **Markdown link checking: ✅ added.** `scripts/check-links.mjs` (`npm run links`)
   verifies every relative link in every `.md` resolves. It caught real breakage during
   this work and is cheap to run locally.
@@ -306,6 +353,128 @@ prints
 ```
 
 once per hook, and `resetHookWarnings()` is exported for tests.
+
+---
+
+## <a id="ki-21"></a>KI-21 ✅ FIXED — a drawn hand silently destroyed its riichi sticks, intermittently
+
+Found by running the bridge E2E repeatedly (40+ times) rather than once, after the
+[KI-20](#ki-20) triple-ron work. Roughly **one run in six** failed with:
+
+```
+RoundWon #0 scores must total 100000, got 99000
+```
+
+— exactly one 1000-point riichi stick. The failure was in `playOneHand`, *after*
+settlement:
+
+```js
+} else {                        // exhaustive draw
+  this.honba++;
+  this.riichiCarry = this.ctx.riichiPool;   // <-- the bug
+```
+
+`finishHand` had **already** moved `ctx.riichiPool` onto `this.riichiCarry` and zeroed
+the hand's pool. So this line read a drained pool and overwrote a real carry with `0`,
+destroying every stick left on the table.
+
+**Why it survived so long.** It was written as part of the [KI-14](#ki-14) fix, at a
+moment when `finishHand` only carried the pot in the nobody-is-tenpai case, so the two
+assignments did not yet collide. Nothing caught it because:
+
+- The `finishHand` unit tests **cannot** see it. They call `finishHand` directly, which
+  never runs the code after settlement. My own header comment in that file admitted the
+  E2E "only catches that by luck" — this was that luck, failing 15% of the time.
+- It is order-dependent: it only fires when a hand ends drawn *with* a stick on the
+  table, which a seeded match hits rarely.
+
+**Fixed** by removing the duplicate assignment. The post-settlement decision was then
+**extracted into `Table.applyPostSettlementFlow`**, so the seam where the bug lived is
+directly callable and testable — the thing that made it invisible in the first place.
+`finishHand` now returns a consistent `{ aborted }` descriptor rather than sometimes
+returning nothing.
+
+**Tests:** six new cases in `server/test/settlement.test.js` call the extracted method,
+including a sweep of every branch shape with the hand pool already drained, and an
+assertion that the carry survives. Verified to bite: reintroducing the one line fails
+two of them. Bridge E2E: 0 failures in 60 consecutive runs after the fix, against
+roughly 1 in 6 before.
+
+A class of bug this is worth naming: **two places both "handling" the same value**, with
+no single owner. The fix was to give `finishHand` sole ownership of the carry and delete
+the second writer, not to adjust both.
+
+---
+
+## <a id="ki-20"></a>KI-20 ✅ FIXED — the server paid three winners when three players claimed the same tile
+
+Found by continuing the item-23 sweep of decisions the two front-ends still disagree
+about. Driving `resolveCallWindow` with three simultaneous ron claims produced:
+
+```json
+{"type":"ron","from":0,"hits":[{"seat":1},{"seat":2},{"seat":3}]}
+```
+
+and `finishHand` then paid **all three in full** from the discarder.
+
+**The rule:** three players claiming the same discard — sanchahou / triple ron — is an
+**abortive draw**. The hand is void, nobody is paid, the dealer repeats and a honba is
+added. Two claimants is a perfectly legal double ron and is paid in full.
+
+`engine/game.js` has always aborted here. The server had no such handling, which is a
+consequence of the server having no abort machinery at all (KI-04) — so the divergence
+was structural, not an oversight.
+
+**Fixed** — `finishHand` detects `wins.length >= 3` on a ron, moves the riichi pot to
+the carry, broadcasts `RoundDraw` with `reason: 'TripleRon'`, and returns
+`{ aborted: true }`. `playOneHand` branches on that: honba++, dealer repeats. It
+deliberately does **not** fall through to the exhaustive-draw branch, which asks whether
+the dealer is tenpai — a question an abortive draw does not have.
+
+**Tests:** four new cases, including that a double ron still pays both winners (the
+`>= 3` boundary), that a triple ron broadcasts no `RoundWon` at all, and that the
+outcome does not depend on the order the three claims arrived in.
+
+---
+
+## <a id="ki-19"></a>KI-19 ✅ FIXED — riichi sticks were paid to tenpai players at an exhaustive draw
+
+Found by continuing the item-23 sweep: having wired the shared constants together, the
+obvious next question is what the two front-ends still disagree about. They disagreed
+about who collects the riichi pot on a drawn hand.
+
+`engine/game.js` carried the pot to the next hand. `server/table.js` split it between the
+tenpai seats. **The server was wrong, and it was my own mistake** — introduced by the
+[KI-14](known-issues.md#ki-14) fix, which correctly spotted that the pot was being
+destroyed but then implemented the wrong destination for it. Three of the eleven tests
+added there asserted the wrong rule, which is how it survived.
+
+### The rule
+
+At an exhaustive draw the sticks **stay on the table** and are claimed by the next
+player to win a hand. They are *not* awarded to the tenpai players:
+
+- riichi.wiki, *Ryuukyoku*: "Any riichi bets left on the table are saved for later
+  rounds. The next player that wins claims all leftover riichi bets."
+- EMA Japanese Mahjong Rules: "In case of an exhaustive draw, the riichi bets remain on
+  the table until a player wins a hand."
+- The standard riichi rules sheet, under *Handling riichi bets after drawn games*: "In
+  case of a drawn game, any riichi bets stay on the table to be claimed by the next
+  player who declares a win."
+
+Note this is the **opposite** of the tenpai payments, which do happen: a noten player
+still pays 1000 to each tenpai player. It is only the riichi *sticks* that stay put.
+Conflating the two is what made the KI-14 fix look reasonable.
+
+**Fixed** — `finishHand` now carries the pot unconditionally at an exhaustive draw, and
+the log line no longer reports an `awarded` figure. The three tests that encoded the
+wrong rule were rewritten, including one that sweeps every tenpai count from 0 to 4 to
+prove the destination does not depend on it, and one that confirms the carried pot is
+still collectable by a later win — otherwise "carry" would quietly become a stalling bug.
+
+The tenpai payments themselves were untouched; they now read `RULES.notenTotal` from the
+shared config instead of a local copy of `[0, 3000, 1500, 1000]`, which was the last
+duplicated settlement schedule between the two front-ends.
 
 ---
 
@@ -531,13 +700,19 @@ draw destroyed 1000 points.** The new assertion failed with
 `final scores must total 100000, got 99000` — exactly one stick, intermittently,
 depending on whether that match happened to contain a drawn riichi hand.
 
-**The fix** — implement the actual rule, which also makes it self-balancing:
+**The fix** — stop destroying the pot. Both halves of this were subsequently found to
+be wrong or corrected; see [KI-19](known-issues.md#ki-19) for the current rules:
 
-- **Exhaustive draw:** sticks go to the tenpai players, split as evenly as a whole
-  number of points allows (1000 across 3 players is 334/333/333, not 1000/0/0). If
-  nobody is tenpai they carry to the next hand, as `engine/game.js` does.
-- **Match end:** `run()` settles anything still carried before emitting `GameOver`.
-  A quarter of the pot is always exact because the pot is a whole multiple of 1000.
+- **Exhaustive draw:** ~~sticks go to the tenpai players~~ — **this part was wrong.**
+  The sticks stay on the table and are claimed by the next player to win. They are now
+  carried, matching `engine/game.js`, which had it right all along. Nobody is tenpai was
+  already correct.
+- **Match end:** ~~`run()` settles anything still carried~~ — also wrong; leftover
+  sticks are **forfeited**, per the World Riichi Championship rules. Corrected by
+  [KI-18](known-issues.md#ki-18).
+
+Conservation held throughout and still does: the pot is never destroyed, only moved
+between `ctx.riichiPool` and `Table.riichiCarry`.
 
 **Tests:** new `server/test/settlement.test.js` (11 deterministic tests) drives
 `finishHand` directly with a headless `Table`, covering exhaustive draw (0/2/3/4
@@ -776,7 +951,7 @@ The 8-implemented / ~20-design-intent split is now stated in a banner at the top
 
 - *"node --test tests/ — 254 pass"* → **342**, and the command is now the working glob
   form.
-- *"server npm test — 2 pass"* → **82**.
+- *"server npm test — 2 pass"* → **94**.
 - §3 listed the furiten bug as a live risk while §5 listed it fixed. **Fixed** — §3
   items now carry **[FIXED]** / **[OPEN]** / *partly* tags, and §4's phases are marked
   ✅ / ⚠️ with the residual work named (e.g. `cli.js` still duplicates `KINDS`;
@@ -845,13 +1020,14 @@ Docs are consistent and CI is green. These are the remaining **code** items:
 | 20 | ~~Cover `botDecision` and the `doOwnKan` choke point~~ | ✅ done | KI-15 |
 | 21 | ~~Characterise `game.js` `main()` orchestration (12 tests)~~ | ✅ done | KI-18 |
 | 22 | ~~Client tests: Vitest + jsdom (80 tests)~~ | ✅ done | KI-07 |
-| 23 | Consolidate the two rule front-ends behind one shared layer | 2–3 d | KI-04 |
+| 23 | ~~Share rule constants via rules-config + parity guard; sweep found KI-19/20/21~~ (orchestration merge still open, see KI-04) | partly done | KI-04, KI-19, KI-20, KI-21 |
 | 24 | ~~Split `Table` out of `server/room.js`~~ | ✅ done | KI-11 |
 
-The one genuinely large remaining item is **23**, and it should not be started before
-**21**: `main()`'s orchestration is the only significant block of logic in the repo with
-thin coverage, so consolidating it before characterising it would mean rewriting the
-weakest-tested code in the project.
+Item **23** is now *partly* done — the shared constants live in one place with a parity
+test — but merging the two orchestration loops is still open. **21** was its prerequisite
+and is done: `main()` now has 12 characterisation tests, so that rewrite would have a net
+under it which it did not have before. It is still the largest remaining piece of work
+here.
 
 **The method that found KI-13 and KI-14 is cheaper than any refactor here.** Neither
 bug was on this register. Both came from two questions: *which source file has no test
