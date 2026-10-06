@@ -352,7 +352,7 @@ test('the riichi carry survives the post-settlement flow', async () => {
   assert.equal(t.riichiCarry, 3000, 'finishHand carried the pot');
 
   t.kyoku = 1;
-  t.applyPostSettlementFlow({ aborted: false }, null, -1, 0);
+  t.applyPostSettlementFlow({ outcome: { aborted: false }, winBy: null, winner: -1, dealer: 0 });
 
   assert.equal(t.riichiCarry, 3000,
     'the post-settlement flow must not overwrite the carry — this is the KI-21 leak');
@@ -373,7 +373,7 @@ test('the post-settlement flow never re-derives the carry from a drained pool', 
     t.ctx.riichiPool = 0;   // drained by finishHand
     t.riichiCarry = 1000;   // a real pot waiting on the table
     t.honba = 0;
-    t.applyPostSettlementFlow(outcome, winBy, winBy && winBy.hits ? winBy.hits[0].seat : -1, 0);
+    t.applyPostSettlementFlow({ outcome, winBy, winner: -1, dealer: 0 });
     assert.equal(t.riichiCarry, 1000, `${label}: the carry must be left alone`);
   }
 });
@@ -382,11 +382,12 @@ test('an abortive draw repeats the dealer and adds a honba', () => {
   const t = makeTable();
   t.honba = 0;
   t.kyoku = 2;
-  const keep = t.applyPostSettlementFlow(
-    { aborted: true },
-    { type: 'ron', from: 0, tile: '2p', hits: [{ seat: 1 }, { seat: 2 }, { seat: 3 }] },
-    1, 0,
-  );
+  const keep = t.applyPostSettlementFlow({
+    outcome: { aborted: true },
+    winBy: { type: 'ron', from: 0, tile: '2p', hits: [{ seat: 1 }, { seat: 2 }, { seat: 3 }] },
+    winner: 1,
+    dealer: 0,
+  });
   assert.equal(keep, true, 'the dealer repeats on an abortive draw');
   assert.equal(t.honba, 1, 'an abort adds a honba');
   assert.equal(t.kyoku, 1, 'the same hand is replayed');
@@ -396,11 +397,12 @@ test('a non-dealer win rotates the seat and clears the honba', () => {
   const t = makeTable();
   t.honba = 2;
   t.kyoku = 1;
-  const keep = t.applyPostSettlementFlow(
-    { aborted: false },
-    { type: 'ron', from: 0, tile: '2p', hits: [{ seat: 2 }] },
-    2, 0,
-  );
+  const keep = t.applyPostSettlementFlow({
+    outcome: { aborted: false },
+    winBy: { type: 'ron', from: 0, tile: '2p', hits: [{ seat: 2 }] },
+    winner: 2,
+    dealer: 0,
+  });
   assert.equal(keep, false, 'the seat rotates when a non-dealer wins');
   assert.equal(t.honba, 0, 'the honba counter resets');
 });
@@ -409,11 +411,12 @@ test('a dealer win repeats the seat and adds a honba', () => {
   const t = makeTable();
   t.honba = 0;
   t.kyoku = 1;
-  const keep = t.applyPostSettlementFlow(
-    { aborted: false },
-    { type: 'ron', from: 1, tile: '2p', hits: [{ seat: 0 }] },
-    0, 0,
-  );
+  const keep = t.applyPostSettlementFlow({
+    outcome: { aborted: false },
+    winBy: { type: 'ron', from: 1, tile: '2p', hits: [{ seat: 0 }] },
+    winner: 0,
+    dealer: 0,
+  });
   assert.equal(keep, true);
   assert.equal(t.honba, 1);
 });
@@ -423,15 +426,127 @@ test('an exhaustive draw keeps the dealer only when the dealer is tenpai', () =>
   setHands(withDealerTenpai, [0]);
   withDealerTenpai.honba = 0;
   withDealerTenpai.kyoku = 1;
-  assert.equal(withDealerTenpai.applyPostSettlementFlow({ aborted: false }, null, -1, 0), true);
+  assert.equal(withDealerTenpai.applyPostSettlementFlow({ outcome: { aborted: false }, winBy: null, winner: -1, dealer: 0 }), true);
   assert.equal(withDealerTenpai.honba, 1);
 
   const withoutDealerTenpai = makeTable();
   setHands(withoutDealerTenpai, [1]);
   withoutDealerTenpai.honba = 0;
   withoutDealerTenpai.kyoku = 1;
-  assert.equal(withoutDealerTenpai.applyPostSettlementFlow({ aborted: false }, null, -1, 0), false);
+  assert.equal(withoutDealerTenpai.applyPostSettlementFlow({ outcome: { aborted: false }, winBy: null, winner: -1, dealer: 0 }), false);
   assert.equal(withoutDealerTenpai.honba, 1, 'an exhaustive draw always adds a honba');
+});
+
+// ------------------------------------------------ playOneHand -> dealer rotation
+//
+// Every test above calls applyPostSettlementFlow directly, which means they cannot
+// see how playOneHand CALLS it — and that is exactly where the bug was. playOneHand
+// passed three arguments to a four-parameter signature, so `dealer` arrived as
+// undefined, `dealerWon` was false for every hand and the dealer never kept the
+// deal. All 97 server tests passed while the networked game was broken.
+//
+// These drive playOneHand itself and assert on this.dealer / this.honba / this.kyoku,
+// which is the only level at which a wrong argument is observable.
+
+// A Table that can run playOneHand to completion: the hand is dealt for real, then
+// playTurn ends it immediately with a fixed result and finishHand is stubbed, so the
+// only thing under test is the post-settlement wiring.
+function makeHandRunner({ dealer = 0, kyoku = 1, honba = 0, tenpai = [], winner = -1, winBy = null }) {
+  const t = makeTable();
+  t.dealer = dealer;
+  t.kyoku = kyoku;
+  t.honba = honba;
+  t.matchOver = false;
+  t.totalRounds = 4;
+  t.waitForReady = async () => {};
+  t.broadcastPowerStatus = () => {};
+  t.powerOf = () => 'none';
+  t.isCpuSeat = () => true;
+  t.clearMailbox = () => {};
+  t.playTurn = async () => ({ end: true, winner, winBy });
+  t.finishHand = async () => ({ aborted: false });
+  t.tenpaiSeats = () => tenpai;
+  return t;
+}
+
+test('playOneHand keeps the dealer when the dealer wins by tsumo', async () => {
+  const t = makeHandRunner({ dealer: 0, winner: 0, winBy: { type: 'tsumo' } });
+  await t.playOneHand();
+  assert.equal(t.dealer, 0, 'the dealer must keep the deal on a dealer tsumo');
+  assert.equal(t.honba, 1, 'a dealer win adds a honba');
+  assert.equal(t.kyoku, 1, 'and the same hand number is replayed');
+});
+
+test('playOneHand keeps the dealer when the dealer wins by ron', async () => {
+  const t = makeHandRunner({
+    dealer: 2,
+    winner: 2,
+    winBy: { type: 'ron', from: 0, tile: '2p', hits: [{ seat: 2 }] },
+  });
+  await t.playOneHand();
+  assert.equal(t.dealer, 2, 'the dealer must keep the deal on a dealer ron');
+  assert.equal(t.honba, 1, 'a dealer win adds a honba');
+});
+
+test('playOneHand keeps the dealer on a double ron that includes the dealer', async () => {
+  const t = makeHandRunner({
+    dealer: 3,
+    winner: 3,
+    winBy: { type: 'ron', from: 0, tile: '2p', hits: [{ seat: 1 }, { seat: 3 }] },
+  });
+  await t.playOneHand();
+  assert.equal(t.dealer, 3, 'the dealer must keep the deal when it is one of two claimants');
+});
+
+test('playOneHand rotates the dealer when a non-dealer wins', async () => {
+  const t = makeHandRunner({
+    dealer: 0,
+    honba: 2,
+    winner: 2,
+    winBy: { type: 'ron', from: 1, tile: '2p', hits: [{ seat: 2 }] },
+  });
+  await t.playOneHand();
+  assert.equal(t.dealer, 1, 'the deal passes to the next seat');
+  assert.equal(t.honba, 0, 'a non-dealer win clears the honba');
+  assert.equal(t.kyoku, 2, 'and the hand number advances');
+});
+
+test('playOneHand keeps the dealer on an exhaustive draw when the dealer is tenpai', async () => {
+  const t = makeHandRunner({ dealer: 0, kyoku: 1, honba: 0, tenpai: [0, 2] });
+  await t.playOneHand();
+  assert.equal(t.dealer, 0, 'a tenpai dealer keeps the deal at a draw');
+  assert.equal(t.honba, 1, 'an exhaustive draw always adds a honba');
+  assert.equal(t.kyoku, 1, 'and the same hand number is replayed');
+});
+
+test('playOneHand rotates the dealer on an exhaustive draw when the dealer is noten', async () => {
+  const t = makeHandRunner({ dealer: 0, kyoku: 1, tenpai: [1, 3] });
+  await t.playOneHand();
+  assert.equal(t.dealer, 1, 'a noten dealer passes the deal');
+  assert.equal(t.kyoku, 2, 'and the hand number advances');
+});
+
+// The same three hand shapes as above, swept over every dealer seat: `dealer` is a
+// seat index and an off-by-one wiring bug can pass for a single seat while failing
+// for another, so pin all four.
+test('the dealer rotation holds for every dealer seat', async () => {
+  for (let d = 0; d < 4; d++) {
+    const onWin = makeHandRunner({ dealer: d, winner: d, winBy: { type: 'tsumo' } });
+    await onWin.playOneHand();
+    assert.equal(onWin.dealer, d, `P${d} must keep the deal when P${d} wins`);
+
+    const onDraw = makeHandRunner({ dealer: d, tenpai: [d] });
+    await onDraw.playOneHand();
+    assert.equal(onDraw.dealer, d, `P${d} must keep the deal when P${d} is tenpai at a draw`);
+
+    const offWin = makeHandRunner({
+      dealer: d,
+      winner: (d + 2) % 4,
+      winBy: { type: 'ron', from: (d + 1) % 4, tile: '2p', hits: [{ seat: (d + 2) % 4 }] },
+    });
+    await offWin.playOneHand();
+    assert.equal(offWin.dealer, (d + 1) % 4, `the deal must pass when a non-dealer wins against P${d}`);
+  }
 });
 
 // ----------------------------------------------------------- match teardown

@@ -566,7 +566,8 @@ assignments did not yet collide. Nothing caught it because:
 
 **Fixed** by removing the duplicate assignment. The post-settlement decision was then
 **extracted into `Table.applyPostSettlementFlow`**, so the seam where the bug lived is
-directly callable and testable — the thing that made it invisible in the first place.
+directly callable — though as the follow-up below records, callable turned out not to
+mean covered, and the extraction itself broke the call site.
 `finishHand` now returns a consistent `{ aborted }` descriptor rather than sometimes
 returning nothing.
 
@@ -607,6 +608,57 @@ on.
 A class of bug this is worth naming: **two places both "handling" the same value**, with
 no single owner. The fix was to give `finishHand` sole ownership of the carry and delete
 the second writer, not to adjust both.
+
+### Follow-up: the extraction introduced a worse bug in the call site
+
+The paragraph above claims the extraction made the seam "directly callable and
+testable — the thing that made it invisible in the first place." **That claim was false,
+and the fix it shipped was worse than the bug it was fixing.**
+
+`playOneHand` called the new method with three arguments into a four-parameter
+signature:
+
+```js
+const keepDealer = this.applyPostSettlementFlow(outcome, winBy, dealer);
+...
+applyPostSettlementFlow(outcome, winBy, winner, dealer) {   // dealer === undefined
+```
+
+So `dealer` arrived as `undefined`, and both `winner === dealer` (tsumo) and
+`winBy.hits.some(h => h.seat === dealer)` (ron) were false for every hand. `tenpaiSeats()
+.includes(undefined)` was false too. The result: **the dealer never kept the deal except
+on an abortive triple ron**, and `kyoku` never decremented on a tenpai exhaustive draw.
+The pre-extraction code, using closure variables, was correct.
+
+Every one of the 97 server tests passed throughout, because all of them called
+`applyPostSettlementFlow` *directly* with correct arguments. The extraction moved the
+logic somewhere testable and left the only untested part — the call — broken. Nothing in
+the suite ever ran `playOneHand` far enough to notice.
+
+Two mistakes, worth separating:
+
+1. **Positional arguments.** Four parameters, two of them bare seat numbers, is exactly
+   the signature that fails by an off-by-one with no error. The method now takes a single
+   object, so a dropped argument is a named `undefined` rather than a silent shift of
+   every argument after it.
+2. **The tests tested the extracted unit, not the seam.** "Directly callable" is not the
+   same as "covered". The defect class here is *wiring*, and wiring is only observable
+   through the caller.
+
+**Fixed, and this time the caller is under test.** `server/test/settlement.test.js` gained
+a `playOneHand -> dealer rotation` block that drives `playOneHand` end to end — real
+deal, `playTurn` ending the hand immediately, `finishHand` stubbed — and asserts on
+`this.dealer`, `this.honba` and `this.kyoku` afterwards: dealer tsumo, dealer ron, dealer
+in a double ron, non-dealer ron, tenpai dealer at a draw, noten dealer at a draw, plus a
+sweep of all four dealer seats × those three shapes. Server suite 97 → 104.
+
+Verified to bite: reintroducing the dropped argument fails
+`playOneHand keeps the dealer when the dealer wins by tsumo` and
+`the dealer rotation holds for every dealer seat`.
+
+The generalisation: **extracting a function does not test it.** If the reason for the
+extraction was that the bug lived in a seam, then the test has to cross the seam, or the
+extraction has only relocated the untested part.
 
 ---
 

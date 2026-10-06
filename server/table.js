@@ -528,7 +528,7 @@ try { state.powers.register(s, ROSTERS[power](s, this.persistentPowerState[s]));
       return;
     }
 
-const keepDealer = this.applyPostSettlementFlow(outcome, winBy, dealer);
+    const keepDealer = this.applyPostSettlementFlow({ outcome, winBy, winner, dealer });
     if (!keepDealer) this.dealer = (this.dealer + 1) % 4;
     this.kyoku++;
 
@@ -546,8 +546,17 @@ const keepDealer = this.applyPostSettlementFlow(outcome, winBy, dealer);
    * E2E test, intermittently, because it is seeded from Math.random(). Its own note
    * said as much. The rule "finishHand owns the carry" is now enforced here, in a
    * method that can be called directly.
+   *
+   * Takes a single object, NOT positional arguments. The four inputs are two seat
+   * numbers, a settlement descriptor and an outcome descriptor; with positional args a
+   * dropped argument at the call site silently shifted `dealer` to `undefined`, which
+   * made `dealerWon` and `tenpaiSeats().includes(dealer)` false for every hand — the
+   * dealer could never keep the deal. Every unit test here passed while it did,
+   * because they all called the method directly rather than through playOneHand.
+   * See the "playOneHand -> dealer rotation" block in server/test/settlement.test.js
+   * for the tests that close that seam.
    */
-  applyPostSettlementFlow(outcome, winBy, winner, dealer) {
+  applyPostSettlementFlow({ outcome, winBy, winner, dealer }) {
     if (outcome && outcome.aborted) {
       // Abortive draw (triple ron): the hand is void, so nobody won — the dealer
       // always repeats and the honba grows. engine/game.js does the same. Do NOT
