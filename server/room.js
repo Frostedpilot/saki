@@ -30,6 +30,25 @@ function defaultPowerSeats() {
   return ['saki', 'nodoka', 'koromo', 'yuuki'];
 }
 
+// SAKI_SEED pins the match seed. Without it every match is random, which makes the
+// bridge E2E test a lottery: a real money bug (KI-21, a drawn hand losing its riichi
+// sticks) only reproduced on about one run in six, so it survived a long time. With a
+// fixed seed the same coverage is one deterministic run that fails immediately.
+//
+// Exported so it can be tested directly. Deriving the seed inside startGame left it
+// reachable only by connecting clients and starting a match, which is no way to check
+// that the env var is honoured — and an env var that is silently ignored still *looks*
+// deterministic because one seed in a row happens to repeat.
+function resolveMatchSeed() {
+  const raw = process.env.SAKI_SEED;
+  if (raw !== undefined && raw !== '') {
+    const n = parseInt(raw, 10);
+    if (Number.isFinite(n)) return n | 0;
+    console.warn(`[config] SAKI_SEED must be an integer (got ${JSON.stringify(raw)}) — ignoring it and using a random seed`);
+  }
+  return (Math.floor(Math.random() * 0x7fffffff)) | 0;
+}
+
 class Room {
   constructor(server, code, opts) {
     this.server = server;
@@ -176,8 +195,7 @@ class Room {
     }
     this.postGame = false;
     this.returnedToLobby = [false, false, false, false];
-    const seed = (Math.floor(Math.random() * 0x7fffffff)) | 0;
-    this.game = new Table(this, seed);
+this.game = new Table(this, resolveMatchSeed());
     this.broadcastRoomState();
     this.game.run().catch((e) => console.error(`[bridge] ${this.code} game error:`, e));
   }
@@ -209,4 +227,4 @@ class Room {
 
 // Table is re-exported so existing importers of ./room keep working; START_SCORE,
 // TOTAL_ROUNDS and the roster registry moved to their owning modules.
-module.exports = { Room, Table, defaultPowerSeats };
+module.exports = { Room, Table, defaultPowerSeats, resolveMatchSeed };

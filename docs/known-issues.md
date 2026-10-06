@@ -400,6 +400,34 @@ assertion that the carry survives. Verified to bite: reintroducing the one line 
 two of them. Bridge E2E: 0 failures in 60 consecutive runs after the fix, against
 roughly 1 in 6 before.
 
+### Follow-up: the E2E match is now seedable
+
+The deeper problem was that `Room.startGame` seeded from `Math.random()`, so every
+assertion in the bridge E2E test was a probability rather than a guarantee — which is why
+this bug presented as "fails sometimes" instead of "fails". `SAKI_SEED` now pins it, and
+`resolveMatchSeed()` is exported so the behaviour is testable without connecting a client
+(deriving it inline meant it could only be checked by playing a match, and an env var that
+is accepted then ignored still *looks* deterministic when one seed in a row happens to
+repeat). A non-numeric value warns and falls back to random, matching the treatment of
+`SAKI_POWER_SEATS`.
+
+Verified: three consecutive E2E runs produce an identical game — same final scores
+`19400/20400/30800/29400` — and a different `SAKI_SEED` yields a different seed.
+
+**What this does and does not buy, stated honestly.** It turns every other E2E assertion
+from probabilistic into a guarantee, and makes any *observed* failure exactly reproducible
+via `BRIDGE_TEST_SEED`. It does **not** increase coverage of this particular path: the
+mock client is bot-legal (it accepts every tsumo and ron, passes every pon and chi,
+discards tsumogiri), so hands usually end in wins and a drawn hand carrying a riichi stick
+is uncommon — roughly one match in six. Sweeping 12 fixed seeds with the leak deliberately
+reintroduced did not reproduce it, which is a coverage limit, not a determinism one.
+
+The regression for this bug therefore lives in the unit tests above, which construct the
+scenario exactly and fail deterministically. Making the E2E cover it would mean giving the
+mock client a policy that sometimes declines a winning tile — recorded here rather than
+done, because a client that declines wins also makes the rest of the E2E harder to assert
+on.
+
 A class of bug this is worth naming: **two places both "handling" the same value**, with
 no single owner. The fix was to give `finishHand` sole ownership of the carry and delete
 the second writer, not to adjust both.
@@ -983,7 +1011,7 @@ are actually cited.
 | "bundle size is ~250 kB total" | `web-client/README.md` | Per-asset table: ~280 kB JS, ~46 kB CSS, **~23 MB** PNG, with a note to budget for the sprite sheet |
 | "**production-ready** technical implementation specifications" | `docs/characters/README.md` | Reframed as **design specifications** with illustrative pseudo-code, plus an explicit note that `saki-normal` and `yuu` have no spec |
 | "50+ Saki cast" fully combinable | `engine-design.md` | Marked aspirational with real 8-of-28 coverage |
-| Undocumented env vars | — | `PORT`, `SAKI_POWER_SEATS`, `BOT_DELAY_MS`, `NODE_ENV`, `SAKI_RIICHI_FORCE` now in both `docs/development.md` and `server/README.md` |
+| Undocumented env vars | — | `PORT`, `SAKI_POWER_SEATS`, `BOT_DELAY_MS`, `NODE_ENV`, `SAKI_RIICHI_FORCE`, `SAKI_SEED` now in both `docs/development.md` and `server/README.md` |
 | `run_server.sh` / `run_server.bat` referenced by nothing | — | Documented in the root README, `docs/development.md` §3, and `web-client/README.md` |
 | "two clients, one server" | — | Both READMEs now explain `web-client/` vs the vendored WASM client in `server/public/` |
 | Reconnect listed as "excluded" but attempted by the client | — | `server/README.md` now carries the reconnect caveat and the stale-store symptom |

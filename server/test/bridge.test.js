@@ -43,19 +43,35 @@ test('protocol tile codec correctly maps red dora and normal tiles', () => {
   }
 });
 
-function startServer() {
+// A fixed match seed. The server seeds from Math.random() unless SAKI_SEED is set,
+// which made this test a lottery: KI-21 (a drawn hand silently losing its riichi
+// sticks) only reproduced on roughly one run in six, so it went unnoticed for a long
+// time. Pinning the seed turns "run it repeatedly and hope" into one deterministic run
+// that fails on the first try — which is the only reason a conservation bug like that
+// is caught at all.
+const FIXED_SEED = process.env.BRIDGE_TEST_SEED !== undefined && process.env.BRIDGE_TEST_SEED !== ''
+  ? parseInt(process.env.BRIDGE_TEST_SEED, 10)
+  : 20240617;
+
+function startServer(seed = FIXED_SEED) {
   return new Promise((resolve, reject) => {
     const port = 20000 + Math.floor(Math.random() * 20000);
     const child = spawn(process.execPath, ['index.js'], {
       cwd: path.join(__dirname, '..'),
-      env: { ...process.env, PORT: String(port), SAKI_POWER_SEATS: '0', BOT_DELAY_MS: '0' },
+      env: {
+        ...process.env,
+        PORT: String(port),
+        SAKI_POWER_SEATS: '0',
+        BOT_DELAY_MS: '0',
+        SAKI_SEED: String(seed),
+      },
     });
     let log = '';
     const timer = setTimeout(() => { child.kill(); reject(new Error('server start timeout')); }, 15000);
     child.stdout.on('data', (d) => {
       log += d.toString();
       const m = log.match(/listening on http:\/\/127\.0\.0\.1:(\d+)/);
-      if (m) { clearTimeout(timer); resolve({ child, port: parseInt(m[1], 10) }); }
+      if (m) { clearTimeout(timer); resolve({ child, port: parseInt(m[1], 10), log: () => log }); }
     });
     child.stderr.on('data', (d) => { log += d.toString(); });
     child.on('exit', (code) => {
@@ -183,6 +199,66 @@ test('Hello without a protocol_version is accepted (the field is optional)', { t
   } finally {
     if (client) client.close();
     server.child.kill();
+  }
+});
+
+// ------------------------------------------------------------- match seeding
+
+// The E2E match used to be seeded from Math.random(), which made every assertion in it
+// a probability rather than a guarantee. KI-21 — a drawn hand silently losing its
+// riichi sticks — reproduced on roughly one run in six, so it survived. These pin the
+// seeding itself, because an env var that is accepted and then ignored still *looks*
+// deterministic: one seed in a row repeats by luck about 1 time in 2 billion, but a
+// seed that is honoured and then shuffled by something else would not.
+
+test('SAKI_SEED pins the match seed', () => {
+  const { resolveMatchSeed } = require('../room');
+  const saved = process.env.SAKI_SEED;
+  try {
+    process.env.SAKI_SEED = '20240617';
+    assert.equal(resolveMatchSeed(), 20240617);
+    assert.equal(resolveMatchSeed(), 20240617, 'the same seed must give the same value');
+
+    process.env.SAKI_SEED = '777';
+    assert.equal(resolveMatchSeed(), 777, 'a different seed must give a different value');
+  } finally {
+    if (saved === undefined) delete process.env.SAKI_SEED;
+    else process.env.SAKI_SEED = saved;
+  }
+});
+
+test('SAKI_SEED handles negatives and an absent value', () => {
+  const { resolveMatchSeed } = require('../room');
+  const saved = process.env.SAKI_SEED;
+  try {
+    process.env.SAKI_SEED = '-42';
+    assert.equal(resolveMatchSeed(), -42, 'a negative seed is a legitimate seed');
+    delete process.env.SAKI_SEED;
+    const a = resolveMatchSeed();
+    const b = resolveMatchSeed();
+    assert.ok(Number.isInteger(a) && Number.isInteger(b));
+    assert.notEqual(a, b, 'with no seed configured the match seed must be random');
+  } finally {
+    if (saved !== undefined) process.env.SAKI_SEED = saved;
+  }
+});
+
+test('a non-numeric SAKI_SEED warns and falls back to random rather than silently', () => {
+  const { resolveMatchSeed } = require('../room');
+  const saved = process.env.SAKI_SEED;
+  const warnings = [];
+  const realWarn = console.warn;
+  console.warn = (...a) => warnings.push(a.join(' '));
+  try {
+    process.env.SAKI_SEED = 'not-a-number';
+    const seed = resolveMatchSeed();
+    assert.ok(Number.isInteger(seed), 'it still returns a usable seed');
+    assert.ok(warnings.some((w) => /SAKI_SEED/.test(w)),
+      'a bad seed must be reported, not silently ignored — the same rule as SAKI_POWER_SEATS');
+  } finally {
+    console.warn = realWarn;
+    if (saved === undefined) delete process.env.SAKI_SEED;
+    else process.env.SAKI_SEED = saved;
   }
 });
 
