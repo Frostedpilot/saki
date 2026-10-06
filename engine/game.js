@@ -35,7 +35,7 @@ const { parseDiscardIndex } = require('./input');
 // definition each now — see engine/helpers.js.
 const {
   shantenOf, hairiOf, getWaits, isDiscardFuriten, tryRon,
-  botDiscard, botWantsCall, chiOptions, kuikaeBannedChi, countYaochuu,
+  botDiscard, botWantsCall, chiOptions, kuikaeBannedChi, countYaochuu, distinctYaochuu,
   canRiichi, bakazeOf, roundLabel, clearAllIppatsu, ankanKeepsWaits,
   isSuufonRenda, isSuukaikanAbort, isNagashi, applyOkaUma,
 } = require('./helpers');
@@ -259,8 +259,19 @@ async function selftest() {
   ok(rc.win === true, 'triple ron: third player also wins (abortive in game)');
   // kyuushu counting: 9+ terminals/honors
   const yao = ['1m', '9m', '1p', '9p', '1s', '9s', '1z', '2z', '3z', '4z', '5z', '6z', '7z'];
-  ok(countYaochuu(yao) === 13, `kyuushu counts 13 yaochuu (${countYaochuu(yao)})`);
+  ok(countYaochuu(yao) === 13, `kyuushu counts 13 yaochuu tiles (${countYaochuu(yao)})`);
   ok(countYaochuu(P0.hand) === 2, `2 yaochuu (1m,9m) in test hand (${countYaochuu(P0.hand)})`);
+  // 九種九牌 counts DISTINCT kinds. Nine tiles is not nine kinds — this gate used to
+  // use the tile count and let illegal declarations through (KI-22).
+  ok(distinctYaochuu(yao) === 13, `kyuushu counts 13 distinct yaochuu kinds (${distinctYaochuu(yao)})`);
+  ok(distinctYaochuu(['1m', '1m', '1m', '1m', '1p', '1p', '1p', '9s', '9s']) === 3,
+    'nine yaochuu tiles of three kinds is NOT a legal kyuushu');
+  ok(distinctYaochuu(['1m', '1m', '1m', '1m', '1p', '1p', '1p', '1p', '9s']) === 3,
+    'duplicates never turn three kinds into nine');
+  ok(distinctYaochuu(['1m', '9m', '1p', '9p', '1s', '9s', '1z', '2z', '3z']) === 9,
+    'nine distinct kinds is exactly legal');
+  ok(distinctYaochuu(['1m', '9m', '1p', '9p', '1s', '9s', '1z', '2z', '3z', '2m']) === 9,
+    'simples do not dilute the count');
   // abortive-draw conditions (pure helpers)
   ok(isSuufonRenda(['1z', '1z', '1z', '1z']) === true, 'suufon: four 1z');
   ok(isSuufonRenda(['1z', '1z', '1z', '2z']) === false, 'suufon: mixed winds rejected');
@@ -344,27 +355,32 @@ async function main() {
     const sortH = h => h.sort((a, b) => norm(a) < norm(b) ? -1 : 1);
     P.forEach(p => sortH(p.hand));
     console.log(`\n=== ${roundLabel(kyoku)}${overtime ? ' ENCHOUSEN' : ''} dealer=${names[dealer]} honba=${honba} dora=${doraInd}(${ctx.dora}) scores=${scores.join('/')} ===`);
-    // --- kyuushu-kyuuhai: 9+ terminals/honors may abort the deal ---
+    // --- kyuushu-kyuuhai: 9+ DISTINCT terminals/honors may abort the deal ---
+    // The gate counts distinct KINDS, not tiles. It used to count tiles, which let a
+    // hand like 1111m 1111p 99s (nine tiles, three kinds) through — and the bot branch
+    // then declared on `distinct < 9`, i.e. precisely when the abort was illegal. See
+    // docs/known-issues.md KI-22.
     // declarer chooses: abortive draw (same dealer replay, honba+1) or play on.
     let kyuushuAbort = false;
     for (let k = 0; k < 4 && !kyuushuAbort; k++) {
       const q = (dealer + k) % 4;
-      const terms = countYaochuu(P[q].hand);
+      const terms = distinctYaochuu(P[q].hand);
       if (terms >= 9) {
         let declare = false;
         if (P[q].id === HUMAN) {
-          console.log(`  YOUR dealt hand: ${P[q].hand.join(' ')} (${terms} terminals/honors)`);
+          console.log(`  YOUR dealt hand: ${P[q].hand.join(' ')} (${terms} distinct terminals/honors)`);
           const a = (await ask('  declare KYUUSHU-KYUUHAI abortive draw, or play on? (abort/play): ')).trim().toLowerCase();
           declare = a.startsWith('abort') || a === 'a' || a === 'y';
         } else {
-          // bots: keep kokushi-shaped hands (many distinct terminals), else abort
-          const distinct = new Set(P[q].hand.filter(t => { const c = norm(t); return c[1] === 'z' || c[0] === '1' || c[0] === '9'; }).map(norm)).size;
-          declare = distinct < 9 && Math.random() < 0.8;
+          // Reaching this branch means the declaration is legal; now it is only a
+          // question of whether the bot wants it. Kept at the original 0.8 — bot
+          // policy is a judgement call, and the bug here was legality, not taste.
+          declare = Math.random() < 0.8;
         }
         if (declare) {
-          console.log(`  ${names[q]} declares KYUUSHU-KYUUHAI (${terms} yaochuuhai) - abortive draw`);
+          console.log(`  ${names[q]} declares KYUUSHU-KYUUHAI (${terms} distinct yaochuuhai) - abortive draw`);
           kyuushuAbort = true;
-        } else console.log(`  ${names[q]} holds ${terms} terminals/honors but plays on`);
+        } else console.log(`  ${names[q]} holds ${terms} distinct terminals/honors but plays on`);
       }
     }
     if (kyuushuAbort) {

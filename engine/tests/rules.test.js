@@ -198,6 +198,28 @@ test('round winds, riichi gate, yaochuu counting', () => {
   assert.equal(H.countYaochuu(PHAND), 2); // 1m, 9m
 });
 
+test('distinctYaochuu: kyuushu-kyuuhai counts kinds, not tiles', () => {
+  // 九種九牌 is "nine KINDS". riichi.wiki: "9 different types of honor/terminal
+  // tile". Nine tiles of three kinds is not a legal declaration — the gate in
+  // game.js used to count tiles and let these through (KI-22).
+  const thirteenOrphans = ['1m', '9m', '1p', '9p', '1s', '9s', '1z', '2z', '3z', '4z', '5z', '6z', '7z'];
+  assert.equal(H.distinctYaochuu(thirteenOrphans), 13);
+  assert.equal(H.countYaochuu(thirteenOrphans), 13, 'tiles and kinds agree when all are distinct');
+
+  // Nine yaochuu tiles, three kinds: illegal.
+  assert.equal(H.countYaochuu(['1m', '1m', '1m', '1m', '1p', '1p', '1p', '9s', '9s']), 9);
+  assert.equal(H.distinctYaochuu(['1m', '1m', '1m', '1m', '1p', '1p', '1p', '9s', '9s']), 3);
+
+  // Exactly nine distinct is the boundary, and it is inclusive.
+  const nine = ['1m', '9m', '1p', '9p', '1s', '9s', '1z', '2z', '3z'];
+  assert.equal(H.distinctYaochuu(nine), 9);
+  assert.equal(H.distinctYaochuu([...nine, '2m']), 9, 'a simple does not add a kind');
+
+  // The aka 5 is a 5, not a terminal, so it must not count.
+  assert.equal(H.distinctYaochuu(['0m', '0p', '0s']), 0, 'red 5s are not terminals');
+  assert.equal(H.distinctYaochuu(['0m', '1m']), 1, '0m counts as the same kind as 1m');
+});
+
 // ---- H. kuikae bans ----
 test('kuikae bans after chi', () => {
   assert.deepEqual(H.kuikaeBannedChi('2p', '3p'), ['1p', '4p']);

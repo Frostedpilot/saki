@@ -134,6 +134,18 @@ function isNagashi(pl) {
 function countYaochuu(hand) {
   return hand.filter((t) => { const k = norm(t); return k[1] === 'z' || k[0] === '1' || k[0] === '9'; }).length;
 }
+// Kyuushu-kyuuhai counts DISTINCT kinds, not tiles: 九種九牌 literally means "nine
+// kinds of honours and terminals", and riichi.wiki's Tochuu ryuukyoku page puts it
+// as "9 different types". Four 1m plus three 1p plus two 9s is nine tiles but only
+// three kinds, and is not a legal declaration.
+function distinctYaochuu(hand) {
+  const kinds = new Set();
+  for (const t of hand) {
+    const k = norm(t);
+    if (k[1] === 'z' || k[0] === '1' || k[0] === '9') kinds.add(k);
+  }
+  return kinds.size;
+}
 
 function canRiichi(score, wallLeft) { return score >= 1000 && wallLeft >= 4; }
 
@@ -201,6 +213,7 @@ module.exports = {
   chiOptions,
   kuikaeBannedChi,
   countYaochuu,
+  distinctYaochuu,
   canRiichi,
   bakazeOf,
   roundLabel,

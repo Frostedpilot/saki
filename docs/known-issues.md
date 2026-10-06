@@ -107,7 +107,7 @@ of the functions in `helpers.js`, annotated "canonical copy … keep in sync". T
 byte-identical (`isNagashi`) or strictly better (`botDiscard` gained a `rand`
 injection parameter). `game.js` now imports all of them, deleting **131 lines**
 (1029 → 898) with **zero behaviour change** — verified by byte-identical output hashes
-on two seeded 4-hand matches before and after, plus the 43-check selftest.
+on two seeded 4-hand matches before and after, plus the 48-check selftest.
 
 ---
 
@@ -185,11 +185,17 @@ the numbers, and what still needs discipline for the orchestration.
 `engine/cli.js` also re-declared `KINDS` and re-implemented `buildWall`; that copy is
 now gone (see KI-05).
 
-**Why this is deferred.** The orchestration in `game.js`'s `main()` — `declareRiichi`,
-`collectRon`, call-window arbitration, nagashi payout distribution, chombo settlement —
-has **no unit tests**; the only net is the 43-check selftest, which covers it thinly.
-Consolidating it means either writing that coverage first, or rewriting both front-ends
-at once with a weak safety net. Both are worse than the status quo, so this stays open
+**Why this was deferred, and what has since changed.** The orchestration in `game.js`'s
+`main()` — `declareRiichi`, `collectRon`, call-window arbitration, nagashi payout
+distribution, chombo settlement — had **no unit tests**; the only net was the selftest,
+which covered it thinly. Consolidating it would have meant writing that coverage first,
+or rewriting both front-ends at once with a weak safety net.
+
+**Item 21 supplied that net** — 12 characterisation tests in
+`engine/tests/main-orchestration.test.js`, plus a golden match fingerprint — which is
+what made starting this safe. It is still *characterisation*, not a suite written against
+intended rules: it pins current behaviour, so a consolidation has something to fail
+against, but it will not tell you the current behaviour is right. Both are worse than the status quo, so this stays open
 until `main()`'s closure logic is characterised. The 19 duplicated helpers *were* worth
 removing immediately because the selftest covered them well.
 
@@ -233,7 +239,7 @@ reachable only via `server/table.js` and the engine unit tests.
 
 - **CI: ✅ fixed.** `.github/workflows/ci.yml` runs on push and PR: `npm ci`, engine
   tests, server E2E, client type-check + build, a CLI smoke check, and the markdown link
-  checker. The 365 tests plus the 43-check selftest now run automatically.
+  checker. The 368 tests plus the 48-check selftest now run automatically.
 - **Markdown link checking: ✅ added.** `scripts/check-links.mjs` (`npm run links`)
   verifies every relative link in every `.md` resolves. It caught real breakage during
   this work and is cheap to run locally.
@@ -353,6 +359,51 @@ prints
 ```
 
 once per hook, and `resetHookWarnings()` is exported for tests.
+
+---
+
+## <a id="ki-22"></a>KI-22 ✅ FIXED — kyuushu-kyuuhai counted tiles instead of kinds, and bots declared it illegally
+
+Found by the last part of the item-23 sweep: checking that `main()`'s abort *detection*
+is reachable, not just that the abort *settlement* works. `--demo-abort` forces an
+abort, so it had never exercised the condition that triggers one.
+
+**The rule:** 九種九牌 literally means "nine **kinds**" of honours and terminals.
+riichi.wiki's *Tochuu ryuukyoku* page: "a player's 14-tile hand after the initial draw
+has **9 different types** of honor/terminal tile, the player may announce this."
+
+**Two bugs in one block:**
+
+```js
+const terms = countYaochuu(P[q].hand);   // counts TILES
+if (terms >= 9) {                        // so the gate used the wrong metric
+  ...
+  declare = distinct < 9 && Math.random() < 0.8;   // ...and this is inverted
+```
+
+1. The gate counted tiles, so `1111m 1111p 99s` — **nine tiles, three kinds** — passed
+   it. That is not a legal declaration.
+2. The bot branch then declared when `distinct < 9`, i.e. **precisely when the abort was
+   illegal**. The author had clearly worked out the distinct-kind rule (that line computes
+   it) but wired it to the wrong side of the comparison.
+
+Together: a bot holding a legal 9-kind hand could refuse to abort, while a bot holding
+three kinds of yaochuu could declare an abort nobody is allowed to call. The human path
+was also wrong — the player was prompted with a tile count and could accept an illegal
+abort.
+
+**Fixed** — `engine/helpers.js` gains `distinctYaochuu(hand)` alongside the existing
+`countYaochuu`, which still counts tiles and is now used only for reporting. The gate,
+the printed number and the bot decision all use distinct kinds. The bot keeps its
+original 0.8 declaration rate: bot *policy* is a judgement call and the bug here was
+legality, not taste.
+
+**Tests:** five new selftest checks (duplicates never turn three kinds into nine; nine
+kinds is the inclusive boundary; simples do not dilute the count) and a
+`rules.test.js` case that pins the two metrics against each other, including that an
+aka 5 counts as a 5 and never as a terminal. The offline hash for seed 42 is
+**unchanged** — that particular match contains no kyuushu declaration, which is itself
+confirmation the fix only alters hands where the rule was being violated.
 
 ---
 
@@ -829,7 +880,7 @@ The server side is unchanged — resume is still genuinely unsupported, now hone
 | --- | --- | --- |
 | `server/table.js` | **1695** | `Table` — the entire hand driver. Split out of `room.js`, which was **1800** with `Room` in it |
 | `web-client/src/state/store.ts` | **1198** | All game state *and* all outbound protocol calls in one class |
-| `engine/game.js` | **898** | Game loop, bot AI, power rig, and the 43-check selftest (was 1006; 131 lines of duplicated helpers removed) |
+| `engine/game.js` | **898** | Game loop, bot AI, power rig, and the 48-check selftest (was 1006; 131 lines of duplicated helpers removed) |
 | `engine/powers/rosters/kiyosumi.js` | 571 | One character's full skill tree |
 | `engine/tests/crossCharacter.test.js` | 578 | — |
 

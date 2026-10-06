@@ -132,8 +132,10 @@ logic lives in `engine/tiles.js`, `engine/scoring.js`, `engine/rng.js` and
 
 **What is still duplicated** is the per-hand *orchestration*: `game.js`'s `main()` and
 `table.js`'s `Table` each drive a hand independently (`declareRiichi`, `collectRon`,
-call-window arbitration, settlement). Those closures have no unit tests beyond the
-43-check selftest. See [`known-issues.md`](known-issues.md#ki-04) before touching them.
+call-window arbitration, settlement). They are now covered by
+`engine/tests/main-orchestration.test.js`, which is characterisation rather than a spec: it pins
+current behaviour so a consolidation has something to fail against. See
+[`known-issues.md`](known-issues.md#ki-04) before touching them.
 
 ### 4.4 Rules are data
 

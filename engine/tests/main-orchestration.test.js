@@ -335,3 +335,44 @@ test('main: the same seed replays identically', () => {
   // The determinism the offline regression hash relies on, asserted directly.
   assert.equal(play('--seed', '42', '--kyoku', '4'), play('--seed', '42', '--kyoku', '4'));
 });
+
+test('main: a golden match fingerprint, so a behaviour change cannot pass unnoticed', () => {
+  // The determinism test above only proves the engine is repeatable. This pins what it
+  // actually produces, so a rules change shows up here instead of being discovered
+  // later. The server side got the same treatment when the match seed was made
+  // injectable (SAKI_SEED); the offline engine's output was pinned nowhere, so "the
+  // hash is unchanged" was only ever checkable by remembering the value.
+  //
+  // Semantic rather than a raw text hash: when this fails, the message says which part
+  // of the match moved.
+  const out = play('--seed', '42', '--kyoku', '4');
+  const hands = parseMatch(out);
+
+  assert.deepEqual(
+    hands.map((h) => `${h.label}/P${h.dealer}/${h.terminal.replace(/\s*\(.*/, '').trim()}`),
+    [
+      'EAST 1/P0/TSUMO P1',
+      'EAST 2/P1/RON on 5p from P2',
+      'EAST 2/P1/EXHAUSTIVE DRAW',
+      'EAST 2/P1/RON on 2p from P1',
+      'EAST 3/P2/EXHAUSTIVE DRAW',
+      'EAST 4/P3/EXHAUSTIVE DRAW',
+    ],
+    'seed 42: a tsumo, then a dealer who wins twice in a row (two renchan)',
+  );
+
+  const fin = out.match(/^FINAL\(raw\): (\S+)$/m)[1];
+  assert.equal(fin, '28300/28600/18600/24500', 'final raw scores moved');
+  assert.equal(sum(fin) + hands[hands.length - 1].carryAfter, TOTAL,
+    'final scores plus the forfeited table carry must still be 100000');
+});
+
+test('main: the golden match is stable across powers configurations', () => {
+  // Guards the determinism itself: if a code change made the seeded RNG depend on
+  // something ambient, the fingerprint above would move for no rules reason. Cheap to
+  // assert because the run is ~1.5s.
+  const a = play('--seed', '42', '--kyoku', '2');
+  const b = play('--seed', '42', '--kyoku', '2');
+  assert.equal(a, b);
+  assert.match(a, /^FINAL\(raw\): /m);
+});
