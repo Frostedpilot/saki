@@ -239,7 +239,7 @@ reachable only via `server/table.js` and the engine unit tests.
 
 - **CI: ✅ fixed.** `.github/workflows/ci.yml` runs on push and PR: `npm ci`, engine
   tests, server E2E, client type-check + build, a CLI smoke check, and the markdown link
-  checker. The 368 tests plus the 48-check selftest now run automatically.
+  checker. The 369 tests plus the 48-check selftest now run automatically.
 - **Markdown link checking: ✅ added.** `scripts/check-links.mjs` (`npm run links`)
   verifies every relative link in every `.md` resolves. It caught real breakage during
   this work and is cheap to run locally.
@@ -399,11 +399,45 @@ original 0.8 declaration rate: bot *policy* is a judgement call and the bug here
 legality, not taste.
 
 **Tests:** five new selftest checks (duplicates never turn three kinds into nine; nine
-kinds is the inclusive boundary; simples do not dilute the count) and a
+kinds is the inclusive boundary; Simples do not dilute the count) and a
 `rules.test.js` case that pins the two metrics against each other, including that an
 aka 5 counts as a 5 and never as a terminal. The offline hash for seed 42 is
 **unchanged** — that particular match contains no kyuushu declaration, which is itself
 confirmation the fix only alters hands where the rule was being violated.
+
+### Follow-up: four of the five abortive draws are unreachable in bot play
+
+While pinning the fix, `main()` was run over **40 seeded matches** and every
+abortive-draw path counted:
+
+| Abortive draw | Occurrences in 40 matches |
+| --- | ---: |
+| kyuushu-kyuuhai | 1 (seed 2) |
+| suufon-renda | 0 |
+| suukaikan | 0 |
+| suucha-riichi | 0 |
+| triple ron | 0 |
+| *(for comparison)* enchousen | 26 |
+| *(for comparison)* agari-yame | 4 |
+| *(for comparison)* nagashi mangan | 0 |
+
+So the detection *wiring* for four of the five aborts has never been exercised by
+anything, including this work. `--demo-abort` covers their **settlement** — and the
+settlement is genuinely shared now — but it bypasses detection entirely by injecting the
+abort directly. The pure predicates (`isSuufonRenda`, `isSuukaikanAbort`) are unit
+tested; what is untested is that `main()` ever *reaches* them under the right
+circumstances.
+
+That is a real coverage gap, not a bug: the bot policies simply never produce the
+situations. Four identical opening wind discards, four kans split between players, all
+four players riichi, and three players tenpai on the same tile are all rare between
+bots. Forcing them would need either a scripted-deal facility or bots that deliberately
+play into them.
+
+**What was done instead:** the one abort bots *do* reach — kyuushu on seed 2 — is now
+pinned end to end by a test in `main-orchestration.test.js`, covering detection, the
+no-points-moved settlement, the extra honba and the same-dealer redeal. It is verified to
+fail if the KI-22 tile-count gate is put back.
 
 ---
 

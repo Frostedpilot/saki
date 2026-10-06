@@ -45,6 +45,10 @@ function play(...argv) {
 const HEADER = /^=== (EAST \d+)(\s+ENCHOUSEN)? dealer=P(\d)\(\w+\) honba=(\d+) dora=(\S+) scores=(\S+) ===$/;
 const TERMINAL = /^\*\*\* (.+) \*\*\*$/;
 const SETTLE = /^scores: ((?:\d+\/){3}\d+)(?:\s+\(honba (\d+), carry (\d+)\))?(.*)$/;
+// The abortive-draw settlement prints `scores unchanged: ...` rather than `scores: ...`,
+// which is easy to miss when parsing — and it is the only line describing an abort, so
+// a hand that aborts otherwise looks like it has no settlement at all.
+const UNCHANGED = /^scores unchanged: ((?:\d+\/){3}\d+)\s+\(honba (\d+), carry (\d+)\)\s*-\s*redeal, same dealer/;
 const NOTEN = /^noten payments \(ten (\d+): ([+\-]?\d+)\/([+\-]?\d+)\)$/;
 const TENPAI = /^tenpai: (.+)$/;
 const PAYEE = /^ {2}-> P(\d)\(/;
@@ -75,13 +79,15 @@ function parseMatch(out) {
     if (t && !cur.terminal) cur.terminal = t[1];
 
     const s = line.match(SETTLE);
-    if (s && cur.scoresAfter === undefined) {
-      cur.scoresAfter = s[1];
-      cur.suffix = s[2] || '';
-      cur.after = s[4] || '';
-      if (s[3] !== undefined) {
-        cur.carryAfter = Number(s[3]);
-        cur.honbaAfter = Number(s[2]);
+    const u = line.match(UNCHANGED);
+    if ((s || u) && cur.scoresAfter === undefined) {
+      const scores = (s || u)[1];
+      cur.scoresAfter = scores;
+      cur.suffix = (s || u)[2] || '';
+      cur.after = s ? (s[4] || '') : '- redeal, same dealer';
+      if ((s || u)[3] !== undefined) {
+        cur.carryAfter = Number((s || u)[3]);
+        cur.honbaAfter = Number((s || u)[2]);
         carry = cur.carryAfter;
       } else {
         // A win swept the table, so the pot is empty.
@@ -336,7 +342,36 @@ test('main: the same seed replays identically', () => {
   assert.equal(play('--seed', '42', '--kyoku', '4'), play('--seed', '42', '--kyoku', '4'));
 });
 
-test('main: a golden match fingerprint, so a behaviour change cannot pass unnoticed', () => {
+test('main: a natural kyuushu-kyuuhai abort settles correctly', () => {
+  // The only one of the five abortive draws that bot-vs-bot play actually reaches:
+  // across 40 seeded matches, suufon-renda, suukaikan, suucha-riichi and triple ron
+  // never fired at all, while kyuushu appeared on seed 2. So this is the one abort
+  // whose detection AND settlement can be pinned end to end; the rest are covered by
+  // `--demo-abort`, which forces the settlement but bypasses detection.
+  //
+  // It also guards the KI-22 fix: the declaration must report distinct kinds.
+  const out = play('--seed', '2', '--kyoku', '4');
+
+  assert.match(out, /declares KYUUSHU-KYUUHAI \(9 distinct yaochuuhai\)/,
+    'the declaration must count distinct kinds, and must fire on a legal hand');
+
+  const hands = parseMatch(out);
+  const abortHand = hands.find((h) => /scores unchanged/.test(h.lines.join('\n')));
+  assert.ok(abortHand, 'the aborting hand should be in the parse');
+
+  // An abortive draw moves no points.
+  assert.equal(sum(abortHand.scoresAfter), sum(abortHand.scoresAtDeal),
+    'a kyuushu abort must not move points');
+  // It adds a honba, and the same dealer redeals.
+  assert.match(abortHand.lines.join('\n'), /redeal, same dealer/);
+  const next = hands[hands.indexOf(abortHand) + 1];
+  assert.ok(next, 'an abort must be followed by a redealt hand');
+  assert.equal(next.label, abortHand.label, 'the same round number is replayed');
+  assert.equal(next.dealer, abortHand.dealer, 'the same dealer redeals');
+  assert.equal(next.honbaAtDeal, abortHand.honbaAtDeal + 1, 'one more honba');
+});
+
+test('main: the golden match fingerprint, so a behaviour change cannot pass unnoticed', () => {
   // The determinism test above only proves the engine is repeatable. This pins what it
   // actually produces, so a rules change shows up here instead of being discovered
   // later. The server side got the same treatment when the match seed was made

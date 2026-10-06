@@ -233,7 +233,7 @@ reachable only via `server/table.js` and the engine unit tests.
 
 - **CI: ✅ fixed.** `.github/workflows/ci.yml` runs on push and PR: `npm ci`, engine
   tests, server E2E, client type-check + build, a CLI smoke check, and the markdown link
-  checker. The 368 tests plus the 48-check selftest now run automatically.
+  checker. The 369 tests plus the 48-check selftest now run automatically.
 - **Markdown link checking: ✅ added.** `scripts/check-links.mjs` (`npm run links`)
   verifies every relative link in every `.md` resolves. It caught real breakage during
   this work and is cheap to run locally.
