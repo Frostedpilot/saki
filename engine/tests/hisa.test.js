@@ -65,8 +65,8 @@ test('passive: ryanmen wait penalty 0.70x', () => {
   const hooks = H.createHisaHooks(0);
   const info = H.classifyWait(RYANMEN_HAND, s.pool);
   assert.equal(info.type, 'ryanmen');
-  assert.equal(hooks.onPowerDraw('3s', s), 0.70);
-  assert.equal(hooks.onPowerDraw('6s', s), 0.70);
+  assert.equal(hooks.onPowerDraw('3s', s), 0.7);
+  assert.equal(hooks.onPowerDraw('6s', s), 0.7);
 });
 
 test('passive: hell wait boost 3.0x', () => {
@@ -177,7 +177,7 @@ test('settlement: T4 deal-in damage mitigation 50%', () => {
   const hooks = H.createHisaHooks(0);
   hooks.tryActivateTier4(s, 20);
   const r = hooks.onSettlement({ type: 'ron', from: 0 }, s);
-  assert.equal(r.scoreMultiplier, 0.50);
+  assert.equal(r.scoreMultiplier, 0.5);
 });
 
 test('insufficient flow rejected', () => {

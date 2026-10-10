@@ -4,7 +4,11 @@ import { renderTile } from '../tiles/svg-tiles';
 
 export type MeldPlacement = 'bottom' | 'top' | 'left' | 'right';
 
-export function renderMelds(melds: PlayerMeld[], store?: GameStore, placement: MeldPlacement = 'bottom'): TemplateResult {
+export function renderMelds(
+  melds: PlayerMeld[],
+  store?: GameStore,
+  placement: MeldPlacement = 'bottom'
+): TemplateResult {
   if (!melds || melds.length === 0) {
     return html``;
   }
@@ -18,11 +22,7 @@ export function renderMelds(melds: PlayerMeld[], store?: GameStore, placement: M
           <div class="meld-set ${meld.callType === 'Kakan' ? 'meld-set--kakan' : ''}">
             ${meld.tiles.map((t, idx) => {
               if (isAnkan && (idx === 0 || idx === 3)) {
-                return html`
-                  <div class="meld-set__slot">
-                    ${renderTile(t, { show: 'back' })}
-                  </div>
-                `;
+                return html` <div class="meld-set__slot">${renderTile(t, { show: 'back' })}</div> `;
               }
               const isRotated = !isAnkan && idx === calledIdx;
               return html`

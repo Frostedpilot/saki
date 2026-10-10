@@ -31,7 +31,7 @@ test('W=0 excludes tiles (Nodoka-style filter)', () => {
   const p = DynamicPool.full(createRNG(3));
   const drawn = new Set();
   for (let i = 0; i < 30; i++) {
-    const t = p.sample(k => (k === '1m' ? 0 : 1.0));
+    const t = p.sample((k) => (k === '1m' ? 0 : 1.0));
     drawn.add(t);
   }
   assert.ok(!drawn.has('1m'));
@@ -44,7 +44,7 @@ test('function weights vs object weights agree on exclusion', () => {
   const only = { '7z': 5.0 };
   const t = a.sample(only);
   assert.ok(typeof t === 'string'); // some tile drawn; 7z heavily favored but not forced
-  const t2 = b.sample(k => (k === '7z' ? 5.0 : 1.0));
+  const t2 = b.sample((k) => (k === '7z' ? 5.0 : 1.0));
   assert.ok(typeof t2 === 'string');
 });
 
@@ -59,7 +59,10 @@ test('all-zero weights sample returns null and preserves pool', () => {
   assert.ok(p.sample({}) !== null); // {} -> all default 1.0, draws normally
   assert.equal(p.total(), before - 1);
   const p2 = DynamicPool.full(createRNG(1));
-  assert.equal(p2.sample(() => 0), null);
+  assert.equal(
+    p2.sample(() => 0),
+    null
+  );
   assert.equal(p2.total(), before);
 });
 
@@ -112,11 +115,11 @@ test('audit clean on fresh pool, detects leak and unknown tile', () => {
   // simulate a leak: remove a tile from pool without recording it anywhere
   p.decrement('1m');
   const problems = p.audit([]);
-  assert.ok(problems.some(m => m.includes('1m')));
+  assert.ok(problems.some((m) => m.includes('1m')));
   // unknown tile in partitions
   const p2 = DynamicPool.full(createRNG(1));
   const bad = p2.audit([['NOT_A_TILE']]);
-  assert.ok(bad.some(m => m.includes('NOT_A_TILE')));
+  assert.ok(bad.some((m) => m.includes('NOT_A_TILE')));
 });
 
 test('audit covers slots as part of inventory', () => {
@@ -126,7 +129,7 @@ test('audit covers slots as part of inventory', () => {
 });
 
 test('determinism: same seed + same weights -> same draw sequence', () => {
-  const seq = seed => {
+  const seq = (seed) => {
     const p = DynamicPool.full(createRNG(seed));
     return Array.from({ length: 20 }, () => p.sample());
   };

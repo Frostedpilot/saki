@@ -34,9 +34,7 @@ const JP_TO_KIND_ALL = { ...JP_TO_KIND, ...ROUND_WIND_KIND, ...SEAT_WIND_KIND };
 // --------------------------------------------------------------- lib coverage
 
 test('every yaku the riichi lib can emit is mapped or explicitly unsupported', () => {
-  const missing = Object.keys(YAKU_TABLE).filter(
-    (n) => !(n in JP_TO_KIND_ALL) && !UNSUPPORTED_BY_PROTOCOL.has(n)
-  );
+  const missing = Object.keys(YAKU_TABLE).filter((n) => !(n in JP_TO_KIND_ALL) && !UNSUPPORTED_BY_PROTOCOL.has(n));
   assert.deepEqual(
     missing,
     [],
@@ -53,9 +51,7 @@ test('UNSUPPORTED_BY_PROTOCOL names really exist in the lib (no stale entries)',
 });
 
 test('every mapped Japanese name is one the lib can emit, or a declared alias', () => {
-  const dead = Object.keys(JP_TO_KIND_ALL).filter(
-    (n) => !YAKU_TABLE[n] && !LEGACY_ALIASES.has(n)
-  );
+  const dead = Object.keys(JP_TO_KIND_ALL).filter((n) => !YAKU_TABLE[n] && !LEGACY_ALIASES.has(n));
   assert.deepEqual(dead, [], `mapped but never emitted by the lib: ${dead.join(', ')}`);
 });
 
@@ -106,16 +102,53 @@ test('unsupported yaku are dropped without breaking the rest of the list', () =>
 // The protocol's `Kind` enum, in binary order. Recovered from the vendored WASM
 // client, where serde serialises unit variants as their Rust names.
 const PROTOCOL_KINDS = [
-  'Riichi', 'DoubleRiichi', 'Unbroken', 'FullyConcealedHand', 'SevenPairs', 'Nagashi',
-  'Mangan', 'LastTileDraw', 'LastTileClaim', 'AfterAQuad', 'RobbingAQuad', 'Pinfu',
-  'TwinSequences', 'MixedSequences', 'FullStraight', 'DoubleTwinSequences', 'AllTriplets',
-  'ThreeConcealedTriplets', 'MixedTriplets', 'AllInside', 'ValueHonourSeatWind',
-  'ValueHonourRoundWind', 'ValueHonourWhiteDragon', 'ValueHonourGreenDragon',
-  'ValueHonourRedDragon', 'CommonEnds', 'PerfectEnds', 'CommonTerminals', 'LittleDragons',
-  'ThreeQuads', 'CommonFlush', 'PerfectFlush', 'ThirteenOrphans', 'ThirteenOrphansThirteenWait',
-  'FourConcealedTriplets', 'FourConcealedTripletsPairWait', 'BigDragons', 'LittleWinds',
-  'BigWinds', 'AllHonours', 'PerfectTerminals', 'AllGreen', 'NineGates', 'PureNineGates',
-  'FourQuads', 'BlessingOfHeaven', 'BlessingOfEarth',
+  'Riichi',
+  'DoubleRiichi',
+  'Unbroken',
+  'FullyConcealedHand',
+  'SevenPairs',
+  'Nagashi',
+  'Mangan',
+  'LastTileDraw',
+  'LastTileClaim',
+  'AfterAQuad',
+  'RobbingAQuad',
+  'Pinfu',
+  'TwinSequences',
+  'MixedSequences',
+  'FullStraight',
+  'DoubleTwinSequences',
+  'AllTriplets',
+  'ThreeConcealedTriplets',
+  'MixedTriplets',
+  'AllInside',
+  'ValueHonourSeatWind',
+  'ValueHonourRoundWind',
+  'ValueHonourWhiteDragon',
+  'ValueHonourGreenDragon',
+  'ValueHonourRedDragon',
+  'CommonEnds',
+  'PerfectEnds',
+  'CommonTerminals',
+  'LittleDragons',
+  'ThreeQuads',
+  'CommonFlush',
+  'PerfectFlush',
+  'ThirteenOrphans',
+  'ThirteenOrphansThirteenWait',
+  'FourConcealedTriplets',
+  'FourConcealedTripletsPairWait',
+  'BigDragons',
+  'LittleWinds',
+  'BigWinds',
+  'AllHonours',
+  'PerfectTerminals',
+  'AllGreen',
+  'NineGates',
+  'PureNineGates',
+  'FourQuads',
+  'BlessingOfHeaven',
+  'BlessingOfEarth',
 ];
 
 test('the protocol Kind list still matches the vendored WASM binary', (t) => {
@@ -184,9 +217,16 @@ test('rankFromResult only emits real ScoreRank variants', () => {
 
 test('rankFromResult maps every limit-hall name the lib emits', () => {
   const cases = [
-    ['満貫', 'Mangan'], ['跳満', 'Haneman'], ['倍満', 'Baiman'], ['三倍満', 'Sanbaiman'],
-    ['数え役満', 'Yakuman'], ['役満', 'Yakuman'], ['2倍役満', 'Yakuman'],
-    ['ダブル役満', 'Yakuman'], ['', 'Normal'], ['ドラ', 'Normal'],
+    ['満貫', 'Mangan'],
+    ['跳満', 'Haneman'],
+    ['倍満', 'Baiman'],
+    ['三倍満', 'Sanbaiman'],
+    ['数え役満', 'Yakuman'],
+    ['役満', 'Yakuman'],
+    ['2倍役満', 'Yakuman'],
+    ['ダブル役満', 'Yakuman'],
+    ['', 'Normal'],
+    ['ドラ', 'Normal'],
   ];
   for (const [name, expected] of cases) {
     assert.equal(rankFromResult({ name, yakuman: 0 }), expected, `name=${name}`);

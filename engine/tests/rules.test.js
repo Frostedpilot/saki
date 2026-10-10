@@ -13,8 +13,16 @@ const core = require('../core');
 const replay = require('../replay');
 
 const C = (o) => ({
-  dora: [], bakaze: 1, jikaze: 2, riichi: false, doubleRiichi: false,
-  ippatsu: false, kanFlag: false, lastFlag: false, tenhou: false, ...o,
+  dora: [],
+  bakaze: 1,
+  jikaze: 2,
+  riichi: false,
+  doubleRiichi: false,
+  ippatsu: false,
+  kanFlag: false,
+  lastFlag: false,
+  tenhou: false,
+  ...o,
 });
 const has = (r, key) => r.yaku[key] !== undefined;
 
@@ -22,16 +30,26 @@ const has = (r, key) => r.yaku[key] !== undefined;
 test('tanyao + menzen-tsumo: han 2, fu 30, ten 2000', () => {
   const r = scoreHand(
     ['2m', '3m', '4m', '5m', '6m', '7m', '2p', '3p', '4p', '5p', '6p', '7p', '8s', '8s'],
-    [], null, true, C({}));
+    [],
+    null,
+    true,
+    C({})
+  );
   assert.equal(r.isAgari, true);
   assert.ok(has(r, '断么九') && has(r, '門前清自摸和'));
-  assert.equal(r.han, 2); assert.equal(r.fu, 30); assert.equal(r.ten, 2000);
+  assert.equal(r.han, 2);
+  assert.equal(r.fu, 30);
+  assert.equal(r.ten, 2000);
 });
 
 test('yakuhai haku triplet + tsumo', () => {
   const r = scoreHand(
     ['5z', '5z', '5z', '2m', '3m', '4m', '6p', '7p', '8p', '2s', '3s', '4s', '9m', '9m'],
-    [], null, true, C({}));
+    [],
+    null,
+    true,
+    C({})
+  );
   assert.equal(r.isAgari, true);
   assert.ok(has(r, '役牌白'));
   assert.equal(r.han, 2);
@@ -40,16 +58,25 @@ test('yakuhai haku triplet + tsumo', () => {
 test('chiitoitsu: 7 pairs, flat 25 fu', () => {
   const r = scoreHand(
     ['1m', '1m', '2m', '2m', '3p', '3p', '4p', '4p', '5s', '5s', '6s', '6s', '7z', '7z'],
-    [], null, true, C({}));
+    [],
+    null,
+    true,
+    C({})
+  );
   assert.equal(r.isAgari, true);
   assert.ok(has(r, '七対子'));
-  assert.equal(r.fu, 25); assert.equal(r.ten, 3200);
+  assert.equal(r.fu, 25);
+  assert.equal(r.ten, 3200);
 });
 
 test('kokushi musou: yakuman regardless of han 0', () => {
   const r = scoreHand(
     ['1m', '9m', '1p', '9p', '1s', '9s', '1z', '2z', '3z', '4z', '5z', '6z', '7z', '1m'],
-    [], null, true, C({}));
+    [],
+    null,
+    true,
+    C({})
+  );
   assert.equal(r.isAgari, true);
   assert.ok(has(r, '国士無双'));
   assert.ok(r.yakuman > 0);
@@ -59,7 +86,11 @@ test('kokushi musou: yakuman regardless of han 0', () => {
 test('suuankou: yakuman 32000', () => {
   const r = scoreHand(
     ['1m', '1m', '1m', '2p', '2p', '2p', '3s', '3s', '3s', '7z', '7z', '7z', '9m', '9m'],
-    [], null, true, C({}));
+    [],
+    null,
+    true,
+    C({})
+  );
   assert.equal(r.isAgari, true);
   assert.ok(has(r, '四暗刻'));
   assert.equal(r.ten, 32000);
@@ -68,21 +99,31 @@ test('suuankou: yakuman 32000', () => {
 test('pinfu ron on ryanmen: pinfu + tanyao, fu 30', () => {
   const r = scoreHand(
     ['2m', '3m', '4m', '3p', '4p', '5p', '5p', '6p', '7p', '7s', '7s', '6s', '7s'],
-    [], '5s', false, C({}));
+    [],
+    '5s',
+    false,
+    C({})
+  );
   assert.equal(r.isAgari, true);
   assert.ok(has(r, '平和'));
-  assert.equal(r.fu, 30); assert.equal(r.ten, 2000);
+  assert.equal(r.fu, 30);
+  assert.equal(r.ten, 2000);
 });
 
 // ---- B. open hands ----
 test('open tanyao ron: tanyao only, no tsumo yaku', () => {
   const r = scoreHand(
     ['2m', '3m', '4m', '5m', '6m', '7m', '5p', '7p', '8s', '8s'],
-    [{ tiles: ['2p', '3p', '4p'], open: true, type: 'chi' }], '6p', false, C({}));
+    [{ tiles: ['2p', '3p', '4p'], open: true, type: 'chi' }],
+    '6p',
+    false,
+    C({})
+  );
   assert.equal(r.isAgari, true);
   assert.ok(has(r, '断么九'));
   assert.ok(!has(r, '門前清自摸和'));
-  assert.equal(r.han, 1); assert.equal(r.ten, 1000);
+  assert.equal(r.han, 1);
+  assert.equal(r.ten, 1000);
 });
 
 // ---- C. dora / aka ----
@@ -98,26 +139,40 @@ test('dora tiles add han (2 dora on tanyao-tsumo -> han 4)', () => {
 test('aka five counts as dora (aka pair -> +1 han)', () => {
   const r = scoreHand(
     ['2m', '3m', '4m', '5m', '6m', '7m', '2p', '3p', '4p', '5p', '6p', '7p', '0s', '5s'],
-    [], null, true, C({}));
+    [],
+    null,
+    true,
+    C({})
+  );
   assert.equal(r.isAgari, true);
   assert.ok(has(r, '赤ドラ'));
-  assert.equal(r.han, 3); assert.equal(r.ten, 4000);
+  assert.equal(r.han, 3);
+  assert.equal(r.ten, 4000);
 });
 
 test('riichi tsumo with dora stack reaches haneman', () => {
   const r = scoreHand(
     ['1m', '2m', '3m', '4m', '5m', '6m', '7m', '8m', '9m', '2p', '2p', '2p', '3p', '3p'],
-    [], null, true, C({ riichi: true, dora: ['2p'] }));
+    [],
+    null,
+    true,
+    C({ riichi: true, dora: ['2p'] })
+  );
   assert.equal(r.isAgari, true);
   assert.ok(has(r, '立直') && has(r, '一気通貫'));
-  assert.equal(r.han, 7); assert.equal(r.ten, 12000);
+  assert.equal(r.han, 7);
+  assert.equal(r.ten, 12000);
 });
 
 // ---- D. win flags ----
 test('rinshan flag yields rinshan yaku', () => {
   const r = scoreHand(
     ['1m', '2m', '3m', '4m', '5m', '6m', '7m', '8m', '9m', '3p', '3p'],
-    [{ tiles: ['7s', '7s', '7s', '7s'], open: false, type: 'kan' }], null, true, C({ kanFlag: true }));
+    [{ tiles: ['7s', '7s', '7s', '7s'], open: false, type: 'kan' }],
+    null,
+    true,
+    C({ kanFlag: true })
+  );
   assert.equal(r.isAgari, true);
   assert.ok(has(r, '嶺上開花'));
 });
@@ -145,11 +200,21 @@ test('haitei / houtei flags yield last-tile yaku', () => {
 
 // ---- E. ron gating (incl. overtime shibari) ----
 const PHAND = ['1m', '2m', '3m', '4m', '5m', '6m', '7m', '8m', '9m', '2p', '2p', '2p', '3p'];
-const plist = (p) => [p, { hand: [], melds: [], discards: [] }, { hand: [], melds: [], discards: [] }, { hand: [], melds: [], discards: [] }];
+const plist = (p) => [
+  p,
+  { hand: [], melds: [], discards: [] },
+  { hand: [], melds: [], discards: [] },
+  { hand: [], melds: [], discards: [] },
+];
 
 test('no-yaku shape cannot ron (han gate)', () => {
   // Open chinitsu-ish shape with no yaku: sequences only, no tanyao/honitsu value.
-  const p = { hand: ['2m', '3m', '4m', '5m', '6m', '7m', '2p', '3p'], melds: [{ tiles: ['5p', '6p', '7p'], open: true, type: 'chi' }], discards: [], tempFuriten: false };
+  const p = {
+    hand: ['2m', '3m', '4m', '5m', '6m', '7m', '2p', '3p'],
+    melds: [{ tiles: ['5p', '6p', '7p'], open: true, type: 'chi' }],
+    discards: [],
+    tempFuriten: false,
+  };
   const att = H.tryRon(p, '4p', C({}), plist(p), []);
   assert.equal(att.win, false);
 });
@@ -159,13 +224,19 @@ test('ryanhan-shibari blocks 1-han ron, yakuman passes', () => {
   const p = {
     hand: ['2m', '3m', '4m', '5m', '6m', '7m', '5p', '7p', '8s', '8s'],
     melds: [{ tiles: ['2p', '3p', '4p'], open: true, type: 'chi' }],
-    discards: [], tempFuriten: false,
+    discards: [],
+    tempFuriten: false,
   };
   const blocked = H.tryRon(p, '6p', C({}), plist(p), [], { minHan: 2 });
   assert.equal(blocked.win, false);
   const open = H.tryRon(p, '6p', C({}), plist(p), [], { minHan: 1 });
   assert.equal(open.win, true);
-  const kokushi = { hand: ['1m', '9m', '1p', '9p', '1s', '9s', '1z', '2z', '3z', '4z', '5z', '6z', '7z'], melds: [], discards: [], tempFuriten: false };
+  const kokushi = {
+    hand: ['1m', '9m', '1p', '9p', '1s', '9s', '1z', '2z', '3z', '4z', '5z', '6z', '7z'],
+    melds: [],
+    discards: [],
+    tempFuriten: false,
+  };
   const pass = H.tryRon(kokushi, '1m', C({}), plist(kokushi), [], { minHan: 2 });
   assert.equal(pass.win, true);
 });
@@ -188,9 +259,12 @@ test('suufon-renda and suukaikan conditions', () => {
 });
 
 test('round winds, riichi gate, yaochuu counting', () => {
-  assert.equal(H.bakazeOf(0), 1); assert.equal(H.bakazeOf(3), 1);
-  assert.equal(H.bakazeOf(4), 2); assert.equal(H.bakazeOf(7), 2);
-  assert.equal(H.roundLabel(0), 'EAST 1'); assert.equal(H.roundLabel(5), 'SOUTH 2');
+  assert.equal(H.bakazeOf(0), 1);
+  assert.equal(H.bakazeOf(3), 1);
+  assert.equal(H.bakazeOf(4), 2);
+  assert.equal(H.bakazeOf(7), 2);
+  assert.equal(H.roundLabel(0), 'EAST 1');
+  assert.equal(H.roundLabel(5), 'SOUTH 2');
   assert.equal(H.canRiichi(1000, 4), true);
   assert.equal(H.canRiichi(900, 10), false);
   assert.equal(H.canRiichi(2000, 3), false);
@@ -232,11 +306,19 @@ test('ankan keeps tanki waits, breaks shanpon waits', () => {
   const seqs = ['1m', '2m', '3m', '4m', '5m', '6m', '7m', '8m', '9m'];
   const wctx = { dora: [], bakaze: 1, jikaze: 1 };
   const lkKeep = [...seqs, '7p', '7p', '7p', '4p'];
-  const plKeep = { hand: [...lkKeep, '7p'], melds: [], riichiWaits: H.getWaits({ hand: lkKeep, melds: [] }, [], [], wctx) };
+  const plKeep = {
+    hand: [...lkKeep, '7p'],
+    melds: [],
+    riichiWaits: H.getWaits({ hand: lkKeep, melds: [] }, [], [], wctx),
+  };
   assert.deepEqual(plKeep.riichiWaits, ['4p']);
   assert.equal(H.ankanKeepsWaits(plKeep, '7p'), true);
   const lkBreak = [...seqs, '3p', '3p', '4p', '4p'];
-  const plBreak = { hand: [...lkBreak, '3p'], melds: [], riichiWaits: H.getWaits({ hand: lkBreak, melds: [] }, [], [], wctx) };
+  const plBreak = {
+    hand: [...lkBreak, '3p'],
+    melds: [],
+    riichiWaits: H.getWaits({ hand: lkBreak, melds: [] }, [], [], wctx),
+  };
   assert.equal(H.ankanKeepsWaits(plBreak, '3p'), false);
 });
 
@@ -257,14 +339,17 @@ test('ankanKeepsWaits fails closed when the waits are unknown', () => {
 // ---- J. nagashi / oka-uma ----
 test('nagashi: closed all-terminal discards only', () => {
   assert.equal(H.isNagashi({ melds: [], discards: ['1m', '9p', '1z', '9s', '2z'] }), true);
-  assert.equal(H.isNagashi({ melds: [{ tiles: ['1m', '1m', '1m'], open: true, type: 'pon' }], discards: ['1m', '9p'] }), false);
+  assert.equal(
+    H.isNagashi({ melds: [{ tiles: ['1m', '1m', '1m'], open: true, type: 'pon' }], discards: ['1m', '9p'] }),
+    false
+  );
   assert.equal(H.isNagashi({ melds: [], discards: ['1m', '5p'] }), false);
   assert.equal(H.isNagashi({ melds: [], discards: [] }), false);
 });
 
 test('oka/uma placement is zero-sum with tie averaging', () => {
   const t1 = H.applyOkaUma([31000, 26000, 24000, 19000]);
-  assert.equal(t1.map(r => r.total).join(','), '41,6,-16,-31');
+  assert.equal(t1.map((r) => r.total).join(','), '41,6,-16,-31');
   const t3 = H.applyOkaUma([30000, 30000, 20000, 20000]);
   assert.ok(t3[0].total === 25 && t3[3].total === -25);
 });
@@ -275,7 +360,7 @@ test('fresh deal conserves 136; dead wall 14; scores conserved', () => {
   core.setupDeadWall(s);
   assertDeadWall(s.deadWall);
   core.dealHands(s);
-  const parts = [...s.players.flatMap(p => [p.hand, p.discards]), s.deadWall];
+  const parts = [...s.players.flatMap((p) => [p.hand, p.discards]), s.deadWall];
   assert.deepEqual(s.pool.audit(parts), []);
   assertScoresConserved([25000, 25000, 25000, 25000], 0);
   assertScoresConserved([24000, 25000, 25000, 26000], 0);
@@ -283,8 +368,9 @@ test('fresh deal conserves 136; dead wall 14; scores conserved', () => {
 
 test('tampered partition is reported, not silent', () => {
   const s = core.createMatchState({ seed: 11 });
-  core.setupDeadWall(s); core.dealHands(s);
-  const parts = [...s.players.flatMap(p => [p.hand, p.discards]), s.deadWall];
+  core.setupDeadWall(s);
+  core.dealHands(s);
+  const parts = [...s.players.flatMap((p) => [p.hand, p.discards]), s.deadWall];
   parts[0] = [...parts[0], '1m']; // duplicate a tile
   assert.ok(checkConservation(parts).length > 0);
 });
@@ -305,7 +391,8 @@ test('replay: logged core draws verify; tampered draw throws', () => {
   const j = replay.createJournal(seed);
   replay.startKyoku(j, seed);
   const s = core.createMatchState({ seed });
-  core.setupDeadWall(s); core.dealHands(s);
+  core.setupDeadWall(s);
+  core.dealHands(s);
   for (let i = 0; i < 8; i++) {
     const t = core.executeDrawStep(i % 4, s);
     replay.record(j, i % 4, 'draw', t);
@@ -314,7 +401,8 @@ test('replay: logged core draws verify; tampered draw throws', () => {
     s.players[i % 4].discards.push(t);
   }
   const r = replay.verifyJournal(replay.fromJSON(replay.toJSON(j)));
-  assert.equal(r.draws, 8); assert.equal(r.discards, 8);
+  assert.equal(r.draws, 8);
+  assert.equal(r.discards, 8);
   const bad = replay.fromJSON(replay.toJSON(j));
   bad.actions.push(['draw', 0, '9x']); // unknown tile: never live
   assert.throws(() => replay.verifyJournal(bad), /not live/);

@@ -38,7 +38,9 @@ function warnOnce(site, e) {
 }
 
 const KIND_ORDER = {};
-KINDS.forEach((k, i) => { KIND_ORDER[k] = i; });
+KINDS.forEach((k, i) => {
+  KIND_ORDER[k] = i;
+});
 
 // These used to be bare literals here and in engine/game.js, so the two rule
 // front-ends could drift apart silently. They come from RULES now, and
@@ -58,16 +60,20 @@ const PHASE = {
 
 function sortHand(hand) {
   hand.sort((a, b) => {
-    const ka = KIND_ORDER[norm(a)], kb = KIND_ORDER[norm(b)];
+    const ka = KIND_ORDER[norm(a)],
+      kb = KIND_ORDER[norm(b)];
     if (ka !== kb) return ka - kb;
     return (a[0] === '0' ? 1 : 0) - (b[0] === '0' ? 1 : 0); // plain 5 before red 0
   });
   return hand;
 }
 
-const BOT_MIN_DELAY_MS = process.env.BOT_DELAY_MS !== undefined
-  ? parseInt(process.env.BOT_DELAY_MS, 10)
-  : (process.env.NODE_ENV === 'test' ? 0 : 1000);
+const BOT_MIN_DELAY_MS =
+  process.env.BOT_DELAY_MS !== undefined
+    ? parseInt(process.env.BOT_DELAY_MS, 10)
+    : process.env.NODE_ENV === 'test'
+      ? 0
+      : 1000;
 
 function botWait(startTime, minMs = BOT_MIN_DELAY_MS) {
   if (minMs <= 0) return Promise.resolve();
@@ -91,9 +97,9 @@ class Table {
     this.matchOver = false;
     this.overtime = false; // enchousen: extra hands past all-last while the dealer repeats
     this.substituted = [false, false, false, false];
-    this.decide = createRNG(this.seed ^ 0x6D2B79F5);
-    this.requests = new Map();   // seat -> {kinds:Set, resolve}
-    this.mailbox = new Map();    // seat -> [{action, kinds}]
+    this.decide = createRNG(this.seed ^ 0x6d2b79f5);
+    this.requests = new Map(); // seat -> {kinds:Set, resolve}
+    this.mailbox = new Map(); // seat -> [{action, kinds}]
     for (let s = 0; s < 4; s++) this.mailbox.set(s, []);
     this.readyRequests = new Map(); // seat -> {resolve}
     this.readyReceived = [false, false, false, false];
@@ -139,7 +145,9 @@ class Table {
     }
   }
 
-  powerOf(seat) { return this.powerSeats[seat] || 'none'; }
+  powerOf(seat) {
+    return this.powerSeats[seat] || 'none';
+  }
 
   isCpuSeat(seat) {
     const s = this.room.seats[seat];
@@ -172,23 +180,33 @@ class Table {
       if (type === 'normal') {
         let isActive = false;
         if (hooks && typeof hooks.isPowerActive === 'function') {
-          try { isActive = !!hooks.isPowerActive(state); } catch (e) { warnOnce('isPowerActive', e); }
+          try {
+            isActive = !!hooks.isPowerActive(state);
+          } catch (e) {
+            warnOnce('isPowerActive', e);
+          }
         }
         let desc = '';
         if (hooks && hooks.meta && hooks.meta.passiveName) desc = hooks.meta.passiveName;
         if (hooks && typeof hooks.getHudAdvice === 'function') {
-          try { desc = hooks.getHudAdvice(state) || desc; } catch (e) { warnOnce('getHudAdvice', e); }
+          try {
+            desc = hooks.getHudAdvice(state) || desc;
+          } catch (e) {
+            warnOnce('getHudAdvice', e);
+          }
         }
-        this.broadcast(P.evSuperpowerIndicator({
-          seat: s,
-          active: isActive,
-          type: 'normal',
-          gauge: null,
-          power,
-          description: desc,
-          armedTier: 0,
-          availableTiers: [],
-        }));
+        this.broadcast(
+          P.evSuperpowerIndicator({
+            seat: s,
+            active: isActive,
+            type: 'normal',
+            gauge: null,
+            power,
+            description: desc,
+            armedTier: 0,
+            availableTiers: [],
+          })
+        );
         continue;
       }
 
@@ -219,24 +237,28 @@ class Table {
       } else if (isActive) {
         desc = `Active Power (${flowVal}/150)`;
       }
-      const armedTier = this.armedTiers ? (this.armedTiers[s] || 0) : 0;
+      const armedTier = this.armedTiers ? this.armedTiers[s] || 0 : 0;
       let availableTiers = [];
       if (hooks && typeof hooks.getTierInfo === 'function') {
         availableTiers = hooks.getTierInfo(state);
       }
-      this.broadcast(P.evSuperpowerIndicator({
-        seat: s,
-        active: isActive,
-        gauge,
-        power,
-        description: desc,
-        armedTier,
-        availableTiers,
-      }));
+      this.broadcast(
+        P.evSuperpowerIndicator({
+          seat: s,
+          active: isActive,
+          gauge,
+          power,
+          description: desc,
+          armedTier,
+          availableTiers,
+        })
+      );
     }
   }
 
-  broadcastRoomState() { this.room.broadcastRoomState(); }
+  broadcastRoomState() {
+    this.room.broadcastRoomState();
+  }
   sendError(seat, code, message) {
     this.room.sendError(seat, code, message);
     if (this.ctx && this.ctx.players && this.ctx.players[seat] && !this.isCpuSeat(seat)) {
@@ -247,7 +269,9 @@ class Table {
 
   // Mailbox + request: client actions may arrive before we register the
   // wait (async socket), so queue them; `request` drains the queue first.
-  clearMailbox() { for (const s of this.mailbox.keys()) this.mailbox.set(s, []); }
+  clearMailbox() {
+    for (const s of this.mailbox.keys()) this.mailbox.set(s, []);
+  }
 
   propose(seat, action) {
     const req = this.requests.get(seat);
@@ -309,7 +333,10 @@ class Table {
   markReady(seat) {
     this.readyReceived[seat] = true;
     const r = this.readyRequests.get(seat);
-    if (r) { this.readyRequests.delete(seat); r.resolve(); }
+    if (r) {
+      this.readyRequests.delete(seat);
+      r.resolve();
+    }
   }
 
   async waitForReady() {
@@ -339,7 +366,10 @@ class Table {
       }
     }
     const ready = this.readyRequests.get(seat);
-    if (ready) { this.readyRequests.delete(seat); ready.resolve(); }
+    if (ready) {
+      this.readyRequests.delete(seat);
+      ready.resolve();
+    }
   }
 
   // -------------------------------------------------------------- scoring
@@ -391,9 +421,7 @@ class Table {
   rescore(seat, flags) {
     const me = this.ctx.players[seat];
     const isRiichi = me.riichi || me.doubleRiichi;
-    const dora = isRiichi
-      ? this.ctx.baseDora().concat(this.ctx.uraDora())
-      : this.ctx.baseDora();
+    const dora = isRiichi ? this.ctx.baseDora().concat(this.ctx.uraDora()) : this.ctx.baseDora();
     return scoreHand(me.hand, me.melds, flags.winTile, flags.tsumo, {
       dora,
       bakaze: this.ctx.bakaze,
@@ -410,10 +438,15 @@ class Table {
   // ----------------------------------------------------------------- main
   async run() {
     const code = this.room.code;
-    console.log(`[bridge] ${code}: match start (seed=${this.seed} powers=${[0, 1, 2, 3].map((s) => this.powerOf(s)).join(',')})`);
+    console.log(
+      `[bridge] ${code}: match start (seed=${this.seed} powers=${[0, 1, 2, 3].map((s) => this.powerOf(s)).join(',')})`
+    );
     let handsPlayed = 0;
     while (!this.matchOver && (this.kyoku < this.totalRounds || this.overtime)) {
-      if (++handsPlayed > 200) { console.error('[bridge] safety: too many hands'); break; }
+      if (++handsPlayed > 200) {
+        console.error('[bridge] safety: too many hands');
+        break;
+      }
       await this.playOneHand();
     }
     // Any riichi sticks still uncollected on the table at match end are LOST, and
@@ -447,7 +480,11 @@ class Table {
     for (let s = 0; s < 4; s++) {
       const power = this.powerOf(s);
       if (power && ROSTERS[power]) {
-try { state.powers.register(s, ROSTERS[power](s, this.persistentPowerState[s])); } catch (e) { warnOnce('register:' + power, e); }
+        try {
+          state.powers.register(s, ROSTERS[power](s, this.persistentPowerState[s]));
+        } catch (e) {
+          warnOnce('register:' + power, e);
+        }
       }
       // Normal-type powers live outside the Flow economy (Spec §6.1): their
       // gauge is pinned to 0 and every flow op is a no-op. Flow seats restore
@@ -477,7 +514,10 @@ try { state.powers.register(s, ROSTERS[power](s, this.persistentPowerState[s]));
     });
 
     const ctx = {
-      state, players, dead, dealer,
+      state,
+      players,
+      dead,
+      dealer,
       bakaze: bakazeNum,
       doraInd: [dead[4]],
       uraInd: [dead[5]],
@@ -495,7 +535,8 @@ try { state.powers.register(s, ROSTERS[power](s, this.persistentPowerState[s]));
       uraDora: () => ctx.uraInd.map(DORA_NEXT),
       revealKanDora: () => {
         ctx.kanCount++;
-        const di = 4 + ctx.kanCount * 2, ui = 5 + ctx.kanCount * 2;
+        const di = 4 + ctx.kanCount * 2,
+          ui = 5 + ctx.kanCount * 2;
         if (di < 14) {
           ctx.doraInd.push(dead[di]);
           ctx.uraInd.push(dead[ui]);
@@ -509,22 +550,29 @@ try { state.powers.register(s, ROSTERS[power](s, this.persistentPowerState[s]));
 
     for (let s = 0; s < 4; s++) {
       const p = players[s];
-      this.room.sendTo(s, P.event(P.evGameStarted({
-        seatWind: P.seatWind(s, dealer),
-        hand: P.tilesToProtocol([...p.hand]),
-        scores: [...this.scores],
-        roundWind: P.WINDS[bakazeNum - 1],
-        doraIndicators: P.tilesToProtocol(ctx.doraInd),
-        roundNumber: kyoku,
-        totalRounds: this.totalRounds,
-        honba: this.honba,
-        riichiSticks: ctx.riichiPool / 1000,
-        threePlayer: false,
-        nukiDora: false,
-      })));
+      this.room.sendTo(
+        s,
+        P.event(
+          P.evGameStarted({
+            seatWind: P.seatWind(s, dealer),
+            hand: P.tilesToProtocol([...p.hand]),
+            scores: [...this.scores],
+            roundWind: P.WINDS[bakazeNum - 1],
+            doraIndicators: P.tilesToProtocol(ctx.doraInd),
+            roundNumber: kyoku,
+            totalRounds: this.totalRounds,
+            honba: this.honba,
+            riichiSticks: ctx.riichiPool / 1000,
+            threePlayer: false,
+            nukiDora: false,
+          })
+        )
+      );
     }
     this.broadcastPowerStatus();
-    console.log(`[bridge] ${this.room.code}: hand kyoku=${kyoku} honba=${this.honba} dealer=P${dealer} dora=${ctx.doraInd.map(norm).join(',')}`);
+    console.log(
+      `[bridge] ${this.room.code}: hand kyoku=${kyoku} honba=${this.honba} dealer=P${dealer} dora=${ctx.doraInd.map(norm).join(',')}`
+    );
 
     let winner = -1;
     let winBy = null;
@@ -537,15 +585,21 @@ try { state.powers.register(s, ROSTERS[power](s, this.persistentPowerState[s]));
       let turn = dealer;
       let guard = 0;
       while (ctx.poolTotal() > 0) {
-        if (++guard > 400) { console.error('[bridge] turn safety stop'); break; }
+        if (++guard > 400) {
+          console.error('[bridge] turn safety stop');
+          break;
+        }
         const out = await this.playTurn(turn);
-        if (out.end) { winner = out.winner; winBy = out.winBy; break; }
+        if (out.end) {
+          winner = out.winner;
+          winBy = out.winBy;
+          break;
+        }
         turn = out.next;
       }
 
-      outcome = (winBy && winBy.type === 'abort')
-        ? await this.abortHand(winBy.reason, {})
-        : await this.finishHand(winner, winBy);
+      outcome =
+        winBy && winBy.type === 'abort' ? await this.abortHand(winBy.reason, {}) : await this.finishHand(winner, winBy);
     }
 
     // Carry flow over to the next hand (Spec §6). Settlement hooks
@@ -576,9 +630,12 @@ try { state.powers.register(s, ROSTERS[power](s, this.persistentPowerState[s]));
     this.kyoku++;
 
     if (!outcome.aborted) {
-      const wSeats = flowWinBy && flowWinBy.type === 'tsumo' ? [flowWinner]
-        : flowWinBy && flowWinBy.hits ? flowWinBy.hits.map((h) => h.seat)
-        : [];
+      const wSeats =
+        flowWinBy && flowWinBy.type === 'tsumo'
+          ? [flowWinner]
+          : flowWinBy && flowWinBy.hits
+            ? flowWinBy.hits.map((h) => h.seat)
+            : [];
       this.checkMatchEnd({
         keepDealer,
         dealerWon: wSeats.includes(dealer),
@@ -622,14 +679,16 @@ try { state.powers.register(s, ROSTERS[power](s, this.persistentPowerState[s]));
     const ctx = this.ctx;
     this.riichiCarry = ctx.riichiPool;
     ctx.riichiPool = 0;
-    this.broadcast(P.evRoundDraw({
-      scores: [...this.scores],
-      reason,
-      tenpai: [],
-      riichiSticks: this.riichiCarry / 1000,
-      playerHands: this.playerHandsInfo(),
-      declarer,
-    }));
+    this.broadcast(
+      P.evRoundDraw({
+        scores: [...this.scores],
+        reason,
+        tenpai: [],
+        riichiSticks: this.riichiCarry / 1000,
+        playerHands: this.playerHandsInfo(),
+        declarer,
+      })
+    );
     console.log(`[bridge] ABORTIVE ${reason} - hand void, no payments`);
     return { aborted: true };
   }
@@ -712,9 +771,7 @@ try { state.powers.register(s, ROSTERS[power](s, this.persistentPowerState[s]));
     // shapes (tsumo seat / ron hits[].seat) into winnerSeats first.
     let win = null;
     if (winBy !== null && winBy !== undefined) {
-      const winnerSeats = winBy.type === 'tsumo'
-        ? [winner]
-        : (winBy.hits || []).map((h) => h.seat);
+      const winnerSeats = winBy.type === 'tsumo' ? [winner] : (winBy.hits || []).map((h) => h.seat);
       win = { type: winBy.type, winnerSeats };
     }
     const flow = MF.postHandFlow({
@@ -748,15 +805,23 @@ try { state.powers.register(s, ROSTERS[power](s, this.persistentPowerState[s]));
   }
 
   furitenNow(me) {
-    return H.isDiscardFuriten(me, H.getWaits(me, this.ctx.players, this.ctx.dead, {
-      dora: [], bakaze: this.ctx.bakaze, jikaze: P.jikazeOf(me.seat, this.ctx.dealer),
-    }));
+    return H.isDiscardFuriten(
+      me,
+      H.getWaits(me, this.ctx.players, this.ctx.dead, {
+        dora: [],
+        bakaze: this.ctx.bakaze,
+        jikaze: P.jikazeOf(me.seat, this.ctx.dealer),
+      })
+    );
   }
 
   tenpaiSeats() {
     const c = this.ctx;
-    return [0, 1, 2, 3].filter((s) =>
-      H.getWaits(c.players[s], c.players, c.dead, { dora: [], bakaze: c.bakaze, jikaze: P.jikazeOf(s, c.dealer) }).length > 0);
+    return [0, 1, 2, 3].filter(
+      (s) =>
+        H.getWaits(c.players[s], c.players, c.dead, { dora: [], bakaze: c.bakaze, jikaze: P.jikazeOf(s, c.dealer) })
+          .length > 0
+    );
   }
 
   // ============================================================== a turn
@@ -785,25 +850,38 @@ try { state.powers.register(s, ROSTERS[power](s, this.persistentPowerState[s]));
     const wantTsumo = this.isAWin(tsumoScore) && this.winMeetsFloor(tsumoScore);
 
     // ---- emit draw events ----
-    this.room.sendTo(seat, P.event(P.evTileDrawn({
-      tile: P.sakiToTile(drawn),
-      remaining: ctx.poolTotal(),
-      canTsumo: wantTsumo,
-      canRiichi: this.canRiichiNow(me),
-      isFuriten: this.furitenNow(me),
-    })));
+    this.room.sendTo(
+      seat,
+      P.event(
+        P.evTileDrawn({
+          tile: P.sakiToTile(drawn),
+          remaining: ctx.poolTotal(),
+          canTsumo: wantTsumo,
+          canRiichi: this.canRiichiNow(me),
+          isFuriten: this.furitenNow(me),
+        })
+      )
+    );
     for (let s = 0; s < 4; s++) {
       if (s !== seat) {
-        this.room.sendTo(s, P.event(P.evOtherPlayerDrew({
-          player: P.seatWind(seat, ctx.dealer),
-          remaining: ctx.poolTotal(),
-        })));
+        this.room.sendTo(
+          s,
+          P.event(
+            P.evOtherPlayerDrew({
+              player: P.seatWind(seat, ctx.dealer),
+              remaining: ctx.poolTotal(),
+            })
+          )
+        );
       }
     }
 
     // ---- kan availability (own hand) ----
     const cnt = {};
-    for (const x of me.hand) { const k = norm(x); cnt[k] = (cnt[k] || 0) + 1; }
+    for (const x of me.hand) {
+      const k = norm(x);
+      cnt[k] = (cnt[k] || 0) + 1;
+    }
     const ankanTile = Object.keys(cnt).find((k) => cnt[k] === 4);
     const ponUp = me.melds.find((m) => m.type === 'pon' && me.hand.some((h) => same(h, m.tiles[0])));
     let kanChoice = null;
@@ -832,7 +910,10 @@ try { state.powers.register(s, ROSTERS[power](s, this.persistentPowerState[s]));
           const classified = this.classifyHumanKan(seat, a.tile_index);
           if (classified) {
             const kanTimeout = ctx.kanCount < 4 && ctx.rinshanIdx < 4 ? null : 'kan limit reached';
-            if (kanTimeout) { this.sendError(seat, 'InvalidAction', kanTimeout); continue; }
+            if (kanTimeout) {
+              this.sendError(seat, 'InvalidAction', kanTimeout);
+              continue;
+            }
             // valid: wrapped in act below
             a.kan = classified;
           } else {
@@ -841,13 +922,20 @@ try { state.powers.register(s, ROSTERS[power](s, this.persistentPowerState[s]));
           }
         }
         const v = this.validateAct(seat, a, { wantTsumo, firstDraw, isLastDraw });
-        if (v.ok) { action = v.action; break; }
+        if (v.ok) {
+          action = v.action;
+          break;
+        }
         this.sendError(seat, 'InvalidAction', v.reason);
       }
     } else {
       action = this.botDecision(seat, me, {
-        kanChoice, wantTsumo, ankanTile, ponUp,
-        firstDraw: this.isFirstDraw(me), isLastDraw,
+        kanChoice,
+        wantTsumo,
+        ankanTile,
+        ponUp,
+        firstDraw: this.isFirstDraw(me),
+        isLastDraw,
       });
       if (action.type === 'Kan') action.kan = kanChoice;
       await botWait(turnStartTime);
@@ -857,10 +945,18 @@ try { state.powers.register(s, ROSTERS[power](s, this.persistentPowerState[s]));
     if (action.type === 'Tsumo') {
       const claim = this.scoreFor(seat, me.lastDrawn, tsumoFlagsThis);
       if (this.isAWin(claim) && this.winMeetsFloor(claim)) {
-        return { end: true, winner: seat, winBy: {
-          type: 'tsumo', seat, winTile: me.lastDrawn,
-          rinshan: false, haitei: isLastDraw, first: firstDraw,
-        } };
+        return {
+          end: true,
+          winner: seat,
+          winBy: {
+            type: 'tsumo',
+            seat,
+            winTile: me.lastDrawn,
+            rinshan: false,
+            haitei: isLastDraw,
+            first: firstDraw,
+          },
+        };
       }
       return { end: true, winner: seat, winBy: null }; // should not happen
     }
@@ -884,7 +980,9 @@ try { state.powers.register(s, ROSTERS[power](s, this.persistentPowerState[s]));
     // undefined would throw and kill the match. Never leave it unset.
     if (riichi) {
       me.riichiWaits = H.getWaits(me, players, ctx.dead, {
-        dora: [], bakaze: ctx.bakaze, jikaze: P.jikazeOf(seat, ctx.dealer),
+        dora: [],
+        bakaze: ctx.bakaze,
+        jikaze: P.jikazeOf(seat, ctx.dealer),
       });
     }
 
@@ -892,7 +990,11 @@ try { state.powers.register(s, ROSTERS[power](s, this.persistentPowerState[s]));
       for (let s = 0; s < 4; s++) {
         const h = ctx.state.powers.hooksFor(s);
         if (h && typeof h.onTurnEnd === 'function') {
-          try { h.onTurnEnd(ctx.state); } catch (e) { warnOnce('onTurnEnd', e); }
+          try {
+            h.onTurnEnd(ctx.state);
+          } catch (e) {
+            warnOnce('onTurnEnd', e);
+          }
         }
       }
     }
@@ -917,11 +1019,13 @@ try { state.powers.register(s, ROSTERS[power](s, this.persistentPowerState[s]));
       ctx.fourRiichiPending = true;
       console.log('[bridge] SUUCHA-RIICHI pending: all four riichi');
     }
-    this.broadcast(P.evPlayerRiichi({
-      player: P.seatWind(seat, ctx.dealer),
-      scores: [...this.scores],
-      riichiSticks: ctx.riichiPool / 1000,
-    }));
+    this.broadcast(
+      P.evPlayerRiichi({
+        player: P.seatWind(seat, ctx.dealer),
+        scores: [...this.scores],
+        riichiSticks: ctx.riichiPool / 1000,
+      })
+    );
     console.log(`[bridge] P${seat} ${riichiFirst ? 'DOUBLE ' : ''}RIICHI (sticks=${ctx.riichiPool / 1000})`);
   }
 
@@ -983,15 +1087,19 @@ try { state.powers.register(s, ROSTERS[power](s, this.persistentPowerState[s]));
         if (res && res.flowDelta && ctx.state.flow) {
           ctx.state.flow.addFlow(seat, res.flowDelta);
         }
-      } catch (e) { warnOnce('onDiscard', e); }
+      } catch (e) {
+        warnOnce('onDiscard', e);
+      }
     }
 
-    this.broadcast(P.evTileDiscarded({
-      player: P.seatWind(seat, ctx.dealer),
-      tile: P.sakiToTile(removed),
-      is_tsumogiri: isTsumogiri,
-      hand_index: handIndex,
-    }));
+    this.broadcast(
+      P.evTileDiscarded({
+        player: P.seatWind(seat, ctx.dealer),
+        tile: P.sakiToTile(removed),
+        is_tsumogiri: isTsumogiri,
+        hand_index: handIndex,
+      })
+    );
     this.broadcastPowerStatus();
     return { tile: removed, isTsumogiri };
   }
@@ -1024,7 +1132,10 @@ try { state.powers.register(s, ROSTERS[power](s, this.persistentPowerState[s]));
 
     // Auto-detect available ankan or kakan from hand and melds
     const cnt = {};
-    for (const x of me.hand) { const k = norm(x); cnt[k] = (cnt[k] || 0) + 1; }
+    for (const x of me.hand) {
+      const k = norm(x);
+      cnt[k] = (cnt[k] || 0) + 1;
+    }
     const ankanTile = Object.keys(cnt).find((k) => cnt[k] === 4);
     if (ankanTile) {
       if (me.riichi && !H.ankanKeepsWaits(me, ankanTile)) {
@@ -1041,7 +1152,7 @@ try { state.powers.register(s, ROSTERS[power](s, this.persistentPowerState[s]));
 
   validateAct(seat, a, opts) {
     const me = this.ctx.players[seat];
-    const { wantTsumo, firstDraw, isLastDraw } = opts;
+    const { firstDraw, isLastDraw } = opts;
     if (a.type === 'Tsumo') {
       const claim = this.scoreFor(seat, me.lastDrawn, { tsumo: true, kan: false, last: isLastDraw, tenhou: firstDraw });
       if (!this.isAWin(claim) || !this.winMeetsFloor(claim)) {
@@ -1067,7 +1178,8 @@ try { state.powers.register(s, ROSTERS[power](s, this.persistentPowerState[s]));
     if (a.type === 'Riichi') {
       if (me.riichi) return { ok: false, reason: 'already riichi' };
       if (!me.melds.every((m) => !m.open)) return { ok: false, reason: 'open hand - riichi not allowed' };
-      if (!H.canRiichi(this.scores[seat], this.ctx.poolTotal())) return { ok: false, reason: 'riichi needs 1000 pts and 4+ wall tiles' };
+      if (!H.canRiichi(this.scores[seat], this.ctx.poolTotal()))
+        return { ok: false, reason: 'riichi needs 1000 pts and 4+ wall tiles' };
       const rest = this.handAfterDiscard(me, a.tile);
       if (rest === null) return { ok: false, reason: 'riichi discard tile not in hand' };
       if (H.shantenOf(rest) !== 0) return { ok: false, reason: 'riichi requires a tenpai discard' };
@@ -1111,7 +1223,10 @@ try { state.powers.register(s, ROSTERS[power](s, this.persistentPowerState[s]));
     const di = H.botDiscard(me.hand, !!me.riichi, [], rand);
     const tile = me.hand[di];
     if (!me.riichi && me.melds.every((m) => !m.open)) {
-      if (H.shantenOf(me.hand.filter((_, j) => j !== di)) === 0 && H.canRiichi(this.scores[seat], this.ctx.poolTotal())) {
+      if (
+        H.shantenOf(me.hand.filter((_, j) => j !== di)) === 0 &&
+        H.canRiichi(this.scores[seat], this.ctx.poolTotal())
+      ) {
         const p = process.env.SAKI_RIICHI_FORCE === '1' ? 1 : 0.45;
         if (rand() < p) return { type: 'Riichi', tile, riichiFirst: this.isFirstDraw(me) };
       }
@@ -1141,19 +1256,25 @@ try { state.powers.register(s, ROSTERS[power](s, this.persistentPowerState[s]));
         return { end: true, winner: -1, winBy: { type: 'abort', reason: 'TripleRon' } };
       }
       if (hits.length) {
-        return { end: true, winner: hits[0].seat, winBy: { type: 'ron', from: seat, hits, tile, flags: { chankan: true } } };
+        return {
+          end: true,
+          winner: hits[0].seat,
+          winBy: { type: 'ron', from: seat, hits, tile, flags: { chankan: true } },
+        };
       }
       const pm = me.melds.find((m) => m.type === 'pon' && same(m.tiles[0], tile));
       const i = me.hand.findIndex((x) => same(x, tile));
       if (i < 0 || !pm) return { end: false, next: (seat + 1) % 4 };
       pm.tiles.push(me.hand.splice(i, 1)[0]);
       pm.type = 'kan';
-      this.broadcast(P.evPlayerCalled({
-        player: P.seatWind(seat, ctx.dealer),
-        callType: 'Kakan',
-        calledTile: P.sakiToTile(tile),
-        tiles: P.tilesToProtocol(pm.tiles),
-      }));
+      this.broadcast(
+        P.evPlayerCalled({
+          player: P.seatWind(seat, ctx.dealer),
+          callType: 'Kakan',
+          calledTile: P.sakiToTile(tile),
+          tiles: P.tilesToProtocol(pm.tiles),
+        })
+      );
     } else {
       const tiles = [];
       for (let c = 0; c < 4; c++) {
@@ -1162,12 +1283,14 @@ try { state.powers.register(s, ROSTERS[power](s, this.persistentPowerState[s]));
         tiles.push(me.hand.splice(i, 1)[0]);
       }
       me.melds.push({ tiles, open: false, type: 'ankan' });
-      this.broadcast(P.evPlayerCalled({
-        player: P.seatWind(seat, ctx.dealer),
-        callType: 'Ankan',
-        calledTile: P.sakiToTile(tile),
-        tiles: P.tilesToProtocol(tiles),
-      }));
+      this.broadcast(
+        P.evPlayerCalled({
+          player: P.seatWind(seat, ctx.dealer),
+          callType: 'Ankan',
+          calledTile: P.sakiToTile(tile),
+          tiles: P.tilesToProtocol(tiles),
+        })
+      );
     }
     ctx.revealKanDora();
     ctx.callsMade++;
@@ -1196,26 +1319,40 @@ try { state.powers.register(s, ROSTERS[power](s, this.persistentPowerState[s]));
     const wantTsumo = this.isAWin(trs) && this.winMeetsFloor(trs);
 
     // Emit Rinshan draw events
-    this.room.sendTo(seat, P.event(P.evTileDrawn({
-      tile: P.sakiToTile(rt),
-      remaining: ctx.poolTotal(),
-      canTsumo: wantTsumo,
-      canRiichi: false,
-      isFuriten: this.furitenNow(me),
-    })));
+    this.room.sendTo(
+      seat,
+      P.event(
+        P.evTileDrawn({
+          tile: P.sakiToTile(rt),
+          remaining: ctx.poolTotal(),
+          canTsumo: wantTsumo,
+          canRiichi: false,
+          isFuriten: this.furitenNow(me),
+        })
+      )
+    );
     for (let s = 0; s < 4; s++) {
       if (s !== seat) {
-        this.room.sendTo(s, P.event(P.evOtherPlayerDrew({
-          player: P.seatWind(seat, ctx.dealer),
-          remaining: ctx.poolTotal(),
-        })));
+        this.room.sendTo(
+          s,
+          P.event(
+            P.evOtherPlayerDrew({
+              player: P.seatWind(seat, ctx.dealer),
+              remaining: ctx.poolTotal(),
+            })
+          )
+        );
       }
     }
 
     if (wantTsumo && me.isCpu) {
       const result = { type: 'tsumo', winner: seat, tag: 'RINSHAN' };
       this.settlePowerHook(result);
-      return { end: true, winner: seat, winBy: { type: 'tsumo', seat, winTile: rt, rinshan: true, haitei: false, first: false } };
+      return {
+        end: true,
+        winner: seat,
+        winBy: { type: 'tsumo', seat, winTile: rt, rinshan: true, haitei: false, first: false },
+      };
     }
 
     const disc = await this.discardAfterCall(seat, me, []);
@@ -1245,16 +1382,19 @@ try { state.powers.register(s, ROSTERS[power](s, this.persistentPowerState[s]));
         activation = hooks.onTurnStart(state, { type: 'normal', armedTier: 0 });
       }
       if (activation && activation.activated) {
-        const eventType = (activation.event && activation.event.type)
-          || (activation.result && activation.result.event && activation.result.event.type)
-          || 'NORMAL_TRIGGER';
+        const eventType =
+          (activation.event && activation.event.type) ||
+          (activation.result && activation.result.event && activation.result.event.type) ||
+          'NORMAL_TRIGGER';
         console.log(`[bridge] normal power ${power} triggered ${eventType} for seat ${seat}`);
-        this.broadcast(P.evPowerActivated({
-          player: P.seatWind(seat, ctx.dealer),
-          power,
-          tier: 0,
-          eventType,
-        }));
+        this.broadcast(
+          P.evPowerActivated({
+            player: P.seatWind(seat, ctx.dealer),
+            power,
+            tier: 0,
+            eventType,
+          })
+        );
         this.broadcastPowerStatus();
       }
       return;
@@ -1263,7 +1403,7 @@ try { state.powers.register(s, ROSTERS[power](s, this.persistentPowerState[s]));
     if (power === 'saki') return; // flow Saki is kan-only
 
     // Human player uses explicitly armed tier (0 = conserve/off); CPU defaults to 'auto'
-    const armedTier = this.isCpuSeat(seat) ? 'auto' : (this.armedTiers[seat] || 0);
+    const armedTier = this.isCpuSeat(seat) ? 'auto' : this.armedTiers[seat] || 0;
     if (armedTier === 0) return;
 
     let activation = null;
@@ -1276,22 +1416,30 @@ try { state.powers.register(s, ROSTERS[power](s, this.persistentPowerState[s]));
         if (typeof hooks[fnName] === 'function') {
           try {
             const r = hooks[fnName].call(hooks, state);
-            if (r && r.ok) { activation = { activated: true, tier: t, result: r }; break; }
-          } catch (e) { warnOnce(`tryActivateTier${t}`, e); }
+            if (r && r.ok) {
+              activation = { activated: true, tier: t, result: r };
+              break;
+            }
+          } catch (e) {
+            warnOnce(`tryActivateTier${t}`, e);
+          }
         }
       }
     }
 
     if (activation && activation.activated) {
       const tier = activation.tier;
-      const eventType = (activation.result && activation.result.event && activation.result.event.type) || `TIER_${tier}`;
+      const eventType =
+        (activation.result && activation.result.event && activation.result.event.type) || `TIER_${tier}`;
       console.log(`[bridge] ${power} activated ${eventType} (Tier ${tier}) for seat ${seat}`);
-      this.broadcast(P.evPowerActivated({
-        player: P.seatWind(seat, ctx.dealer),
-        power,
-        tier,
-        eventType,
-      }));
+      this.broadcast(
+        P.evPowerActivated({
+          player: P.seatWind(seat, ctx.dealer),
+          power,
+          tier,
+          eventType,
+        })
+      );
       if (!this.isCpuSeat(seat)) {
         this.armedTiers[seat] = 0; // Reset after one-shot activation
       }
@@ -1315,23 +1463,26 @@ try { state.powers.register(s, ROSTERS[power](s, this.persistentPowerState[s]));
         activation = hooks.onKanDeclared(state, { kanCount, rinshanIdx: ctx.rinshanIdx, armedTier: 0 });
       }
       if (activation && activation.activated) {
-        const eventType = (activation.event && activation.event.type)
-          || (activation.result && activation.result.event && activation.result.event.type)
-          || 'NORMAL_KAN';
+        const eventType =
+          (activation.event && activation.event.type) ||
+          (activation.result && activation.result.event && activation.result.event.type) ||
+          'NORMAL_KAN';
         console.log(`[bridge] normal power ${power} triggered ${eventType} (kan ${kanCount})`);
-        this.broadcast(P.evPowerActivated({
-          player: P.seatWind(seat, ctx.dealer),
-          power,
-          tier: 0,
-          eventType,
-        }));
+        this.broadcast(
+          P.evPowerActivated({
+            player: P.seatWind(seat, ctx.dealer),
+            power,
+            tier: 0,
+            eventType,
+          })
+        );
         this.broadcastPowerStatus();
       }
       return;
     }
 
     // Human player uses explicitly armed tier (or 'auto' if CPU)
-    const armedTier = this.isCpuSeat(seat) ? 'auto' : (this.armedTiers[seat] || 0);
+    const armedTier = this.isCpuSeat(seat) ? 'auto' : this.armedTiers[seat] || 0;
     if (armedTier === 0) return; // Conserve meter on Kan!
 
     let activation = null;
@@ -1348,7 +1499,9 @@ try { state.powers.register(s, ROSTERS[power](s, this.persistentPowerState[s]));
               activation = { activated: true, tier: t, result: r };
               break;
             }
-          } catch (e) { warnOnce(`${power}:onKanDeclared`, e); }
+          } catch (e) {
+            warnOnce(`${power}:onKanDeclared`, e);
+          }
         }
       }
     }
@@ -1364,12 +1517,14 @@ try { state.powers.register(s, ROSTERS[power](s, this.persistentPowerState[s]));
       }
       console.log(`[bridge] ${power} tier ${tier} activated (kan ${kanCount})`);
       const eventType = (r && r.event && r.event.type) || `TIER_${tier}`;
-      this.broadcast(P.evPowerActivated({
-        player: P.seatWind(seat, this.ctx.dealer),
-        power,
-        tier,
-        eventType,
-      }));
+      this.broadcast(
+        P.evPowerActivated({
+          player: P.seatWind(seat, this.ctx.dealer),
+          power,
+          tier,
+          eventType,
+        })
+      );
       if (!this.isCpuSeat(seat)) {
         this.armedTiers[seat] = 0;
       }
@@ -1384,7 +1539,9 @@ try { state.powers.register(s, ROSTERS[power](s, this.persistentPowerState[s]));
       if (typeof this.ctx.state.powers.onSettlement === 'function') {
         this.ctx.state.powers.onSettlement(result, this.ctx.state);
       }
-    } catch (e) { warnOnce('onSettlement', e); }
+    } catch (e) {
+      warnOnce('onSettlement', e);
+    }
   }
 
   // Discard right after a call/kan. Returns {tile,...} or null.
@@ -1397,17 +1554,30 @@ try { state.powers.register(s, ROSTERS[power](s, this.persistentPowerState[s]));
         const a = await this.request(seat, new Set(['Discard', 'Riichi', 'Tsumo', 'Pass']));
         if (a.type === 'Tsumo') {
           const r = this.scoreFor(seat, me.lastDrawn, { tsumo: true, kan: true, last: false, tenhou: false });
-          if (!this.isAWin(r) || !this.winMeetsFloor(r)) { this.sendError(seat, 'InvalidAction', 'tsumo not available'); continue; }
+          if (!this.isAWin(r) || !this.winMeetsFloor(r)) {
+            this.sendError(seat, 'InvalidAction', 'tsumo not available');
+            continue;
+          }
           const result = { type: 'tsumo', winner: seat, tag: 'RINSHAN' };
           this.settlePowerHook(result);
-          return { end: true, winner: seat, winBy: { type: 'tsumo', seat, winTile: me.lastDrawn, rinshan: true, haitei: false, first: false } };
+          return {
+            end: true,
+            winner: seat,
+            winBy: { type: 'tsumo', seat, winTile: me.lastDrawn, rinshan: true, haitei: false, first: false },
+          };
         }
-        if (a.type !== 'Discard') { this.sendError(seat, 'InvalidAction', 'must discard after a call'); continue; }
+        if (a.type !== 'Discard') {
+          this.sendError(seat, 'InvalidAction', 'must discard after a call');
+          continue;
+        }
         if (banned.some((b1) => a.tile && norm(b1) === norm(a.tile))) {
           this.sendError(seat, 'InvalidAction', `kuikae: ${a.tile} is illegal after this call`);
           continue;
         }
-        if (a.tile === null) { this.sendError(seat, 'InvalidAction', 'no drawn tile to discard'); continue; }
+        if (a.tile === null) {
+          this.sendError(seat, 'InvalidAction', 'no drawn tile to discard');
+          continue;
+        }
         if (!me.hand.some((x) => x === a.tile || norm(x) === norm(a.tile))) {
           this.sendError(seat, 'InvalidAction', 'tile not in hand');
           continue;
@@ -1510,7 +1680,12 @@ try { state.powers.register(s, ROSTERS[power](s, this.persistentPowerState[s]));
           if (qp.isCpu) {
             if (c.ronAtt) res = { seat: q, type: 'Ron' };
             else if (c.canDaimin && this.decide.next() < 0.25) res = { seat: q, type: 'Kan' };
-            else if (c.ponOpts && H.botWantsCall(H.shantenOf(qp.hand) - H.shantenOf(this.removeCopies(qp.hand, tile, 2)), false, () => this.decide.next())) {
+            else if (
+              c.ponOpts &&
+              H.botWantsCall(H.shantenOf(qp.hand) - H.shantenOf(this.removeCopies(qp.hand, tile, 2)), false, () =>
+                this.decide.next()
+              )
+            ) {
               res = { seat: q, type: 'Pon' };
             } else if (c.chiOpts && this.decide.next() < 0.35) {
               const chosen = c.chiOpts[Math.floor(this.decide.next() * c.chiOpts.length)];
@@ -1519,11 +1694,16 @@ try { state.powers.register(s, ROSTERS[power](s, this.persistentPowerState[s]));
               res = { seat: q, type: 'Pass' };
             }
           } else {
-            this.room.sendTo(q, P.event(P.evCallAvailable({
-              tile: P.sakiToTile(tile),
-              discarder: P.seatWind(from, ctx.dealer),
-              calls: c.calls,
-            })));
+            this.room.sendTo(
+              q,
+              P.event(
+                P.evCallAvailable({
+                  tile: P.sakiToTile(tile),
+                  discarder: P.seatWind(from, ctx.dealer),
+                  calls: c.calls,
+                })
+              )
+            );
             const allowed = new Set(['Pass']);
             if (c.ronAtt) allowed.add('Ron');
             if (c.ponOpts) allowed.add('Pon');
@@ -1558,7 +1738,10 @@ try { state.powers.register(s, ROSTERS[power](s, this.persistentPowerState[s]));
           console.error('[bridge] resolveCallWindow candidate error:', err);
           if (!resolved) {
             pendingCount--;
-            if (pendingCount === 0) { resolved = true; resolveAll(results); }
+            if (pendingCount === 0) {
+              resolved = true;
+              resolveAll(results);
+            }
           }
         });
       }
@@ -1609,9 +1792,7 @@ try { state.powers.register(s, ROSTERS[power](s, this.persistentPowerState[s]));
     }
 
     // Priority 2: Pon / Daiminkan claims — nearest claimant in turn order wins.
-    const ponClaim = ordered.find(
-      (r) => r.type === 'Pon' || (r.type === 'Kan' && candidateMap.get(r.seat)?.canDaimin)
-    );
+    const ponClaim = ordered.find((r) => r.type === 'Pon' || (r.type === 'Kan' && candidateMap.get(r.seat)?.canDaimin));
     if (ponClaim) {
       const callKind = ponClaim.type === 'Kan' ? 'daiminkan' : 'pon';
       return await this.doOpenCall(ponClaim.seat, from, tile, callKind);
@@ -1666,13 +1847,15 @@ try { state.powers.register(s, ROSTERS[power](s, this.persistentPowerState[s]));
     ctx.players[from].discards.pop();
     tiles.push(tile);
     qp.melds.push({ tiles, open: true, type: kind === 'daiminkan' ? 'kan' : 'pon' });
-    this.broadcast(P.evPlayerCalled({
-      player: P.seatWind(q, ctx.dealer),
-      fromPlayer: P.seatWind(from, ctx.dealer),
-      callType: kind === 'daiminkan' ? 'Daiminkan' : 'Pon',
-      calledTile: P.sakiToTile(tile),
-      tiles: P.tilesToProtocol(tiles),
-    }));
+    this.broadcast(
+      P.evPlayerCalled({
+        player: P.seatWind(q, ctx.dealer),
+        fromPlayer: P.seatWind(from, ctx.dealer),
+        callType: kind === 'daiminkan' ? 'Daiminkan' : 'Pon',
+        calledTile: P.sakiToTile(tile),
+        tiles: P.tilesToProtocol(tiles),
+      })
+    );
     console.log(`[bridge] P${q} ${kind.toUpperCase()} ${tile}`);
     ctx.callsMade++;
     H.clearAllIppatsu(ctx.players);
@@ -1701,25 +1884,39 @@ try { state.powers.register(s, ROSTERS[power](s, this.persistentPowerState[s]));
         const trs = this.scoreFor(q, rt, { tsumo: true, kan: true, last: false, tenhou: false });
         const wantTsumo = this.isAWin(trs) && this.winMeetsFloor(trs);
 
-        this.room.sendTo(q, P.event(P.evTileDrawn({
-          tile: P.sakiToTile(rt),
-          remaining: ctx.poolTotal(),
-          canTsumo: wantTsumo,
-          canRiichi: false,
-          isFuriten: this.furitenNow(qp),
-        })));
+        this.room.sendTo(
+          q,
+          P.event(
+            P.evTileDrawn({
+              tile: P.sakiToTile(rt),
+              remaining: ctx.poolTotal(),
+              canTsumo: wantTsumo,
+              canRiichi: false,
+              isFuriten: this.furitenNow(qp),
+            })
+          )
+        );
         for (let s = 0; s < 4; s++) {
           if (s !== q) {
-            this.room.sendTo(s, P.event(P.evOtherPlayerDrew({
-              player: P.seatWind(q, ctx.dealer),
-              remaining: ctx.poolTotal(),
-            })));
+            this.room.sendTo(
+              s,
+              P.event(
+                P.evOtherPlayerDrew({
+                  player: P.seatWind(q, ctx.dealer),
+                  remaining: ctx.poolTotal(),
+                })
+              )
+            );
           }
         }
 
         if (wantTsumo && qp.isCpu) {
           this.settlePowerHook({ type: 'tsumo', winner: q, tag: 'RINSHAN' });
-          return { end: true, winner: q, winBy: { type: 'tsumo', seat: q, winTile: rt, rinshan: true, haitei: false, first: false } };
+          return {
+            end: true,
+            winner: q,
+            winBy: { type: 'tsumo', seat: q, winTile: rt, rinshan: true, haitei: false, first: false },
+          };
         }
       }
     }
@@ -1749,7 +1946,10 @@ try { state.powers.register(s, ROSTERS[power](s, this.persistentPowerState[s]));
       const s = norm(tile)[1];
       return [`${a}${s}`, `${b}${s}`].map(norm).sort().join(',');
     });
-    const normChosen = chosen.map((c) => norm(typeof c === 'string' ? c : String(c))).sort().join(',');
+    const normChosen = chosen
+      .map((c) => norm(typeof c === 'string' ? c : String(c)))
+      .sort()
+      .join(',');
     if (!legalOpts.includes(normChosen)) {
       this.sendError(q, 'InvalidAction', 'chosen chi tiles do not match any legal option');
       return null;
@@ -1759,9 +1959,10 @@ try { state.powers.register(s, ROSTERS[power](s, this.persistentPowerState[s]));
     // Re-resolve indices without mutating until all are found.
     const indices = [];
     for (const n of chosen) {
-      const target = typeof n === 'string' && (n.endsWith('m') || n.endsWith('p') || n.endsWith('s') || n.endsWith('z'))
-        ? norm(n)
-        : n + suit;
+      const target =
+        typeof n === 'string' && (n.endsWith('m') || n.endsWith('p') || n.endsWith('s') || n.endsWith('z'))
+          ? norm(n)
+          : n + suit;
       const i = qp.hand.findIndex((x, idx) => !indices.includes(idx) && norm(x) === target);
       if (i < 0) {
         this.sendError(q, 'InvalidAction', 'chosen chi tile not in hand');
@@ -1774,13 +1975,15 @@ try { state.powers.register(s, ROSTERS[power](s, this.persistentPowerState[s]));
     if (tiles.length !== 3) return null; // shouldn't happen (validated)
     ctx.players[from].discards.pop();
     qp.melds.push({ tiles, open: true, type: 'chi' });
-    this.broadcast(P.evPlayerCalled({
-      player: P.seatWind(q, ctx.dealer),
-      fromPlayer: P.seatWind(from, ctx.dealer),
-      callType: 'Chi',
-      calledTile: P.sakiToTile(tile),
-      tiles: P.tilesToProtocol(tiles),
-    }));
+    this.broadcast(
+      P.evPlayerCalled({
+        player: P.seatWind(q, ctx.dealer),
+        fromPlayer: P.seatWind(from, ctx.dealer),
+        callType: 'Chi',
+        calledTile: P.sakiToTile(tile),
+        tiles: P.tilesToProtocol(tiles),
+      })
+    );
     console.log(`[bridge] P${q} CHI ${tile} [${chosen.join('+')}]`);
     ctx.callsMade++;
     H.clearAllIppatsu(ctx.players);
@@ -1807,10 +2010,13 @@ try { state.powers.register(s, ROSTERS[power](s, this.persistentPowerState[s]));
     return {
       wind: P.seatWind(seat, c.dealer),
       hand: P.tilesToProtocol(sortHand([...p.hand])),
-      melds: p.melds.slice().sort(sorter).map((m) => ({
-        call_type: { pon: 'Pon', chi: 'Chi', kan: 'Daiminkan', ankan: 'Ankan', kakan: 'Kakan' }[m.type] || 'Pon',
-        tiles: P.tilesToProtocol(m.tiles),
-      })),
+      melds: p.melds
+        .slice()
+        .sort(sorter)
+        .map((m) => ({
+          call_type: { pon: 'Pon', chi: 'Chi', kan: 'Daiminkan', ankan: 'Ankan', kakan: 'Kakan' }[m.type] || 'Pon',
+          tiles: P.tilesToProtocol(m.tiles),
+        })),
       pei: [],
     };
   }
@@ -1829,24 +2035,42 @@ try { state.powers.register(s, ROSTERS[power](s, this.persistentPowerState[s]));
     if (winBy !== null) {
       const isTsumo = winBy.type === 'tsumo';
       const wins = isTsumo
-        ? [{ seat: winner, flags: { tsumo: true, winTile: winBy.winTile, kan: winBy.rinshan, last: winBy.haitei, tenhou: winBy.first } }]
+        ? [
+            {
+              seat: winner,
+              flags: {
+                tsumo: true,
+                winTile: winBy.winTile,
+                kan: winBy.rinshan,
+                last: winBy.haitei,
+                tenhou: winBy.first,
+              },
+            },
+          ]
         : winBy.hits.map((h) => ({
-          seat: h.seat,
-          flags: { tsumo: false, winTile: winBy.tile, kan: !!winBy.flags.chankan, last: !!winBy.flags.houtei, tenhou: false },
-        }));
+            seat: h.seat,
+            flags: {
+              tsumo: false,
+              winTile: winBy.tile,
+              kan: !!winBy.flags.chankan,
+              last: !!winBy.flags.houtei,
+              tenhou: false,
+            },
+          }));
 
       // Triple ron (三家和 / sanchahou) is an ABORTIVE draw, not a three-way win:
       // the hand is void, nobody is paid, the dealer repeats and a honba is added.
       // Two claimants is a legal double ron and is paid normally, which is why
       // this is `>= 3` and not `> 1`. See docs/known-issues.md KI-20.
       if (!isTsumo && wins.length >= 3) {
-        console.log(`[bridge] ABORTIVE triple ron on ${winBy.tile} from P${winBy.from} ` +
-          `(seats ${wins.map((w) => 'P' + w.seat).join('/')}) - hand void, no payments`);
+        console.log(
+          `[bridge] ABORTIVE triple ron on ${winBy.tile} from P${winBy.from} ` +
+            `(seats ${wins.map((w) => 'P' + w.seat).join('/')}) - hand void, no payments`
+        );
         return this.abortHand('TripleRon', {});
       }
 
       // Apply all payments first so every RoundWon shares the same final scores.
-      const awards = [];
       for (const w of wins) {
         const r = this.rescore(w.seat, w.flags);
         w.r = r;
@@ -1884,28 +2108,31 @@ try { state.powers.register(s, ROSTERS[power](s, this.persistentPowerState[s]));
       // Emit one RoundWon per winner.
       for (const w of wins) {
         const scorePoints = w.pay + (w === wins[0] ? sticksGain : 0);
-        this.broadcast(P.evRoundWon({
-          winner: P.seatWind(w.seat, dealer),
-          loser: isTsumo ? null : P.seatWind(winBy.from, dealer),
-          winning_tile: P.sakiToTile(w.flags.winTile),
-          scores: [...this.scores],
-          yakuList: Y.buildYakuList(w.r),
-          han: w.r.han,
-          fu: w.r.fu,
-          scorePoints,
-          rank: Y.rankFromResult(w.r),
-          hasOpened: players[w.seat].melds.some((m) => m.open),
-          uradoraIndicators: players[w.seat].riichi || players[w.seat].doubleRiichi
-            ? P.tilesToProtocol(ctx.uraInd)
-            : [],
-          riichiSticks: sticksGain / 1000,
-          honba: this.honba,
-          // Total honba embedded in this winner's pay (tsumo sums 3 payers,
-          // ron is a single payment). Matches the client's honba*300 fallback.
-          honbaPoints: 300 * this.honba,
-          playerHands: this.playerHandsInfo(),
-        }));
-        console.log(`[bridge] WIN P${w.seat} ${isTsumo ? 'tsumo' : 'ron'} ${w.r.text || ''} han=${w.r.han} fu=${w.r.fu} +${scorePoints}`);
+        this.broadcast(
+          P.evRoundWon({
+            winner: P.seatWind(w.seat, dealer),
+            loser: isTsumo ? null : P.seatWind(winBy.from, dealer),
+            winning_tile: P.sakiToTile(w.flags.winTile),
+            scores: [...this.scores],
+            yakuList: Y.buildYakuList(w.r),
+            han: w.r.han,
+            fu: w.r.fu,
+            scorePoints,
+            rank: Y.rankFromResult(w.r),
+            hasOpened: players[w.seat].melds.some((m) => m.open),
+            uradoraIndicators:
+              players[w.seat].riichi || players[w.seat].doubleRiichi ? P.tilesToProtocol(ctx.uraInd) : [],
+            riichiSticks: sticksGain / 1000,
+            honba: this.honba,
+            // Total honba embedded in this winner's pay (tsumo sums 3 payers,
+            // ron is a single payment). Matches the client's honba*300 fallback.
+            honbaPoints: 300 * this.honba,
+            playerHands: this.playerHandsInfo(),
+          })
+        );
+        console.log(
+          `[bridge] WIN P${w.seat} ${isTsumo ? 'tsumo' : 'ron'} ${w.r.text || ''} han=${w.r.han} fu=${w.r.fu} +${scorePoints}`
+        );
         this.settlePowerHook({ type: isTsumo ? 'tsumo' : 'ron', winner: w.seat, tag: winBy.rinshan ? 'RINSHAN' : '' });
       }
     } else {
@@ -1941,23 +2168,25 @@ try { state.powers.register(s, ROSTERS[power](s, this.persistentPowerState[s]));
         ctx.riichiPool = 0;
         for (const w of order) {
           const scorePoints = pays.get(w) + (w === order[0] ? sticksGain : 0);
-          this.broadcast(P.evRoundWon({
-            winner: P.seatWind(w, dealer),
-            loser: null,
-            winning_tile: null,
-            scores: [...this.scores],
-            yakuList: [[{ Yaku: 'NagashiMangan' }, 5]],
-            han: 5,
-            fu: 30,
-            scorePoints,
-            rank: 'Mangan',
-            hasOpened: false,
-            uradoraIndicators: [],
-            riichiSticks: sticksGain / 1000,
-            honba: this.honba,
-            honbaPoints: 300 * this.honba,
-            playerHands: this.playerHandsInfo(),
-          }));
+          this.broadcast(
+            P.evRoundWon({
+              winner: P.seatWind(w, dealer),
+              loser: null,
+              winning_tile: null,
+              scores: [...this.scores],
+              yakuList: [[{ Yaku: 'NagashiMangan' }, 5]],
+              han: 5,
+              fu: 30,
+              scorePoints,
+              rank: 'Mangan',
+              hasOpened: false,
+              uradoraIndicators: [],
+              riichiSticks: sticksGain / 1000,
+              honba: this.honba,
+              honbaPoints: 300 * this.honba,
+              playerHands: this.playerHandsInfo(),
+            })
+          );
           console.log(`[bridge] NAGASHI MANGAN P${w} +${scorePoints}`);
           this.settlePowerHook({ type: 'tsumo', winner: w, tag: 'NAGASHI' });
         }
@@ -1986,15 +2215,19 @@ try { state.powers.register(s, ROSTERS[power](s, this.persistentPowerState[s]));
       ctx.riichiPool = 0;
       this.riichiCarry = sticks;
 
-      this.broadcast(P.evRoundDraw({
-        scores: [...this.scores],
-        reason: 'Exhaustive',
-        tenpai: tenpai.map((s) => P.seatWind(s, dealer)),
-        riichiSticks: sticks / 1000,
-        playerHands: this.playerHandsInfo(),
-        declarer: null,
-      }));
-      console.log(`[bridge] EXHAUSTIVE tenpai=${tenpai.map((s) => 'P' + s).join(',')} sticks=${sticks / 1000} carried=${this.riichiCarry / 1000}`);
+      this.broadcast(
+        P.evRoundDraw({
+          scores: [...this.scores],
+          reason: 'Exhaustive',
+          tenpai: tenpai.map((s) => P.seatWind(s, dealer)),
+          riichiSticks: sticks / 1000,
+          playerHands: this.playerHandsInfo(),
+          declarer: null,
+        })
+      );
+      console.log(
+        `[bridge] EXHAUSTIVE tenpai=${tenpai.map((s) => 'P' + s).join(',')} sticks=${sticks / 1000} carried=${this.riichiCarry / 1000}`
+      );
     }
     // Every path returns a descriptor, so playOneHand can branch on `aborted`
     // without having to distinguish "returned nothing" from "returned a falsy value".

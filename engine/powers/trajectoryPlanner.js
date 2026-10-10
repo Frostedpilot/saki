@@ -2,13 +2,21 @@
 // Models hands as paths toward target archetypes; computes bridge tiles
 // (tiles that decrease shanten) and expected value from pool availability.
 const syanten = require('syanten');
-const { toCounts, norm, KINDS } = require('../tiles');
+const { toCounts, norm } = require('../tiles');
 
 function shantenOf(hand) {
-  try { return syanten(toCounts(hand)); } catch { return 99; }
+  try {
+    return syanten(toCounts(hand));
+  } catch {
+    return 99;
+  }
 }
 function hairiOf(hand) {
-  try { return syanten.hairi(toCounts(hand)); } catch { return {}; }
+  try {
+    return syanten.hairi(toCounts(hand));
+  } catch {
+    return {};
+  }
 }
 
 // Uke-ire: number of remaining copies that improve shanten (hairi tiles).
@@ -37,14 +45,14 @@ function getOptimalBridges(hand, pool, topN = 2) {
   if (!h || !h.wait) return [];
   const waits = Object.keys(h.wait).map(norm);
   // filter to tiles still live in pool (conservation-aware)
-  const live = waits.filter(w => {
+  const live = waits.filter((w) => {
     if (!pool) return true;
     return (pool.get(w) || 0) > 0 || (pool.get(w.replace(/^5/, '0')) || 0) > 0;
   });
   // rank by remaining count (EV proxy)
   live.sort((a, b) => {
-    const ca = pool ? (pool.get(a) || 0) : 4;
-    const cb = pool ? (pool.get(b) || 0) : 4;
+    const ca = pool ? pool.get(a) || 0 : 4;
+    const cb = pool ? pool.get(b) || 0 : 4;
     return cb - ca;
   });
   return live.slice(0, topN);
@@ -65,4 +73,12 @@ function inferIntent(handBefore, handAfter) {
   return { dBefore: shantenOf(handBefore), dAfter: shantenOf(handAfter) };
 }
 
-module.exports = { shantenOf, hairiOf, ukeire, calculateUkeireGain, getOptimalBridges, getActiveTrajectory, inferIntent };
+module.exports = {
+  shantenOf,
+  hairiOf,
+  ukeire,
+  calculateUkeireGain,
+  getOptimalBridges,
+  getActiveTrajectory,
+  inferIntent,
+};

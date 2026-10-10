@@ -37,7 +37,8 @@ function assertHandSize(hand, label = '') {
 function assertScoresConserved(scores, riichiPool, startScore = 25000) {
   const total = scores.reduce((a, b) => a + b, 0) + riichiPool;
   const expected = startScore * scores.length;
-  if (total !== expected) throw new Error(`scores not conserved: ${scores.join('/')} + pool ${riichiPool} = ${total} != ${expected}`);
+  if (total !== expected)
+    throw new Error(`scores not conserved: ${scores.join('/')} + pool ${riichiPool} = ${total} != ${expected}`);
 }
 
 module.exports = { checkConservation, assertConservation, assertDeadWall, assertHandSize, assertScoresConserved };

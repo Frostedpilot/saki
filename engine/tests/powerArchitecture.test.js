@@ -38,7 +38,14 @@ function createMockState(hand = [], flowAmt = 150) {
 
 test('polymorphic getTierInfo contract across all characters', () => {
   const state = createMockState([], 150);
-  const rosters = [createKoromoHooks, createNodokaHooks, createYuukiHooks, createHisaHooks, createMakoHooks, createSakiHooks];
+  const rosters = [
+    createKoromoHooks,
+    createNodokaHooks,
+    createYuukiHooks,
+    createHisaHooks,
+    createMakoHooks,
+    createSakiHooks,
+  ];
 
   for (const createHook of rosters) {
     const hook = createHook(0);
@@ -127,8 +134,8 @@ test('persistent multi-hand state carries across hand executions', () => {
 test('awakening curve formula: low threshold 15, full potential 80, flat 80-100', () => {
   assert.equal(getAwakeningFactor(0), 0.0);
   assert.equal(getAwakeningFactor(15), 0.0);
-  assert.ok(Math.abs(getAwakeningFactor(25) - (10 / 65)) < 1e-9);
-  assert.ok(Math.abs(getAwakeningFactor(50) - (35 / 65)) < 1e-9);
+  assert.ok(Math.abs(getAwakeningFactor(25) - 10 / 65) < 1e-9);
+  assert.ok(Math.abs(getAwakeningFactor(50) - 35 / 65) < 1e-9);
   assert.equal(getAwakeningFactor(80), 1.0);
   assert.equal(getAwakeningFactor(90), 1.0);
   assert.equal(getAwakeningFactor(100), 1.0);
@@ -145,7 +152,7 @@ test('riichi table pressure: 10% suppression on passive bonus when opponent riic
 
   state.players[1].riichi = true;
   assert.equal(isOpponentRiichi(state, 0), true);
-  assert.equal(getRiichiDamping(state, 0), 0.90);
+  assert.equal(getRiichiDamping(state, 0), 0.9);
 
   // Own riichi does not suppress self
   state.players[1].riichi = false;
@@ -189,7 +196,7 @@ test('Yuuki awakening curve & riichi table pressure', () => {
 
   // At flow 80: full 1.30x speed affinity
   state.flow.set(0, 80);
-  assert.equal(hooks.onPowerDraw('2m', state), 1.30);
+  assert.equal(hooks.onPowerDraw('2m', state), 1.3);
 
   // Opponent Riichi dampens 30% bonus by 10% -> 1.0 + 0.30 * 0.90 = 1.27
   state.players[2].riichi = true;
@@ -217,7 +224,7 @@ test('Hisa awakening curve & riichi table pressure', () => {
 
   // Opponent Riichi dampens hell wait bonus: 1.0 + (3.0 - 1.0) * 0.90 = 2.80
   state.players[1].riichi = true;
-  assert.ok(Math.abs(hooks.onPowerDraw('7z', state) - 2.80) < 1e-9);
+  assert.ok(Math.abs(hooks.onPowerDraw('7z', state) - 2.8) < 1e-9);
 
   // Active tier (T3 Chaos Slap, cost 100) is unaffected by opponent Riichi
   state.flow.set(0, 100);
@@ -227,7 +234,14 @@ test('Hisa awakening curve & riichi table pressure', () => {
 });
 
 test('flow rosters declare type flow; normal rosters opt out of tiers', () => {
-  const flowRosters = [createKoromoHooks, createNodokaHooks, createYuukiHooks, createHisaHooks, createMakoHooks, createSakiHooks];
+  const flowRosters = [
+    createKoromoHooks,
+    createNodokaHooks,
+    createYuukiHooks,
+    createHisaHooks,
+    createMakoHooks,
+    createSakiHooks,
+  ];
   for (const createHook of flowRosters) {
     const hook = createHook(0);
     assert.equal(hook.meta.type, 'flow', `${hook.meta.name} must declare type flow`);
@@ -319,8 +333,7 @@ test('Koromo secret winning anchor: maximizes Han and selects least useful wait 
   koromo.onOpponentMeld(1);
   assert.equal(koromo.onSettlement({}, state).haiteiWinRate, 0.75);
   koromo.onOpponentMeld(2);
-  assert.equal(koromo.onSettlement({}, state).haiteiWinRate, 0.50);
+  assert.equal(koromo.onSettlement({}, state).haiteiWinRate, 0.5);
   koromo.onOpponentMeld(3);
   assert.equal(koromo.onSettlement({}, state).haiteiWinRate, 0.0); // Stolen rhythm
 });
-

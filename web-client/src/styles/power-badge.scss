@@ -64,7 +64,9 @@
 
   &--active {
     border-color: #ff69b4;
-    box-shadow: 0 0 10px rgba(255, 105, 180, 0.6), inset 0 0 6px rgba(255, 105, 180, 0.3);
+    box-shadow:
+      0 0 10px rgba(255, 105, 180, 0.6),
+      inset 0 0 6px rgba(255, 105, 180, 0.3);
     animation: pulseAura 1.8s infinite alternate;
 
     .power-badge__icon {
@@ -224,6 +226,8 @@
     box-shadow: 0 0 8px rgba(255, 105, 180, 0.4);
   }
   100% {
-    box-shadow: 0 0 18px rgba(255, 105, 180, 0.85), inset 0 0 10px rgba(255, 105, 180, 0.5);
+    box-shadow:
+      0 0 18px rgba(255, 105, 180, 0.85),
+      inset 0 0 10px rgba(255, 105, 180, 0.5);
   }
 }

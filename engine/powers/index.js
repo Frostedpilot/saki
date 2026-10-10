@@ -3,7 +3,6 @@
 // Perception Warper, Tempo Economist, Settlement Modifier.
 // Character rosters register hooks here; engine-only build ships empty
 // (all weights 1.0 = pure uniform sampling, identical to physical deck).
-const TrajectoryPlanner = require('./trajectoryPlanner');
 
 // A throwing hook must never break a game, but silence hid real breakage: a
 // power could fail completely and the suite still passed, because the tests
@@ -17,15 +16,23 @@ function warnHook(hookName, seat, e) {
   console.warn(`[power] hook '${hookName}' (seat ${seat}) threw and was ignored: ${msg}`);
   console.warn('[power] this power is now inert for the rest of the session');
 }
-function resetHookWarnings() { warnedHooks.clear(); }
+function resetHookWarnings() {
+  warnedHooks.clear();
+}
 
 class PowerDispatcher {
   constructor() {
     this.registry = new Map(); // seat -> hooks object
   }
-  register(seat, hooks) { this.registry.set(seat, hooks); }
-  clear(seat) { this.registry.delete(seat); }
-  hooksFor(seat) { return this.registry.get(seat) || {}; }
+  register(seat, hooks) {
+    this.registry.set(seat, hooks);
+  }
+  clear(seat) {
+    this.registry.delete(seat);
+  }
+  hooksFor(seat) {
+    return this.registry.get(seat) || {};
+  }
 
   // Power type of a seat: 'flow' (gauge/tier economy) by default, or 'normal'
   // for self-described passive powers that live entirely outside the Flow
@@ -42,7 +49,11 @@ class PowerDispatcher {
     if (typeof kanSeat !== 'number') return;
     for (const [seat, h] of this.registry) {
       if (typeof h.onPlayerKan === 'function') {
-        try { h.onPlayerKan(kanSeat, state); } catch (e) { warnHook('onPlayerKan', seat, e); }
+        try {
+          h.onPlayerKan(kanSeat, state);
+        } catch (e) {
+          warnHook('onPlayerKan', seat, e);
+        }
       }
     }
   }
@@ -51,7 +62,11 @@ class PowerDispatcher {
   onPreDeal(seat, ctx) {
     const h = this.hooksFor(seat);
     if (h.onPreDeal) {
-      try { return h.onPreDeal(ctx); } catch (e) { warnHook('onPreDeal', seat, e); }
+      try {
+        return h.onPreDeal(ctx);
+      } catch (e) {
+        warnHook('onPreDeal', seat, e);
+      }
     }
     return null;
   }
@@ -59,7 +74,11 @@ class PowerDispatcher {
   onWallSetup(seat, ctx) {
     const h = this.hooksFor(seat);
     if (h.onWallSetup) {
-      try { return h.onWallSetup(ctx); } catch (e) { warnHook('onWallSetup', seat, e); }
+      try {
+        return h.onWallSetup(ctx);
+      } catch (e) {
+        warnHook('onWallSetup', seat, e);
+      }
     }
     return null;
   }
@@ -67,7 +86,11 @@ class PowerDispatcher {
   getTierInfo(seat, state) {
     const h = this.hooksFor(seat);
     if (typeof h.getTierInfo === 'function') {
-      try { return h.getTierInfo(state); } catch (e) { warnHook('getTierInfo', seat, e); }
+      try {
+        return h.getTierInfo(state);
+      } catch (e) {
+        warnHook('getTierInfo', seat, e);
+      }
     }
     return [];
   }
@@ -75,7 +98,11 @@ class PowerDispatcher {
   onTurnStart(seat, state, opts) {
     const h = this.hooksFor(seat);
     if (typeof h.onTurnStart === 'function') {
-      try { return h.onTurnStart(state, opts); } catch (e) { warnHook('onTurnStart', seat, e); }
+      try {
+        return h.onTurnStart(state, opts);
+      } catch (e) {
+        warnHook('onTurnStart', seat, e);
+      }
     }
     return { activated: false, reason: 'no-hook' };
   }
@@ -83,7 +110,11 @@ class PowerDispatcher {
   onKanDeclared(seat, state, opts) {
     const h = this.hooksFor(seat);
     if (typeof h.onKanDeclared === 'function') {
-      try { return h.onKanDeclared(state, opts); } catch (e) { warnHook('onKanDeclared', seat, e); }
+      try {
+        return h.onKanDeclared(state, opts);
+      } catch (e) {
+        warnHook('onKanDeclared', seat, e);
+      }
     }
     return { activated: false, reason: 'no-hook' };
   }
@@ -94,7 +125,9 @@ class PowerDispatcher {
       try {
         const w = h.onPowerDraw(tile, state, trajectory);
         if (typeof w === 'number' && w >= 0) return w;
-      } catch (e) { warnHook('onPowerDraw', seat, e); }
+      } catch (e) {
+        warnHook('onPowerDraw', seat, e);
+      }
     }
     return 1.0;
   }
@@ -116,7 +149,9 @@ class PowerDispatcher {
         try {
           const next = h.applyFieldAura(drawSeat, w, state);
           if (next) w = next;
-        } catch (e) { warnHook('applyFieldAura', seat, e); }
+        } catch (e) {
+          warnHook('applyFieldAura', seat, e);
+        }
       }
     }
     return w;
@@ -124,7 +159,11 @@ class PowerDispatcher {
   onPostDraw(seat, tile, state) {
     const h = this.hooksFor(seat);
     if (h.onPostDraw) {
-      try { h.onPostDraw(tile, state); } catch (e) { warnHook('onPostDraw', seat, e); }
+      try {
+        h.onPostDraw(tile, state);
+      } catch (e) {
+        warnHook('onPostDraw', seat, e);
+      }
     }
   }
   // Phase 2b: field aura dampening of opponent weights (default: identity)
@@ -133,8 +172,11 @@ class PowerDispatcher {
   applyFieldAura(seat, weights, state) {
     const h = this.hooksFor(seat);
     if (h.applyFieldAura) {
-      try { return h.applyFieldAura(seat, weights, state) || weights; }
-      catch (e) { warnHook('applyFieldAura', seat, e); }
+      try {
+        return h.applyFieldAura(seat, weights, state) || weights;
+      } catch (e) {
+        warnHook('applyFieldAura', seat, e);
+      }
     }
     return weights;
   }
@@ -142,7 +184,11 @@ class PowerDispatcher {
   getTurnClock(seat, state) {
     const h = this.hooksFor(seat);
     if (h.getTurnClock) {
-      try { return h.getTurnClock(state); } catch (e) { warnHook('getTurnClock', seat, e); }
+      try {
+        return h.getTurnClock(state);
+      } catch (e) {
+        warnHook('getTurnClock', seat, e);
+      }
     }
     return 10;
   }
@@ -150,7 +196,11 @@ class PowerDispatcher {
   onSettlement(result, state) {
     for (const [seat, h] of this.registry) {
       if (h.onSettlement) {
-        try { h.onSettlement(result, state); } catch (e) { warnHook('onSettlement', seat, e); }
+        try {
+          h.onSettlement(result, state);
+        } catch (e) {
+          warnHook('onSettlement', seat, e);
+        }
       }
     }
   }

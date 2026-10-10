@@ -14,8 +14,8 @@ export interface CenterInfoProps {
   dealerSeat: number;
   yourSeat: number;
   riichiSeats?: boolean[];
-  onTileHover?: (tile: ProtocolTile | null) => void;
-  isHoverMatch?: (tile: ProtocolTile) => boolean;
+  onTileHover?: (_tile: ProtocolTile | null) => void;
+  isHoverMatch?: (_tile: ProtocolTile) => boolean;
 }
 
 const WIND_KANJI: Record<string, string> = {
@@ -33,10 +33,14 @@ export function renderCenterInfo(props: CenterInfoProps): TemplateResult {
 
   const getSeatForPos = (pos: 'bottom' | 'right' | 'top' | 'left'): number => {
     switch (pos) {
-      case 'bottom': return props.yourSeat;
-      case 'right': return (props.yourSeat + 1) % 4;
-      case 'top': return (props.yourSeat + 2) % 4;
-      case 'left': return (props.yourSeat + 3) % 4;
+      case 'bottom':
+        return props.yourSeat;
+      case 'right':
+        return (props.yourSeat + 1) % 4;
+      case 'top':
+        return (props.yourSeat + 2) % 4;
+      case 'left':
+        return (props.yourSeat + 3) % 4;
     }
   };
 
@@ -55,9 +59,7 @@ export function renderCenterInfo(props: CenterInfoProps): TemplateResult {
 
     return html`
       <div class="board-center__score-bar board-center__score-bar--${pos} ${isTurn ? 'is-active' : ''}">
-        <span class="board-center__wind ${isDealer ? 'is-dealer' : ''}">
-          ${WIND_KANJI[wind] || wind.charAt(0)}
-        </span>
+        <span class="board-center__wind ${isDealer ? 'is-dealer' : ''}"> ${WIND_KANJI[wind] || wind.charAt(0)} </span>
         <span class="board-center__score">${score}</span>
         ${hasRiichi ? html`<span class="board-center__riichi-pip"></span>` : ''}
       </div>
@@ -66,10 +68,7 @@ export function renderCenterInfo(props: CenterInfoProps): TemplateResult {
 
   return html`
     <div class="board-center">
-      ${renderSeatEdge('top')}
-      ${renderSeatEdge('left')}
-      ${renderSeatEdge('right')}
-      ${renderSeatEdge('bottom')}
+      ${renderSeatEdge('top')} ${renderSeatEdge('left')} ${renderSeatEdge('right')} ${renderSeatEdge('bottom')}
 
       <div class="board-center__inner">
         <div class="board-center__round">${roundText}</div>
@@ -91,15 +90,9 @@ export function renderCenterInfo(props: CenterInfoProps): TemplateResult {
         </div>
 
         <div class="board-center__stats">
-          <span class="board-center__stat" title="Remaining wall tiles">
-            🀫 ${props.remainingTiles}
-          </span>
-          <span class="board-center__stat" title="Honba counter">
-            本 ${props.honba}
-          </span>
-          <span class="board-center__stat" title="Riichi sticks on table">
-            立 ${props.riichiSticks}
-          </span>
+          <span class="board-center__stat" title="Remaining wall tiles"> 🀫 ${props.remainingTiles} </span>
+          <span class="board-center__stat" title="Honba counter"> 本 ${props.honba} </span>
+          <span class="board-center__stat" title="Riichi sticks on table"> 立 ${props.riichiSticks} </span>
         </div>
       </div>
     </div>

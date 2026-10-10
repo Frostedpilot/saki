@@ -57,16 +57,33 @@ describe('renderTile', () => {
   });
 
   test('every option adds its own class', () => {
-    const el = mount({ index: 0 }, {
-      rotated: true, grayed: true, highlight: true, clickable: true,
-      isHoverMatch: true, isDora: true, isAkaDora: true,
-      isRiichiCandidate: true, isLastDiscard: true,
-    });
-    expect(classesOf(el)).toEqual(expect.arrayContaining([
-      'mahjong-tile--rotated', 'mahjong-tile--grayed', 'mahjong-tile--highlight',
-      'mahjong-tile--clickable', 'mahjong-tile--hover-match', 'mahjong-tile--dora',
-      'mahjong-tile--aka-dora', 'mahjong-tile--riichi-candidate', 'mahjong-tile--last-discard',
-    ]));
+    const el = mount(
+      { index: 0 },
+      {
+        rotated: true,
+        grayed: true,
+        highlight: true,
+        clickable: true,
+        isHoverMatch: true,
+        isDora: true,
+        isAkaDora: true,
+        isRiichiCandidate: true,
+        isLastDiscard: true,
+      }
+    );
+    expect(classesOf(el)).toEqual(
+      expect.arrayContaining([
+        'mahjong-tile--rotated',
+        'mahjong-tile--grayed',
+        'mahjong-tile--highlight',
+        'mahjong-tile--clickable',
+        'mahjong-tile--hover-match',
+        'mahjong-tile--dora',
+        'mahjong-tile--aka-dora',
+        'mahjong-tile--riichi-candidate',
+        'mahjong-tile--last-discard',
+      ])
+    );
   });
 
   test('no option flags means no state classes', () => {
@@ -78,20 +95,28 @@ describe('renderTile', () => {
     expect(mount({ index: 0 }).title).toBe('1m');
     expect(mount({ index: 0 }, { isDora: true }).title).toBe('1m (Dora)');
     expect(mount({ index: 0 }, { isAkaDora: true }).title).toBe('1m (Red 5)');
-    expect(mount({ index: 0 }, { isDora: true, isAkaDora: true }).title)
-      .toBe('1m (Dora) (Red 5)');
+    expect(mount({ index: 0 }, { isDora: true, isAkaDora: true }).title).toBe('1m (Dora) (Red 5)');
   });
 
   test('click and hover handlers fire', async () => {
     let clicks = 0;
     let enters = 0;
     let leaves = 0;
-    const el = mount({ index: 0 }, {
-      clickable: true,
-      onClick: () => { clicks++; },
-      onMouseEnter: () => { enters++; },
-      onMouseLeave: () => { leaves++; },
-    });
+    const el = mount(
+      { index: 0 },
+      {
+        clickable: true,
+        onClick: () => {
+          clicks++;
+        },
+        onMouseEnter: () => {
+          enters++;
+        },
+        onMouseLeave: () => {
+          leaves++;
+        },
+      }
+    );
     el.dispatchEvent(new Event('click'));
     el.dispatchEvent(new Event('mouseenter'));
     el.dispatchEvent(new Event('mouseleave'));

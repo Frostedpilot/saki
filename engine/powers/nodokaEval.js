@@ -3,7 +3,7 @@
 //   - Zero external process dependency (pure JS, hermetic, sub-millisecond).
 //   - Computes exact shanten, uke-ire width, winning waits, and point expectation.
 //   - Defends with Genbutsu safety if opponents declare Riichi.
-const { norm, isSimple, DORA_NEXT } = require('../tiles');
+const { norm } = require('../tiles');
 const { shantenOf, hairiOf, ukeire } = require('./trajectoryPlanner');
 const { scoreHand } = require('../scoring');
 
@@ -41,7 +41,6 @@ function evaluateNodokaHand(hand, pool, opponents = [], ctx = {}) {
     }
   }
 
-  let bestDiscard = null;
   let bestScore = -Infinity;
   let bestInfo = null;
 
@@ -57,9 +56,9 @@ function evaluateNodokaHand(hand, pool, opponents = [], ctx = {}) {
     const uke = ukeire(rest, pool);
     const isTenpai = sh === 0;
 
-    let winProb = 0;
-    let expPt = 0;
-    let waits = [];
+    let winProb;
+    let expPt;
+    let waits;
 
     if (isTenpai) {
       const h = hairiOf(rest);
@@ -91,7 +90,7 @@ function evaluateNodokaHand(hand, pool, opponents = [], ctx = {}) {
       winProb = Math.min(0.95, totalLiveWaits * 0.08);
       expPt = totalLiveWaits > 0 ? Math.round(totalPoints / totalLiveWaits) : 0;
     } else {
-      winProb = Math.max(0, 0.40 - sh * 0.15 + (uke / 60));
+      winProb = Math.max(0, 0.4 - sh * 0.15 + uke / 60);
       expPt = Math.max(1000, 3000 - sh * 500);
       const h = hairiOf(rest);
       waits = h && h.wait ? Object.keys(h.wait) : [];
@@ -111,11 +110,10 @@ function evaluateNodokaHand(hand, pool, opponents = [], ctx = {}) {
 
     // Valuation formula:
     // Speed (shanten distance) > Uke-ire width > Expected points > Defense
-    const score = (10 - sh) * 1000 + (uke * 15) + (expPt / 50) + safetyBonus;
+    const score = (10 - sh) * 1000 + uke * 15 + expPt / 50 + safetyBonus;
 
     if (score > bestScore) {
       bestScore = score;
-      bestDiscard = k;
       bestInfo = {
         discard: k,
         rawTile: tile,

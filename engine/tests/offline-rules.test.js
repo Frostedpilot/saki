@@ -239,7 +239,10 @@ test('powerDraw: kuro prefers dora from the tail of the wall', () => {
       const t = powerDraw(wall, hand, 'kuro', ctxFor());
       hand.push(t);
       if (hand.length > 14) hand.shift();
-      if (t === '5m') { hits++; break; }
+      if (t === '5m') {
+        hits++;
+        break;
+      }
     }
   }
   assert.ok(hits > 30, `kuro dora pull rate too low: ${hits}/60`);
@@ -296,7 +299,10 @@ const NO_RANDOM_FIRST = seqRand([0.99, 0]);
 
 test('botDiscard: riichi-locked always discards the drawn tile', () => {
   const hand = ['1m', '2m', '3m', '5m', '6m', '7m', '2p', '3p', '4p', '6s', '7s', '8s', '9s'];
-  assert.equal(botDiscard(hand, true, [], () => 0.999), hand.length - 1);
+  assert.equal(
+    botDiscard(hand, true, [], () => 0.999),
+    hand.length - 1
+  );
 });
 
 test('botDiscard: never discards a banned tile (kuikae)', () => {
@@ -327,16 +333,34 @@ test('botDiscard: prefers the shanten-optimal discard over a random one', () => 
 });
 
 test('botWantsCall: closedOnly suppresses every call', () => {
-  assert.equal(botWantsCall(1, true, () => 0), false);
-  assert.equal(botWantsCall(-1, true, () => 0), false);
+  assert.equal(
+    botWantsCall(1, true, () => 0),
+    false
+  );
+  assert.equal(
+    botWantsCall(-1, true, () => 0),
+    false
+  );
 });
 
 test('botWantsCall: a worsening call is rare, a neutral call is common', () => {
   // afterShantenGain < 0 means the call makes the hand worse.
-  assert.equal(botWantsCall(-1, false, () => 0.04), true);
-  assert.equal(botWantsCall(-1, false, () => 0.06), false);
-  assert.equal(botWantsCall(1, false, () => 0.54), true);
-  assert.equal(botWantsCall(1, false, () => 0.56), false);
+  assert.equal(
+    botWantsCall(-1, false, () => 0.04),
+    true
+  );
+  assert.equal(
+    botWantsCall(-1, false, () => 0.06),
+    false
+  );
+  assert.equal(
+    botWantsCall(1, false, () => 0.54),
+    true
+  );
+  assert.equal(
+    botWantsCall(1, false, () => 0.56),
+    false
+  );
 });
 
 // ------------------------------------------------- helpers used by game.js
@@ -354,7 +378,9 @@ test('abort helpers are the shared engine versions, not local copies', () => {
 });
 
 test('getWaits is shape-only, so an open hand still has waits', () => {
-  const players = [{ hand: ['1m', '2m', '3m', '4m', '5m', '6m', '7m', '8m', '9m', '2p', '2p', '2p', '3p'], melds: [], discards: [] }];
+  const players = [
+    { hand: ['1m', '2m', '3m', '4m', '5m', '6m', '7m', '8m', '9m', '2p', '2p', '2p', '3p'], melds: [], discards: [] },
+  ];
   const waits = getWaits(players[0], players, [], { dora: [], bakaze: 1, jikaze: 2 });
   assert.ok(waits.length > 0, 'expected waits for a near-complete tanyao shape');
   assert.ok(waits.every((w) => typeof w === 'string'));

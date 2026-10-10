@@ -6,7 +6,10 @@ export function renderGameLog(store: GameStore): TemplateResult {
   const logs = store.logs;
 
   return html`
-    <aside class="game-log ${isExpanded ? 'game-log--expanded' : 'game-log--collapsed'}" aria-label="Game Action and Rule Log">
+    <aside
+      class="game-log ${isExpanded ? 'game-log--expanded' : 'game-log--collapsed'}"
+      aria-label="Game Action and Rule Log"
+    >
       <div
         class="game-log__header"
         @click=${() => store.toggleLog()}
@@ -42,30 +45,34 @@ export function renderGameLog(store: GameStore): TemplateResult {
         </button>
       </div>
 
-      ${isExpanded
-        ? html`
-            <div class="game-log__body" id="game-log-body">
-              ${logs.length === 0
-                ? html`<div class="game-log__empty">Game in progress. Discards, calls, superpowers, and rules will be logged here.</div>`
-                : logs.map(
-                    (log) => html`
-                      <div class="game-log__item game-log__item--${log.category}">
-                        <div class="game-log__item-head">
-                          <span class="game-log__time">${log.timestamp}</span>
-                          <span class="game-log__badge game-log__badge--${log.category}">
-                            ${renderCategoryBadge(log.category)}
-                          </span>
-                        </div>
-                        <div class="game-log__msg">${log.message}</div>
-                        ${log.details
-                          ? html`<div class="game-log__details">${log.details}</div>`
-                          : ''}
-                      </div>
-                    `
-                  )}
-            </div>
-          `
-        : ''}
+      ${
+        isExpanded
+          ? html`
+              <div class="game-log__body" id="game-log-body">
+                ${
+                  logs.length === 0
+                    ? html`<div class="game-log__empty">
+                        Game in progress. Discards, calls, superpowers, and rules will be logged here.
+                      </div>`
+                    : logs.map(
+                        (log) => html`
+                          <div class="game-log__item game-log__item--${log.category}">
+                            <div class="game-log__item-head">
+                              <span class="game-log__time">${log.timestamp}</span>
+                              <span class="game-log__badge game-log__badge--${log.category}">
+                                ${renderCategoryBadge(log.category)}
+                              </span>
+                            </div>
+                            <div class="game-log__msg">${log.message}</div>
+                            ${log.details ? html`<div class="game-log__details">${log.details}</div>` : ''}
+                          </div>
+                        `
+                      )
+                }
+              </div>
+            `
+          : ''
+      }
     </aside>
   `;
 }

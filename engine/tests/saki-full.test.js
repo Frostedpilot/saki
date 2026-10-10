@@ -18,7 +18,9 @@ function sakiState(hand, seed = 101, score = 25000, protect = []) {
   const stashed = {};
   for (const k of protect) {
     stashed[k] = s.pool.get(k);
-    if (stashed[k]) { for (let i = 0; i < stashed[k]; i++) s.pool.decrement(k); }
+    if (stashed[k]) {
+      for (let i = 0; i < stashed[k]; i++) s.pool.decrement(k);
+    }
   }
   setupDeadWall(s);
   for (let k = 0; k < 13; k++) for (let seat = 1; seat < 4; seat++) s.players[seat].hand.push(s.pool.sample());
@@ -29,7 +31,7 @@ function sakiState(hand, seed = 101, score = 25000, protect = []) {
 }
 
 function auditParts(s) {
-  return [...s.players.flatMap(p => [p.hand, p.discards]), s.deadWall];
+  return [...s.players.flatMap((p) => [p.hand, p.discards]), s.deadWall];
 }
 
 // --- Census helpers ---
@@ -112,7 +114,7 @@ test('T2 kan chain: chained deadWall[1] completes the quad', () => {
   const drawn = s.deadWall[1];
   assert.equal(drawn, '7p');
   s.players[0].hand.push(drawn);
-  const n = s.players[0].hand.filter(t => t === '7p' || t === '0m').length;
+  const n = s.players[0].hand.filter((t) => t === '7p' || t === '0m').length;
   assert.equal(n, 4); // Kan #2 declarable
 });
 
@@ -128,17 +130,18 @@ test('T3 success: current guaranteed + chain pins + dora seeded to hand + 80% we
   assert.equal(s.deadWall.length, 14);
   // dora indicator points at a held tile (or null when no candidate)
   if (res.dora !== null) {
-    const held = new Set(s.players[0].hand.map(t => (t[0] === '0' ? '5' + t[1] : t)));
+    const held = new Set(s.players[0].hand.map((t) => (t[0] === '0' ? '5' + t[1] : t)));
     assert.ok(held.has(res.dora.dora), `dora ${res.dora.dora} not in hand`);
   }
   // combined wait probability under slot2 weights ~= 80% (placement itself
   // mutates the pool by one tile, so allow slot-noise tolerance here; the
   // exact calibration is covered by the pure-helper test below)
-  let n = 0, others = 0;
+  let n = 0,
+    others = 0;
   for (const k of Object.keys(s.pool.counts)) {
     const w = res.weightOf(k);
     if (w > 1.0) n += (s.pool.get(k) || 0) * w;
-    else others += (s.pool.get(k) || 0);
+    else others += s.pool.get(k) || 0;
   }
   const p = n / (n + others);
   assert.ok(Math.abs(p - 0.8) < 0.06, `win prob ${p}`);
@@ -150,10 +153,11 @@ test('winProbabilityWeights calibrates exactly on a static pool', () => {
   const s = sakiState(T3_HAND, 70, 25000, ['7p', '3s']);
   const { waits, weightOf } = S.winProbabilityWeights(s.players[0].hand, s.pool, 0.8);
   assert.ok(waits.length > 0);
-  let n = 0, others = 0;
+  let n = 0,
+    others = 0;
   for (const k of Object.keys(s.pool.counts)) {
     if (weightOf(k) > 1.0) n += (s.pool.get(k) || 0) * weightOf(k);
-    else others += (s.pool.get(k) || 0);
+    else others += s.pool.get(k) || 0;
   }
   const p = n / (n + others);
   assert.ok(Math.abs(p - 0.8) < 0.01, `win prob ${p}`);
@@ -186,7 +190,10 @@ test('T4 Branch A: live wait pinned into deadWall[3], wanpai intact', () => {
 test('T4 Branch B: wait exhausted -> Kan #3 fallback with live completer', () => {
   const s = sakiState(T4_HAND, 10);
   // exhaust the 1z wait: remaining copies accounted into discards
-  while (s.pool.get('1z')) { s.pool.decrement('1z'); s.players[1].discards.push('1z'); }
+  while (s.pool.get('1z')) {
+    s.pool.decrement('1z');
+    s.players[1].discards.push('1z');
+  }
   s.flow.set(0, 150);
   const res = S.createSakiHooks(0).tryActivateTier4(s, 1);
   assert.equal(res.ok, true);

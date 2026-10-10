@@ -22,7 +22,9 @@ function record(journal, seat, type, payload) {
   journal.actions.push([type, seat, payload === undefined ? null : payload]);
 }
 
-function toJSON(journal) { return JSON.stringify(journal); }
+function toJSON(journal) {
+  return JSON.stringify(journal);
+}
 function fromJSON(str) {
   const j = JSON.parse(str);
   if (typeof j.initialSeed !== 'number' || !Array.isArray(j.actions)) {
@@ -45,9 +47,10 @@ function verifyKyoku(kyokuSeed, actions) {
   core.setupDeadWall(state);
   assertDeadWall(state.deadWall);
   core.dealHands(state);
-  const hands = state.players.map(p => [...p.hand]);
+  const hands = state.players.map((p) => [...p.hand]);
   const rivers = state.players.map(() => []);
-  let draws = 0, discards = 0;
+  let draws = 0,
+    discards = 0;
   for (const [type, seat, payload] of actions) {
     if (type === 'kyoku') continue;
     if (type === 'call') continue; // meld/kan bookkeeping: no tile-flow assertion yet
@@ -63,7 +66,7 @@ function verifyKyoku(kyokuSeed, actions) {
       rivers[seat].push(payload);
       discards++;
     }
-    const parts = [...hands.map(h => [...h]), ...rivers.map(r => [...r]), state.deadWall];
+    const parts = [...hands.map((h) => [...h]), ...rivers.map((r) => [...r]), state.deadWall];
     const problems = state.pool.audit(parts);
     if (problems.length) throw new Error(`replay: conservation broke after ${type} ${payload}: ${problems.join('; ')}`);
   }
@@ -80,12 +83,17 @@ function verifyJournal(journal) {
   const flush = () => {
     if (current.length || kyoku >= 0) {
       const r = verifyKyoku(journal.kyokuSeeds[kyoku], current);
-      total.draws += r.draws; total.discards += r.discards;
+      total.draws += r.draws;
+      total.discards += r.discards;
       current = [];
     }
   };
   for (const a of journal.actions) {
-    if (a[0] === 'kyoku') { flush(); kyoku = a[1]; continue; }
+    if (a[0] === 'kyoku') {
+      flush();
+      kyoku = a[1];
+      continue;
+    }
     current.push(a);
   }
   flush();

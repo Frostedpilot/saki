@@ -70,9 +70,16 @@ export function renderTile(tile: ProtocolTile | TileFace, options: RenderTileOpt
       tabindex=${options.clickable && options.onClick ? '0' : '-1'}
       aria-label="${face}${options.isDora ? ' (Dora)' : ''}${options.isAkaDora ? ' (Red 5)' : ''}"
       @click=${options.onClick || null}
-      @keydown=${options.clickable && options.onClick
-        ? (e: KeyboardEvent) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); options.onClick?.(); } }
-        : null}
+      @keydown=${
+        options.clickable && options.onClick
+          ? (e: KeyboardEvent) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                options.onClick?.();
+              }
+            }
+          : null
+      }
       @mouseenter=${options.onMouseEnter || null}
       @mouseleave=${options.onMouseLeave || null}
       title="${face}${options.isDora ? ' (Dora)' : ''}${options.isAkaDora ? ' (Red 5)' : ''}"

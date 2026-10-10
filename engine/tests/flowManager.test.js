@@ -13,7 +13,17 @@ test('starts at 0% tier 0 for all seats', () => {
 
 test('tier boundaries 25/50/100/150', () => {
   const f = new FlowManager(1);
-  const cases = [[0, 0], [24.9, 0], [25, 1], [49.9, 1], [50, 2], [99.9, 2], [100, 3], [149.9, 3], [150, 4]];
+  const cases = [
+    [0, 0],
+    [24.9, 0],
+    [25, 1],
+    [49.9, 1],
+    [50, 2],
+    [99.9, 2],
+    [100, 3],
+    [149.9, 3],
+    [150, 4],
+  ];
   for (const [v, t] of cases) {
     f.set(0, v);
     assert.equal(f.tier(0), t, `flow ${v}`);

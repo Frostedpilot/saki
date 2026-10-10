@@ -92,15 +92,21 @@ test('long chain: greedy shanten never increases over 12 draws', () => {
     const t = pool.sample();
     if (!t) break;
     // discard the tile that minimizes shanten (best-case chain)
-    let best = 0, bestS = 99;
+    let best = 0,
+      bestS = 99;
     const cand = [...hand, t];
     for (let d = 0; d < cand.length; d++) {
       const s = T.shantenOf(cand.filter((_, j) => j !== d));
-      if (s < bestS) { bestS = s; best = d; }
+      if (s < bestS) {
+        bestS = s;
+        best = d;
+      }
     }
     hand = cand.filter((_, j) => j !== best);
     assert.ok(bestS <= prev + 1, `shanten spike at step ${i}`);
     prev = bestS;
   }
-  assert.ok(T.shantenOf(hand) <= T.shantenOf(['2m', '3m', '5m', '6m', '2p', '4p', '6p', '7p', '3s', '5s', '7s', '1z', '2z']));
+  assert.ok(
+    T.shantenOf(hand) <= T.shantenOf(['2m', '3m', '5m', '6m', '2p', '4p', '6p', '7p', '3s', '5s', '7s', '1z', '2z'])
+  );
 });

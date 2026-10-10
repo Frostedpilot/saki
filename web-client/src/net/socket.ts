@@ -1,7 +1,7 @@
 import { ClientMessage, ServerMessage } from './protocol-types';
 
-export type MessageHandler = (msg: ServerMessage) => void;
-export type StatusHandler = (status: 'connecting' | 'connected' | 'disconnected') => void;
+export type MessageHandler = (_msg: ServerMessage) => void;
+export type StatusHandler = (_status: 'connecting' | 'connected' | 'disconnected') => void;
 
 export class GameSocket {
   private ws: WebSocket | null = null;
@@ -10,7 +10,11 @@ export class GameSocket {
   private reconnectTimer: number | null = null;
   private shouldReconnect = true;
 
-  constructor(private url?: string) {}
+  private url?: string;
+
+  constructor(url?: string) {
+    this.url = url;
+  }
 
   public connect(): void {
     if (this.ws && (this.ws.readyState === WebSocket.OPEN || this.ws.readyState === WebSocket.CONNECTING)) {

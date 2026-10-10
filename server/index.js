@@ -29,20 +29,28 @@ const server = http.createServer((req, res) => {
   try {
     urlPath = decodeURIComponent((req.url || '/').split('?')[0]);
   } catch {
-    res.writeHead(400); res.end('bad request'); return;
+    res.writeHead(400);
+    res.end('bad request');
+    return;
   }
   if (urlPath === '/' || urlPath === '') urlPath = '/index.html';
   const filePath = path.normalize(path.join(PUBLIC, urlPath));
   if (!filePath.startsWith(PUBLIC)) {
-    res.writeHead(403); res.end('forbidden'); return;
+    res.writeHead(403);
+    res.end('forbidden');
+    return;
   }
   fs.readFile(filePath, (err, data) => {
     if (err) {
       if (err.code === 'ENOENT' || err.code === 'EISDIR') {
-        res.writeHead(404); res.end('not found'); return;
+        res.writeHead(404);
+        res.end('not found');
+        return;
       }
       console.error('[bridge] static read error:', filePath, err.message);
-      res.writeHead(500); res.end('internal error'); return;
+      res.writeHead(500);
+      res.end('internal error');
+      return;
     }
     const ext = path.extname(filePath).toLowerCase();
     res.writeHead(200, { 'Content-Type': MIME[ext] || 'application/octet-stream' });
@@ -62,7 +70,9 @@ function genCode() {
 }
 
 let tokenCounter = 1;
-function newToken() { return `tok_${Date.now().toString(36)}_${(tokenCounter++).toString(36)}_${Math.floor(Math.random() * 1e9).toString(36)}`; }
+function newToken() {
+  return `tok_${Date.now().toString(36)}_${(tokenCounter++).toString(36)}_${Math.floor(Math.random() * 1e9).toString(36)}`;
+}
 
 const rooms = new Map(); // code -> Room
 
@@ -77,12 +87,18 @@ function route(client, parsed) {
       // Reject an explicit version mismatch instead of accepting it and then
       // failing in confusing ways later. A client that omits the field is
       // accepted (it is optional in the protocol).
-      if (parsed.protocol_version !== undefined && parsed.protocol_version !== null
-          && parsed.protocol_version !== P.PROTOCOL_VERSION) {
-        send(ws, P.errorMessage(
-          'VersionMismatch',
-          `server speaks protocol v${P.PROTOCOL_VERSION}, client requested v${parsed.protocol_version}`
-        ));
+      if (
+        parsed.protocol_version !== undefined &&
+        parsed.protocol_version !== null &&
+        parsed.protocol_version !== P.PROTOCOL_VERSION
+      ) {
+        send(
+          ws,
+          P.errorMessage(
+            'VersionMismatch',
+            `server speaks protocol v${P.PROTOCOL_VERSION}, client requested v${parsed.protocol_version}`
+          )
+        );
         return;
       }
       client.sessionToken = newToken();
@@ -91,7 +107,10 @@ function route(client, parsed) {
       break;
     }
     case 'CreateRoom': {
-      if (client.room) { send(ws, P.errorMessage('RoomFull', 'already in a room')); return; }
+      if (client.room) {
+        send(ws, P.errorMessage('RoomFull', 'already in a room'));
+        return;
+      }
       // The table driver is East-only tonpuusen. Reject anything else
       // explicitly instead of silently dealing a different format.
       if (parsed.length !== undefined && parsed.length !== null && parsed.length !== 'EastOnly') {
@@ -111,7 +130,10 @@ function route(client, parsed) {
       break;
     }
     case 'JoinRoom': {
-      if (client.room) { send(ws, P.errorMessage('RoomFull', 'already in a room')); return; }
+      if (client.room) {
+        send(ws, P.errorMessage('RoomFull', 'already in a room'));
+        return;
+      }
       const room = rooms.get(parsed.code);
       if (!room || room.postGame) {
         send(ws, P.errorMessage('RoomNotFound', `no room ${parsed.code}`));
@@ -151,7 +173,10 @@ function route(client, parsed) {
       if (client.room) client.room.onSelectPowerTier(client, parsed.tier);
       break;
     case 'StartGame': {
-      if (!client.room) { send(ws, P.errorMessage('NotInRoom', 'not in a room')); return; }
+      if (!client.room) {
+        send(ws, P.errorMessage('NotInRoom', 'not in a room'));
+        return;
+      }
       client.room.onStartGame(client);
       break;
     }
@@ -188,7 +213,9 @@ wss.on('connection', (ws) => {
       send(ws, P.errorMessage('InvalidMessage', 'unparseable message'));
       return;
     }
-    try { route(client, parsed); } catch (e) {
+    try {
+      route(client, parsed);
+    } catch (e) {
       console.error('[bridge] route error:', e);
       send(ws, P.errorMessage('ServerError', String(e && e.message)));
     }
@@ -203,7 +230,9 @@ wss.on('connection', (ws) => {
       }
     }
   });
-  ws.on('error', () => { /* swallow socket errors on close */ });
+  ws.on('error', () => {
+    /* swallow socket errors on close */
+  });
 });
 
 server.listen(PORT, () => {

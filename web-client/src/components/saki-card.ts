@@ -24,7 +24,12 @@ const CHAR_ALIAS: Record<string, string> = {
 export function renderSakiCard(props: SakiCardProps): TemplateResult {
   const rawId = (props.character || 'none').toLowerCase().trim();
   if (rawId === 'none' || !rawId) {
-    return html`<div class="saki-card-empty" style="width: 68px; height: 98px; border: 1px dashed rgba(255,255,255,0.2); border-radius: 6px; display: flex; align-items: center; justify-content: center; font-size: 0.75rem; color: #64748b;">No Power</div>`;
+    return html`<div
+      class="saki-card-empty"
+      style="width: 68px; height: 98px; border: 1px dashed rgba(255,255,255,0.2); border-radius: 6px; display: flex; align-items: center; justify-content: center; font-size: 0.75rem; color: #64748b;"
+    >
+      No Power
+    </div>`;
   }
 
   const charClass = CHAR_ALIAS[rawId] || rawId;
@@ -42,9 +47,16 @@ export function renderSakiCard(props: SakiCardProps): TemplateResult {
       aria-label=${clickable ? title : null}
       title=${title}
       @click=${clickable ? props.onClick : null}
-      @keydown=${clickable
-        ? (e: KeyboardEvent) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); props.onClick?.(); } }
-        : null}
+      @keydown=${
+        clickable
+          ? (e: KeyboardEvent) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                props.onClick?.();
+              }
+            }
+          : null
+      }
     >
       <div class="saki-card ${charClass} ${disabledClass}"></div>
       <div class="saki-card-preview ${charClass}"></div>

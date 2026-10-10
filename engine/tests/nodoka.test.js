@@ -30,8 +30,8 @@ test('isNodocchi returns true at 50+', () => {
 test('isDeadTerminalOrHonor: isolated terminal/honor => true, pair => false', () => {
   const hand = ['1m', '1m', '2m', '3m', '5p', '5p', '5p', '9s', '1z', '2z'];
   assert.equal(N.isDeadTerminalOrHonor('1m', hand), false); // pair
-  assert.equal(N.isDeadTerminalOrHonor('9s', hand), true);  // isolated
-  assert.equal(N.isDeadTerminalOrHonor('1z', hand), true);  // isolated
+  assert.equal(N.isDeadTerminalOrHonor('9s', hand), true); // isolated
+  assert.equal(N.isDeadTerminalOrHonor('1z', hand), true); // isolated
   assert.equal(N.isDeadTerminalOrHonor('5m', hand), false); // not terminal/honor
   assert.equal(N.isDeadTerminalOrHonor('2m', hand), false); // not terminal
 });
@@ -47,7 +47,7 @@ test('T1: statistical filter blocks isolated terminals/honors (weight 0.0)', () 
   const w5m = hooks.onPowerDraw('5m', s);
   assert.equal(w1m, 0.0); // isolated terminal filtered
   assert.equal(w1z, 0.0); // isolated honor filtered
-  assert.ok(w5m > 0);    // suited tile not filtered
+  assert.ok(w5m > 0); // suited tile not filtered
 });
 
 test('T1: insufficient flow rejected', () => {

@@ -9,8 +9,8 @@ export interface HandProps {
   canDiscard: boolean;
   bannedIndices?: number[];
   store?: GameStore;
-  onDiscard: (tile: ProtocolTile) => void;
-  onBannedClick?: (tile: ProtocolTile) => void;
+  onDiscard: (_tile: ProtocolTile) => void;
+  onBannedClick?: (_tile: ProtocolTile) => void;
 }
 
 export function renderPlayerHand(props: HandProps): TemplateResult {
@@ -22,7 +22,7 @@ export function renderPlayerHand(props: HandProps): TemplateResult {
     const banned = isBanned(tile);
     const isRiichiMode = Boolean(store?.isRiichiMode);
     const isRiichiCandidate = Boolean(isRiichiMode && store?.riichiCandidateIndices.has(tileIdx));
-    const clickable = props.canDiscard && !banned && (inRiichi ? isDrawn : (!isRiichiMode || isRiichiCandidate));
+    const clickable = props.canDiscard && !banned && (inRiichi ? isDrawn : !isRiichiMode || isRiichiCandidate);
     const grayed = banned || (isRiichiMode && !isRiichiCandidate) || (inRiichi && !isDrawn);
 
     return renderTile(tile, {
@@ -63,41 +63,49 @@ export function renderPlayerHand(props: HandProps): TemplateResult {
   const isRiichiMode = Boolean(store?.isRiichiMode);
   const tenpaiWaits = isRiichi || isRiichiMode ? (store ? store.getTenpaiWaits() : null) : null;
   const waitsToShow = store?.hoveredDiscardWaitHint || tenpaiWaits;
-  const hintKind = store?.hoveredDiscardWaitHint ? 'discard' : isRiichi ? 'riichi' : isRiichiMode ? 'riichi-mode' : 'discard';
+  const hintKind = store?.hoveredDiscardWaitHint
+    ? 'discard'
+    : isRiichi
+      ? 'riichi'
+      : isRiichiMode
+        ? 'riichi-mode'
+        : 'discard';
 
   return html`
     <div class="player-hand-wrapper">
-      ${waitsToShow && waitsToShow.length > 0
-        ? html`
-            <div class="hand-waits-hint ${isRiichi || isRiichiMode ? 'hand-waits-hint--riichi' : ''}">
-              <span class="hand-waits-hint__label">
-                ${hintKind === 'discard' ? '聴牌 (Tenpai if discarded):' : hintKind === 'riichi-mode' ? '立直 (Riichi waits in hand):' : '立直 (Riichi Waits):'}
-              </span>
-              <div class="hand-waits-hint__list">
-                ${waitsToShow.map(
-                  (w) => html`
-                    <span class="hand-waits-hint__item">
-                      ${renderTile(w.face as any, { show: 'face' })}
-                      <span class="hand-waits-hint__count ${w.count === 0 ? 'is-empty' : ''}">
-                        ${w.count} left
+      ${
+        waitsToShow && waitsToShow.length > 0
+          ? html`
+              <div class="hand-waits-hint ${isRiichi || isRiichiMode ? 'hand-waits-hint--riichi' : ''}">
+                <span class="hand-waits-hint__label">
+                  ${hintKind === 'discard' ? '聴牌 (Tenpai if discarded):' : hintKind === 'riichi-mode' ? '立直 (Riichi waits in hand):' : '立直 (Riichi Waits):'}
+                </span>
+                <div class="hand-waits-hint__list">
+                  ${waitsToShow.map(
+                    (w) => html`
+                      <span class="hand-waits-hint__item">
+                        ${renderTile(w.face as any, { show: 'face' })}
+                        <span class="hand-waits-hint__count ${w.count === 0 ? 'is-empty' : ''}"> ${w.count} left </span>
                       </span>
-                    </span>
-                  `
-                )}
+                    `
+                  )}
+                </div>
               </div>
-            </div>
-          `
-        : ''}
+            `
+          : ''
+      }
 
       <div class="player-hand">
         ${props.tiles.map((tile, i) => renderHandTile(tile, i, false))}
-        ${props.drawnTile
-          ? html`
-              <span class="player-hand__drawn-gap">
-                ${renderHandTile(props.drawnTile, props.tiles.length, true)}
-              </span>
-            `
-          : ''}
+        ${
+          props.drawnTile
+            ? html`
+                <span class="player-hand__drawn-gap">
+                  ${renderHandTile(props.drawnTile, props.tiles.length, true)}
+                </span>
+              `
+            : ''
+        }
       </div>
     </div>
   `;

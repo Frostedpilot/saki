@@ -15,7 +15,13 @@ body {
   padding: 0;
   background-color: #0c1018;
   color: #dce0e8;
-  font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-family:
+    'DM Sans',
+    -apple-system,
+    BlinkMacSystemFont,
+    'Segoe UI',
+    Roboto,
+    sans-serif;
   -webkit-font-smoothing: antialiased;
   overflow: hidden;
 }
@@ -43,7 +49,9 @@ button {
   padding: 32px;
   width: 100%;
   max-width: 680px;
-  box-shadow: 0 16px 36px rgba(0, 0, 0, 0.6), 0 0 20px rgba(78, 204, 163, 0.15);
+  box-shadow:
+    0 16px 36px rgba(0, 0, 0, 0.6),
+    0 0 20px rgba(78, 204, 163, 0.15);
   display: flex;
   flex-direction: column;
   gap: 20px;
@@ -197,7 +205,9 @@ button {
   padding: 28px;
   width: 90%;
   max-width: 540px;
-  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.9), 0 0 30px rgba(255, 215, 0, 0.35);
+  box-shadow:
+    0 16px 40px rgba(0, 0, 0, 0.9),
+    0 0 30px rgba(255, 215, 0, 0.35);
   display: flex;
   flex-direction: column;
   gap: 16px;

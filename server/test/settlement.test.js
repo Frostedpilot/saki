@@ -30,8 +30,13 @@ function makeTable() {
 
   t.ctx = {
     players: [0, 1, 2, 3].map((s) => ({
-      seat: s, hand: [], melds: [], discards: [],
-      riichi: false, doubleRiichi: false, ippatsu: false,
+      seat: s,
+      hand: [],
+      melds: [],
+      discards: [],
+      riichi: false,
+      doubleRiichi: false,
+      ippatsu: false,
     })),
     dealer: 0,
     bakaze: 1,
@@ -150,8 +155,7 @@ test('the pot is carried regardless of how many are tenpai', async () => {
     setHands(t, seats);
     declareRiichi(t, 0, 1);
     await t.finishHand(-1, null);
-    assert.equal(t.riichiCarry, 1000,
-      `tenpai [${seats}] must not change who holds the stick`);
+    assert.equal(t.riichiCarry, 1000, `tenpai [${seats}] must not change who holds the stick`);
     assert.equal(sum(t) + t.riichiCarry, TOTAL, `tenpai [${seats}]: conservation`);
   }
 });
@@ -223,8 +227,11 @@ test('ron conserves points and the discarder funds it', async () => {
 
   const before = t.scores.slice();
   await t.finishHand(1, {
-    type: 'ron', from: 2, tile: '2p',
-    flags: { chankan: false, houtei: false }, hits: [{ seat: 1 }],
+    type: 'ron',
+    from: 2,
+    tile: '2p',
+    flags: { chankan: false, houtei: false },
+    hits: [{ seat: 1 }],
   });
 
   assert.equal(sum(t), TOTAL, 'ron conserves points');
@@ -241,7 +248,9 @@ test('double ron charges the discarder for both winners and conserves points', a
 
   const before = t.scores.slice();
   await t.finishHand(1, {
-    type: 'ron', from: 2, tile: '2p',
+    type: 'ron',
+    from: 2,
+    tile: '2p',
     flags: { chankan: false, houtei: false },
     hits: [{ seat: 1 }, { seat: 3 }],
   });
@@ -267,7 +276,9 @@ test('triple ron is an abortive draw, not a three-way win', async () => {
 
   const before = t.scores.slice();
   const outcome = await t.finishHand(1, {
-    type: 'ron', from: 0, tile: '2p',
+    type: 'ron',
+    from: 0,
+    tile: '2p',
     flags: { chankan: false, houtei: false },
     hits: [{ seat: 1 }, { seat: 2 }, { seat: 3 }],
   });
@@ -288,7 +299,9 @@ test('triple ron broadcasts a draw, never a win', async () => {
   const sent = [];
   t.broadcast = (m) => sent.push(m);
   await t.finishHand(1, {
-    type: 'ron', from: 0, tile: '2p',
+    type: 'ron',
+    from: 0,
+    tile: '2p',
     flags: { chankan: false, houtei: false },
     hits: [{ seat: 1 }, { seat: 2 }, { seat: 3 }],
   });
@@ -307,7 +320,9 @@ test('two claimants is still a legal, fully paid double ron', async () => {
 
   const before = t.scores.slice();
   const outcome = await t.finishHand(1, {
-    type: 'ron', from: 2, tile: '2p',
+    type: 'ron',
+    from: 2,
+    tile: '2p',
     flags: { chankan: false, houtei: false },
     hits: [{ seat: 1 }, { seat: 3 }],
   });
@@ -320,14 +335,20 @@ test('two claimants is still a legal, fully paid double ron', async () => {
 
 test('a triple ron of one tile is order-independent', async () => {
   // The claim order must not change the outcome — it is a void hand either way.
-  for (const hits of [[1, 2, 3], [3, 2, 1], [2, 1, 3]]) {
+  for (const hits of [
+    [1, 2, 3],
+    [3, 2, 1],
+    [2, 1, 3],
+  ]) {
     const t = makeTable();
     t.ctx.players[1].hand = RON_HAND.slice();
     t.ctx.players[2].hand = RON_HAND.slice();
     t.ctx.players[3].hand = RON_HAND.slice();
     const before = t.scores.slice();
     const outcome = await t.finishHand(hits[0], {
-      type: 'ron', from: 0, tile: '2p',
+      type: 'ron',
+      from: 0,
+      tile: '2p',
       flags: { chankan: false, houtei: false },
       hits: hits.map((seat) => ({ seat })),
     });
@@ -354,8 +375,7 @@ test('the riichi carry survives the post-settlement flow', async () => {
   t.kyoku = 1;
   t.applyPostSettlementFlow({ outcome: { aborted: false }, winBy: null, winner: -1, dealer: 0 });
 
-  assert.equal(t.riichiCarry, 3000,
-    'the post-settlement flow must not overwrite the carry — this is the KI-21 leak');
+  assert.equal(t.riichiCarry, 3000, 'the post-settlement flow must not overwrite the carry — this is the KI-21 leak');
   assert.equal(sum(t) + t.riichiCarry, TOTAL, 'and the points are still accounted for');
 });
 
@@ -364,14 +384,18 @@ test('the post-settlement flow never re-derives the carry from a drained pool', 
   // finishHand always leaves behind.
   const cases = [
     ['exhaustive', { aborted: false }, null],
-    ['triple ron abort', { aborted: true }, { type: 'ron', from: 0, tile: '2p', hits: [{ seat: 1 }, { seat: 2 }, { seat: 3 }] }],
+    [
+      'triple ron abort',
+      { aborted: true },
+      { type: 'ron', from: 0, tile: '2p', hits: [{ seat: 1 }, { seat: 2 }, { seat: 3 }] },
+    ],
     ['dealer ron', { aborted: false }, { type: 'ron', from: 1, tile: '2p', hits: [{ seat: 0 }] }],
     ['non-dealer ron', { aborted: false }, { type: 'ron', from: 0, tile: '2p', hits: [{ seat: 2 }] }],
   ];
   for (const [label, outcome, winBy] of cases) {
     const t = makeTable();
-    t.ctx.riichiPool = 0;   // drained by finishHand
-    t.riichiCarry = 1000;   // a real pot waiting on the table
+    t.ctx.riichiPool = 0; // drained by finishHand
+    t.riichiCarry = 1000; // a real pot waiting on the table
     t.honba = 0;
     t.applyPostSettlementFlow({ outcome, winBy, winner: -1, dealer: 0 });
     assert.equal(t.riichiCarry, 1000, `${label}: the carry must be left alone`);
@@ -426,14 +450,20 @@ test('an exhaustive draw keeps the dealer only when the dealer is tenpai', () =>
   setHands(withDealerTenpai, [0]);
   withDealerTenpai.honba = 0;
   withDealerTenpai.kyoku = 1;
-  assert.equal(withDealerTenpai.applyPostSettlementFlow({ outcome: { aborted: false }, winBy: null, winner: -1, dealer: 0 }), true);
+  assert.equal(
+    withDealerTenpai.applyPostSettlementFlow({ outcome: { aborted: false }, winBy: null, winner: -1, dealer: 0 }),
+    true
+  );
   assert.equal(withDealerTenpai.honba, 1);
 
   const withoutDealerTenpai = makeTable();
   setHands(withoutDealerTenpai, [1]);
   withoutDealerTenpai.honba = 0;
   withoutDealerTenpai.kyoku = 1;
-  assert.equal(withoutDealerTenpai.applyPostSettlementFlow({ outcome: { aborted: false }, winBy: null, winner: -1, dealer: 0 }), false);
+  assert.equal(
+    withoutDealerTenpai.applyPostSettlementFlow({ outcome: { aborted: false }, winBy: null, winner: -1, dealer: 0 }),
+    false
+  );
   assert.equal(withoutDealerTenpai.honba, 1, 'an exhaustive draw always adds a honba');
 });
 
@@ -562,7 +592,7 @@ async function runToGameOver(t, carry) {
   const sent = [];
   t.broadcastMessage = (m) => sent.push(m);
   t.room.afterGameOver = () => {};
-  t.playOneHand = async () => {};   // no hands: we are testing teardown only
+  t.playOneHand = async () => {}; // no hands: we are testing teardown only
   t.riichiCarry = carry;
   await t.run('ROOM');
   return sent;
@@ -583,25 +613,31 @@ test('uncollected riichi sticks are forfeited at match end, not redistributed', 
   const scores = gameOverScores(await runToGameOver(t, 1000));
 
   assert.equal(
-    scores.reduce((a, b) => a + b, 0), TOTAL - 1000,
-    'the leftover stick must be lost, not handed back',
+    scores.reduce((a, b) => a + b, 0),
+    TOTAL - 1000,
+    'the leftover stick must be lost, not handed back'
   );
-  assert.deepEqual(scores, [24000, 25000, 25000, 25000],
-    'no seat may receive a share of the forfeited pot');
+  assert.deepEqual(scores, [24000, 25000, 25000, 25000], 'no seat may receive a share of the forfeited pot');
 });
 
 test('three forfeited sticks leave the total short by 3000', async () => {
   const t = makeTable();
   t.scores[0] -= 3000;
   const scores = gameOverScores(await runToGameOver(t, 3000));
-  assert.equal(scores.reduce((a, b) => a + b, 0), TOTAL - 3000);
+  assert.equal(
+    scores.reduce((a, b) => a + b, 0),
+    TOTAL - 3000
+  );
   assert.deepEqual(scores, [22000, 25000, 25000, 25000]);
 });
 
 test('a match that ends with an empty table still totals 100000', async () => {
   const t = makeTable();
   const scores = gameOverScores(await runToGameOver(t, 0));
-  assert.equal(scores.reduce((a, b) => a + b, 0), TOTAL);
+  assert.equal(
+    scores.reduce((a, b) => a + b, 0),
+    TOTAL
+  );
   assert.deepEqual(scores, [25000, 25000, 25000, 25000]);
 });
 

@@ -29,21 +29,29 @@ function tileToSaki(tile) {
   if (!tile || typeof tile.index !== 'number' || !Number.isInteger(tile.index)) return null;
   if (tile.index < 0 || tile.index > 33) return null;
   const { index, red_dora } = tile;
-  if (index >= 27) return (index - 27 + 1) + 'z';
+  if (index >= 27) return index - 27 + 1 + 'z';
   const s = 'mps'[Math.floor(index / 9)];
   const n = (index % 9) + 1;
   return red_dora && n === 5 ? '0' + s : n + s;
 }
 
-function tilesToSaki(tiles) { return (tiles || []).map(tileToSaki).filter(Boolean); }
-function tilesToProtocol(tiles) { return (tiles || []).map(sakiToTile); }
+function tilesToSaki(tiles) {
+  return (tiles || []).map(tileToSaki).filter(Boolean);
+}
+function tilesToProtocol(tiles) {
+  return (tiles || []).map(sakiToTile);
+}
 
 // ------------------------------------------------------------------ winds
 const WINDS = ['East', 'South', 'West', 'North'];
 // Seat wind of `seat` relative to `dealer` (dealer's seat is East).
-function seatWind(seat, dealer) { return WINDS[(seat - dealer + 4) % 4]; }
+function seatWind(seat, dealer) {
+  return WINDS[(seat - dealer + 4) % 4];
+}
 // 1..4 jikaze digit used by the riichi lib (East=1 relative to dealer).
-function jikazeOf(seat, dealer) { return ((seat - dealer + 4) % 4) + 1; }
+function jikazeOf(seat, dealer) {
+  return ((seat - dealer + 4) % 4) + 1;
+}
 
 // ---------------------------------------------------------- server messages
 function welcome(sessionToken) {
@@ -69,10 +77,18 @@ function roomState(opts) {
   return { RoomState: msg };
 }
 
-function event(ev) { return { Event: ev }; }
-function gameOver(finalScores) { return { GameOver: { final_scores: finalScores } }; }
-function errorMessage(code, message) { return { Error: { code, message } }; }
-function turnTimer(seconds) { return { TurnTimer: { seconds } }; }
+function event(ev) {
+  return { Event: ev };
+}
+function gameOver(finalScores) {
+  return { GameOver: { final_scores: finalScores } };
+}
+function errorMessage(code, message) {
+  return { Error: { code, message } };
+}
+function turnTimer(seconds) {
+  return { TurnTimer: { seconds } };
+}
 
 // ----------------------------------------------------------- server events
 function evGameStarted(opts) {
@@ -120,7 +136,8 @@ function evTileDiscarded(opts) {
       player: opts.player,
       tile: opts.tile,
       is_tsumogiri: !!(opts.isTsumogiri !== undefined ? opts.isTsumogiri : opts.is_tsumogiri),
-      hand_index: opts.handIndex !== undefined ? opts.handIndex : (opts.hand_index !== undefined ? opts.hand_index : null),
+      hand_index:
+        opts.handIndex !== undefined ? opts.handIndex : opts.hand_index !== undefined ? opts.hand_index : null,
     },
   };
 }
@@ -146,7 +163,13 @@ function evDoraIndicatorsUpdated(opts) {
 }
 
 function evPlayerRiichi(opts) {
-  return { PlayerRiichi: { player: opts.player, scores: opts.scores, riichi_sticks: opts.riichiSticks !== undefined ? opts.riichiSticks : opts.riichi_sticks } };
+  return {
+    PlayerRiichi: {
+      player: opts.player,
+      scores: opts.scores,
+      riichi_sticks: opts.riichiSticks !== undefined ? opts.riichiSticks : opts.riichi_sticks,
+    },
+  };
 }
 
 function evHandUpdated(opts) {
@@ -167,9 +190,11 @@ function evRoundWon(opts) {
       rank: opts.rank,
       has_opened: !!(opts.hasOpened !== undefined ? opts.hasOpened : opts.has_opened),
       uradora_indicators: opts.uradoraIndicators || opts.uradora_indicators || [],
-      riichi_sticks: opts.riichiSticks !== undefined ? opts.riichiSticks : (opts.riichi_sticks !== undefined ? opts.riichi_sticks : 0),
+      riichi_sticks:
+        opts.riichiSticks !== undefined ? opts.riichiSticks : opts.riichi_sticks !== undefined ? opts.riichi_sticks : 0,
       honba: opts.honba,
-      honba_points: opts.honbaPoints !== undefined ? opts.honbaPoints : (opts.honba_points !== undefined ? opts.honba_points : 0),
+      honba_points:
+        opts.honbaPoints !== undefined ? opts.honbaPoints : opts.honba_points !== undefined ? opts.honba_points : 0,
       player_hands: opts.playerHands || opts.player_hands || [],
     },
   };
@@ -181,7 +206,8 @@ function evRoundDraw(opts) {
       scores: opts.scores,
       reason: opts.reason,
       tenpai: opts.tenpai,
-      riichi_sticks: opts.riichiSticks !== undefined ? opts.riichiSticks : (opts.riichi_sticks !== undefined ? opts.riichi_sticks : 0),
+      riichi_sticks:
+        opts.riichiSticks !== undefined ? opts.riichiSticks : opts.riichi_sticks !== undefined ? opts.riichi_sticks : 0,
       player_hands: opts.playerHands || opts.player_hands || [],
       declarer: opts.declarer === null || opts.declarer === undefined ? null : opts.declarer,
     },
@@ -223,7 +249,11 @@ function evSuperpowerIndicator({ seat, active, gauge, description, power, armedT
 // Returns { ok:true, kind, ... } or { ok:false }.
 function parseClientMessage(text) {
   let raw;
-  try { raw = JSON.parse(text); } catch { return { ok: false }; }
+  try {
+    raw = JSON.parse(text);
+  } catch {
+    return { ok: false };
+  }
 
   // Unit variants are bare strings.
   if (raw === 'LeaveRoom') return { ok: true, kind: 'LeaveRoom' };
@@ -239,7 +269,8 @@ function parseClientMessage(text) {
   switch (kind) {
     case 'Hello':
       return {
-        ok: true, kind,
+        ok: true,
+        kind,
         protocol_version: payload.protocol_version,
         session_token: payload.session_token ?? null,
         display_name: payload.display_name ?? '',
@@ -275,27 +306,38 @@ function parseAction(payload) {
   const p = payload[k] || {};
   switch (k) {
     case 'Discard': {
-      if (p.tile === undefined || p.tile === null) return { ok: true, kind: 'Action', action: { type: 'Discard', tile: null } };
+      if (p.tile === undefined || p.tile === null)
+        return { ok: true, kind: 'Action', action: { type: 'Discard', tile: null } };
       const t = tileToSaki(p.tile);
       if (t === null) return { ok: false };
       return { ok: true, kind: 'Action', action: { type: 'Discard', tile: t } };
     }
     case 'Riichi': {
-      if (p.tile === undefined || p.tile === null) return { ok: true, kind: 'Action', action: { type: 'Riichi', tile: null } };
+      if (p.tile === undefined || p.tile === null)
+        return { ok: true, kind: 'Action', action: { type: 'Riichi', tile: null } };
       const t = tileToSaki(p.tile);
       if (t === null) return { ok: false };
       return { ok: true, kind: 'Action', action: { type: 'Riichi', tile: t } };
     }
-    case 'Chi': return { ok: true, kind: 'Action', action: { type: 'Chi', tiles: tilesToSaki(p.tiles) } };
-    case 'Pon': return { ok: true, kind: 'Action', action: { type: 'Pon', tiles: tilesToSaki(p.tiles) } };
+    case 'Chi':
+      return { ok: true, kind: 'Action', action: { type: 'Chi', tiles: tilesToSaki(p.tiles) } };
+    case 'Pon':
+      return { ok: true, kind: 'Action', action: { type: 'Pon', tiles: tilesToSaki(p.tiles) } };
     case 'Kan': {
       const idx = p.tile_index;
       if (!Number.isInteger(idx) || idx < 0 || idx > 33) return { ok: false };
       return { ok: true, kind: 'Action', action: { type: 'Kan', tile_index: idx } };
     }
-    case 'NineTerminals': return { ok: false };
-    case 'SelectPowerTier': return { ok: true, kind: 'Action', action: { type: 'SelectPowerTier', tier: typeof p.tier === 'number' ? p.tier : 0 } };
-    default: return { ok: false };
+    case 'NineTerminals':
+      return { ok: false };
+    case 'SelectPowerTier':
+      return {
+        ok: true,
+        kind: 'Action',
+        action: { type: 'SelectPowerTier', tier: typeof p.tier === 'number' ? p.tier : 0 },
+      };
+    default:
+      return { ok: false };
   }
 }
 

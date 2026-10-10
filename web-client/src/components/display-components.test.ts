@@ -48,14 +48,17 @@ beforeEach(() => {
 // ------------------------------------------------------------- center info
 
 describe('renderCenterInfo', () => {
-  const bar = (host: HTMLElement, pos: string) =>
-    host.querySelector(`.board-center__score-bar--${pos}`) as HTMLElement;
+  const bar = (host: HTMLElement, pos: string) => host.querySelector(`.board-center__score-bar--${pos}`) as HTMLElement;
 
   test('shows the round as kanji plus number', () => {
-    expect(mount(renderCenterInfo(centerProps())).querySelector('.board-center__round')!.textContent!.trim())
-      .toBe('東1局');
-    expect(mount(renderCenterInfo(centerProps({ roundWind: 'South', roundNumber: 2 })))
-      .querySelector('.board-center__round')!.textContent!.trim()).toBe('南2局');
+    expect(mount(renderCenterInfo(centerProps())).querySelector('.board-center__round')!.textContent!.trim()).toBe(
+      '東1局'
+    );
+    expect(
+      mount(renderCenterInfo(centerProps({ roundWind: 'South', roundNumber: 2 })))
+        .querySelector('.board-center__round')!
+        .textContent!.trim()
+    ).toBe('南2局');
   });
 
   test('an unknown round wind falls back to East rather than rendering undefined', () => {
@@ -78,8 +81,7 @@ describe('renderCenterInfo', () => {
   test('seat winds are derived from the dealer, not from seat index', () => {
     // Dealer seat 1 -> seat 1 is East, 2 South, 3 West, 0 North.
     const host = mount(renderCenterInfo(centerProps({ dealerSeat: 1, yourSeat: 0 })));
-    const windOf = (pos: string) =>
-      bar(host, pos).querySelector('.board-center__wind')!.textContent!.trim();
+    const windOf = (pos: string) => bar(host, pos).querySelector('.board-center__wind')!.textContent!.trim();
     // yourSeat 0 -> bottom=0, right=1, top=2, left=3. With dealerSeat 1: seat1 East,
     // seat2 South, seat3 West, seat0 North.
     expect(windOf('bottom')).toBe('北');
@@ -90,12 +92,16 @@ describe('renderCenterInfo', () => {
 
   test('positions follow your seat', () => {
     // yourSeat 2 -> bottom=2, right=3, top=0, left=1
-    const host = mount(renderCenterInfo(centerProps({
-      dealerSeat: 0, yourSeat: 2,
-      scores: [31000, 22000, 20000, 27000],
-    })));
-    const scoreOf = (pos: string) =>
-      bar(host, pos).querySelector('.board-center__score')!.textContent!.trim();
+    const host = mount(
+      renderCenterInfo(
+        centerProps({
+          dealerSeat: 0,
+          yourSeat: 2,
+          scores: [31000, 22000, 20000, 27000],
+        })
+      )
+    );
+    const scoreOf = (pos: string) => bar(host, pos).querySelector('.board-center__score')!.textContent!.trim();
     expect(scoreOf('bottom')).toBe('20000');
     expect(scoreOf('right')).toBe('27000');
     expect(scoreOf('top')).toBe('31000');
@@ -104,8 +110,7 @@ describe('renderCenterInfo', () => {
 
   test('a missing score falls back to the starting score instead of blank', () => {
     const host = mount(renderCenterInfo(centerProps({ scores: [25000] })));
-    expect(bar(host, 'right').querySelector('.board-center__score')!.textContent!.trim())
-      .toBe('25000');
+    expect(bar(host, 'right').querySelector('.board-center__score')!.textContent!.trim()).toBe('25000');
   });
 
   test('the acting seat is marked active', () => {
@@ -134,32 +139,49 @@ describe('renderCenterInfo', () => {
   });
 
   test('a full set of five indicators leaves no face-down filler', () => {
-    const host = mount(renderCenterInfo(centerProps({
-      doraIndicators: [tile(0), tile(1), tile(2), tile(3), tile(4)],
-    })));
+    const host = mount(
+      renderCenterInfo(
+        centerProps({
+          doraIndicators: [tile(0), tile(1), tile(2), tile(3), tile(4)],
+        })
+      )
+    );
     expect(host.querySelectorAll('.board-center__dora-tiles .mahjong-tile--back').length).toBe(0);
     expect(host.querySelectorAll('.board-center__dora-tiles .mahjong-tile').length).toBe(5);
   });
 
   test('more than five indicators does not produce a negative filler length', () => {
-    const host = mount(renderCenterInfo(centerProps({
-      doraIndicators: [tile(0), tile(1), tile(2), tile(3), tile(4), tile(5)],
-    })));
+    const host = mount(
+      renderCenterInfo(
+        centerProps({
+          doraIndicators: [tile(0), tile(1), tile(2), tile(3), tile(4), tile(5)],
+        })
+      )
+    );
     expect(host.querySelectorAll('.mahjong-tile--back').length).toBe(0);
   });
 
   test('a riichi pip is shown only for a seat in riichi', () => {
-    const host = mount(renderCenterInfo(centerProps({
-      riichiSeats: [false, true, false, false], yourSeat: 0,
-    })));
+    const host = mount(
+      renderCenterInfo(
+        centerProps({
+          riichiSeats: [false, true, false, false],
+          yourSeat: 0,
+        })
+      )
+    );
     expect(host.querySelectorAll('.board-center__riichi-pip').length).toBe(1);
     expect(bar(host, 'right').querySelector('.board-center__riichi-pip')).not.toBeNull();
   });
 
   test('no riichi pips when nobody is in riichi', () => {
-    const host = mount(renderCenterInfo(centerProps({
-      riichiSeats: [false, false, false, false],
-    })));
+    const host = mount(
+      renderCenterInfo(
+        centerProps({
+          riichiSeats: [false, false, false, false],
+        })
+      )
+    );
     expect(host.querySelectorAll('.board-center__riichi-pip').length).toBe(0);
   });
 
@@ -181,16 +203,23 @@ describe('renderCenterInfo', () => {
 // --------------------------------------------------------------- game log
 
 describe('renderGameLog', () => {
-  const store = (over: Record<string, any> = {}) => ({
-    isLogExpanded: true,
-    logs: [] as any[],
-    toggles: 0,
-    toggleLog() { this.toggles++; },
-    ...over,
-  } as any);
+  const store = (over: Record<string, any> = {}) =>
+    ({
+      isLogExpanded: true,
+      logs: [] as any[],
+      toggles: 0,
+      toggleLog() {
+        this.toggles++;
+      },
+      ...over,
+    }) as any;
 
   const entry = (over: Record<string, any> = {}) => ({
-    id: '1', timestamp: 'E1', category: 'turn', message: 'P0 discarded 1m', ...over,
+    id: '1',
+    timestamp: 'E1',
+    category: 'turn',
+    message: 'P0 discarded 1m',
+    ...over,
   });
 
   test('the header toggles the log on click', () => {
@@ -235,17 +264,17 @@ describe('renderGameLog', () => {
     // stopPropagation a single click would fire both handlers.
     const s = store();
     const host = mount(renderGameLog(s));
-    (host.querySelector('.game-log__toggle-btn') as HTMLElement).dispatchEvent(
-      new Event('click', { bubbles: true }),
-    );
+    (host.querySelector('.game-log__toggle-btn') as HTMLElement).dispatchEvent(new Event('click', { bubbles: true }));
     expect(s.toggles).toBe(1);
   });
 
   test('expanded and collapsed are distinguished by class', () => {
-    expect(mount(renderGameLog(store({ isLogExpanded: true }))).querySelector('.game-log')!.className)
-      .toContain('game-log--expanded');
-    expect(mount(renderGameLog(store({ isLogExpanded: false }))).querySelector('.game-log')!.className)
-      .toContain('game-log--collapsed');
+    expect(mount(renderGameLog(store({ isLogExpanded: true }))).querySelector('.game-log')!.className).toContain(
+      'game-log--expanded'
+    );
+    expect(mount(renderGameLog(store({ isLogExpanded: false }))).querySelector('.game-log')!.className).toContain(
+      'game-log--collapsed'
+    );
   });
 
   test('a collapsed log hides its entries', () => {
@@ -254,9 +283,13 @@ describe('renderGameLog', () => {
   });
 
   test('an expanded log shows every entry with its category class', () => {
-    const host = mount(renderGameLog(store({
-      logs: [entry({ id: '1', category: 'turn' }), entry({ id: '2', category: 'win', message: 'won' })],
-    })));
+    const host = mount(
+      renderGameLog(
+        store({
+          logs: [entry({ id: '1', category: 'turn' }), entry({ id: '2', category: 'win', message: 'won' })],
+        })
+      )
+    );
     expect(host.querySelectorAll('.game-log__item').length).toBe(2);
     expect(host.querySelector('.game-log__item--win')!.textContent).toContain('won');
   });
@@ -291,10 +324,17 @@ describe('renderGameLog', () => {
 // ------------------------------------------------------------ power badge
 
 describe('renderPowerBadge', () => {
-  const state = (over: Record<string, any> = {}) => ({
-    power: 'saki', type: 'flow', active: false, gauge: 50, armedTier: 0,
-    availableTiers: undefined, description: 'Burns a tile.', ...over,
-  } as any);
+  const state = (over: Record<string, any> = {}) =>
+    ({
+      power: 'saki',
+      type: 'flow',
+      active: false,
+      gauge: 50,
+      armedTier: 0,
+      availableTiers: undefined,
+      description: 'Burns a tile.',
+      ...over,
+    }) as any;
 
   test('renders nothing for no power', () => {
     expect(mount(renderPowerBadge(state({ power: 'none' }))).querySelector('.power-badge')).toBeNull();
@@ -308,31 +348,47 @@ describe('renderPowerBadge', () => {
   });
 
   test('the gauge is clamped to 0..100', () => {
-    expect(mount(renderPowerBadge(state({ gauge: 150 }))).querySelector('.power-badge__pct')!.textContent!.trim())
-      .toBe('100%');
-    expect(mount(renderPowerBadge(state({ gauge: -20 }))).querySelector('.power-badge__pct')!.textContent!.trim())
-      .toBe('0%');
+    expect(
+      mount(renderPowerBadge(state({ gauge: 150 })))
+        .querySelector('.power-badge__pct')!
+        .textContent!.trim()
+    ).toBe('100%');
+    expect(
+      mount(renderPowerBadge(state({ gauge: -20 })))
+        .querySelector('.power-badge__pct')!
+        .textContent!.trim()
+    ).toBe('0%');
   });
 
   test('an absent gauge falls back to full when active, otherwise a nominal third', () => {
-    expect(mount(renderPowerBadge(state({ gauge: undefined, active: true })))
-      .querySelector('.power-badge__pct')!.textContent!.trim()).toBe('100%');
-    expect(mount(renderPowerBadge(state({ gauge: undefined, active: false })))
-      .querySelector('.power-badge__pct')!.textContent!.trim()).toBe('33%');
+    expect(
+      mount(renderPowerBadge(state({ gauge: undefined, active: true })))
+        .querySelector('.power-badge__pct')!
+        .textContent!.trim()
+    ).toBe('100%');
+    expect(
+      mount(renderPowerBadge(state({ gauge: undefined, active: false })))
+        .querySelector('.power-badge__pct')!
+        .textContent!.trim()
+    ).toBe('33%');
   });
 
   test('the active class reflects the active flag', () => {
-    expect(mount(renderPowerBadge(state({ active: true }))).querySelector('.power-badge')!.className)
-      .toContain('power-badge--active');
-    expect(mount(renderPowerBadge(state({ active: false }))).querySelector('.power-badge')!.className)
-      .not.toContain('power-badge--active');
+    expect(mount(renderPowerBadge(state({ active: true }))).querySelector('.power-badge')!.className).toContain(
+      'power-badge--active'
+    );
+    expect(mount(renderPowerBadge(state({ active: false }))).querySelector('.power-badge')!.className).not.toContain(
+      'power-badge--active'
+    );
   });
 
   test('the character class is derived from the power key', () => {
-    expect(mount(renderPowerBadge(state({ power: 'saki' }))).querySelector('.power-badge')!.className)
-      .toContain('power-badge--saki');
-    expect(mount(renderPowerBadge(state({ power: 'saki-normal', type: 'normal' })))
-      .querySelector('.power-badge')!.className).toContain('power-badge--saki-normal');
+    expect(mount(renderPowerBadge(state({ power: 'saki' }))).querySelector('.power-badge')!.className).toContain(
+      'power-badge--saki'
+    );
+    expect(
+      mount(renderPowerBadge(state({ power: 'saki-normal', type: 'normal' }))).querySelector('.power-badge')!.className
+    ).toContain('power-badge--saki-normal');
   });
 
   test('a normal-type power renders a passive pill, not a Flow meter', () => {
@@ -404,9 +460,12 @@ describe('renderPowerBadge', () => {
 
   test('the conserve button clears the armed tier', () => {
     const picked: number[] = [];
-    const host = mount(renderPowerBadge(state({ armedTier: 3 }), {
-      isYou: true, onSelectTier: (t: number) => picked.push(t),
-    }));
+    const host = mount(
+      renderPowerBadge(state({ armedTier: 3 }), {
+        isYou: true,
+        onSelectTier: (t: number) => picked.push(t),
+      })
+    );
     (host.querySelector('.power-badge__tier-conserve') as HTMLElement).dispatchEvent(new Event('click'));
     expect(picked).toEqual([0]);
   });
@@ -419,17 +478,20 @@ describe('renderPowerBadge', () => {
   });
 
   test('server-provided tiers replace the defaults', () => {
-    const host = mount(renderPowerBadge(state({
-      availableTiers: [{ tier: 1, name: 'Only', cost: 10, canAfford: true, canActivate: true }],
-    }), { isYou: true, onSelectTier: () => {} }));
+    const host = mount(
+      renderPowerBadge(
+        state({
+          availableTiers: [{ tier: 1, name: 'Only', cost: 10, canAfford: true, canActivate: true }],
+        }),
+        { isYou: true, onSelectTier: () => {} }
+      )
+    );
     expect(host.querySelectorAll('.power-badge__tier-btn').length).toBe(1);
     expect(host.querySelector('.power-badge__tier-btn')!.textContent).toContain('T1 (10)');
   });
 
   test('advice text is shown only for your own seat', () => {
-    expect(mount(renderPowerBadge(state(), { isYou: true })).querySelector('.power-badge__advice'))
-      .not.toBeNull();
-    expect(mount(renderPowerBadge(state(), { isYou: false })).querySelector('.power-badge__advice'))
-      .toBeNull();
+    expect(mount(renderPowerBadge(state(), { isYou: true })).querySelector('.power-badge__advice')).not.toBeNull();
+    expect(mount(renderPowerBadge(state(), { isYou: false })).querySelector('.power-badge__advice')).toBeNull();
   });
 });

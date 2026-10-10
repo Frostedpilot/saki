@@ -27,7 +27,9 @@ function createYuuHooks(seat) {
       passiveName: 'Hot Dams (Manzu + Chun)',
       tiers: {},
     },
-    getTierInfo() { return []; },
+    getTierInfo() {
+      return [];
+    },
 
     // Phase 2: Trajectory Shaper — pure weight, no mutation, always live.
     onPowerDraw(tile, state) {
@@ -36,7 +38,9 @@ function createYuuHooks(seat) {
       return isWarmTile(tile) ? MANZU_CHUN_BIAS : 1.0;
     },
 
-    isPowerActive() { return true; },
+    isPowerActive() {
+      return true;
+    },
 
     getHudAdvice() {
       return 'Hot Dams active — Manzu and Red Dragon draws are boosted (x1.35).';

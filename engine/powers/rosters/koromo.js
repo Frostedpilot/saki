@@ -10,24 +10,19 @@ const TIER1_COST = 25;
 const TIER2_COST = 50;
 const TIER3_COST = 100;
 const TIER4_COST = 150;
-const CRESCENT_FLOW_MULT = 0.75;   // -25% during Hands 1–2
-const FULL_MOON_FLOW_MULT = 1.50;  // +50% during Hands 3–4
-const FULL_MOON_THRESHOLD = 50;    // flow >= 50: reveal opponent shanten/tenpai
-const HESITATION_DRAIN = 5;        // T1: 5% per second over 5s
-const OCEANIC_MIRE_MULT = 0.60;    // T2: -40% draw weight for opponents
-const OCEANIC_MIRE_TURNS = 4;      // T2 lasts 4 turns
-const HAITEI_GRAVITY_MULT = 2.5;   // T3: 2.5x hand-advancing draw
-const HAITEI_FINAL_WEIGHT = 15.0;  // T3: 75% on final draw
-const ABYSS_OPPONENT_MULT = 0.20;  // T4: -80% for opponents
-const MANGAN_CAP = 8000;           // T3: Ron payout cap
+const CRESCENT_FLOW_MULT = 0.75; // -25% during Hands 1–2
+const FULL_MOON_FLOW_MULT = 1.5; // +50% during Hands 3–4
+const FULL_MOON_THRESHOLD = 50; // flow >= 50: reveal opponent shanten/tenpai
+const HESITATION_DRAIN = 5; // T1: 5% per second over 5s
+const OCEANIC_MIRE_MULT = 0.6; // T2: -40% draw weight for opponents
+const OCEANIC_MIRE_TURNS = 4; // T2 lasts 4 turns
+const HAITEI_GRAVITY_MULT = 2.5; // T3: 2.5x hand-advancing draw
+const HAITEI_FINAL_WEIGHT = 15.0; // T3: 75% on final draw
+const ABYSS_OPPONENT_MULT = 0.2; // T4: -80% for opponents
+const MANGAN_CAP = 8000; // T3: Ron payout cap
 
 function getHand(state, seat) {
   return (state.players[seat] && state.players[seat].hand) || [];
-}
-
-function getScore(state, seat) {
-  if (state.scores && state.scores[seat] !== undefined) return state.scores[seat];
-  return 25000;
 }
 
 // Lunar phase: 'crescent' (hands 1–2) or 'full' (hands 3–4).
@@ -52,7 +47,9 @@ function selectSecretWinningAnchor(hand, pool, players = [], ctx = {}) {
   const allWaits = Object.keys(h.wait);
   if (!allWaits.length) return null;
 
-  const liveWaits = pool ? allWaits.filter(w => (pool.get(w) || 0) > 0 || (pool.get(w.replace(/^5/, '0')) || 0) > 0) : allWaits;
+  const liveWaits = pool
+    ? allWaits.filter((w) => (pool.get(w) || 0) > 0 || (pool.get(w.replace(/^5/, '0')) || 0) > 0)
+    : allWaits;
   const candidates = liveWaits.length ? liveWaits : allWaits;
 
   let bestTile = candidates[0];
@@ -75,7 +72,7 @@ function selectSecretWinningAnchor(hand, pool, players = [], ctx = {}) {
       };
       const r = scoreHand([...hand, w], ctx.melds || [], null, true, scoringCtx);
       if (r && r.isAgari) {
-        han = r.yakuman ? 13 : (r.han || 1);
+        han = r.yakuman ? 13 : r.han || 1;
       } else {
         isAgari = false;
       }
@@ -99,12 +96,12 @@ function selectSecretWinningAnchor(hand, pool, players = [], ctx = {}) {
         oppUtility += 10;
       }
 
-      if (p.discards && p.discards.some(d => norm(d) === norm(w))) {
+      if (p.discards && p.discards.some((d) => norm(d) === norm(w))) {
         oppUtility -= 5;
       }
     }
 
-    const score = (han * 10) + (candidates.length * 2) - (oppUtility * 2);
+    const score = han * 10 + candidates.length * 2 - oppUtility * 2;
     if (score > bestScore) {
       bestScore = score;
       bestTile = w;
@@ -174,7 +171,7 @@ function createKoromoHooks(seat, persistent = {}) {
           const newShanten = shantenOf(testHand);
           if (newShanten < curShanten) {
             const h = hairiOf(testHand);
-            const waitCount = (h && h.wait) ? Object.keys(h.wait).length : 0;
+            const waitCount = h && h.wait ? Object.keys(h.wait).length : 0;
             const base = 1.0 + 0.15 * Math.min(waitCount, 3);
             const flow = state.flow ? state.flow.get(seat) : 0;
             return scalePassiveWeight(base, flow, state, seat);
@@ -222,7 +219,7 @@ function createKoromoHooks(seat, persistent = {}) {
     },
 
     // Open meld counterplay: reduces T4 win rate by 25% per call.
-    onOpponentMeld(opponentSeat) {
+    onOpponentMeld(_opponentSeat) {
       if (tier4Active) counterplayCalls++;
     },
 
@@ -239,7 +236,12 @@ function createKoromoHooks(seat, persistent = {}) {
     tryActivateTier1(state, turn) {
       const flow = state.flow;
       if (!flow || !flow.canAfford(seat, TIER1_COST)) return { ok: false, reason: 'insufficient-flow' };
-      const curTurn = turn !== undefined ? turn : ((state.players && state.players[seat] && state.players[seat].discards) ? state.players[seat].discards.length + 1 : 1);
+      const curTurn =
+        turn !== undefined
+          ? turn
+          : state.players && state.players[seat] && state.players[seat].discards
+            ? state.players[seat].discards.length + 1
+            : 1;
       if (curTurn < 7 || curTurn > 15) return { ok: false, reason: 'turn-gate' };
       flow.consume(seat, TIER1_COST);
       tier1TurnsLeft = 3;
@@ -250,7 +252,12 @@ function createKoromoHooks(seat, persistent = {}) {
     tryActivateTier2(state, turn) {
       const flow = state.flow;
       if (!flow || !flow.canAfford(seat, TIER2_COST)) return { ok: false, reason: 'insufficient-flow' };
-      const curTurn = turn !== undefined ? turn : ((state.players && state.players[seat] && state.players[seat].discards) ? state.players[seat].discards.length + 1 : 1);
+      const curTurn =
+        turn !== undefined
+          ? turn
+          : state.players && state.players[seat] && state.players[seat].discards
+            ? state.players[seat].discards.length + 1
+            : 1;
       if (curTurn < 8 || curTurn > 14) return { ok: false, reason: 'turn-gate' };
       flow.consume(seat, TIER2_COST);
       tier2TurnsLeft = OCEANIC_MIRE_TURNS;
@@ -261,7 +268,7 @@ function createKoromoHooks(seat, persistent = {}) {
     tryActivateTier3(state, wallLeft) {
       const flow = state.flow;
       if (!flow || !flow.canAfford(seat, TIER3_COST)) return { ok: false, reason: 'insufficient-flow' };
-      const curWall = wallLeft !== undefined ? wallLeft : (state.pool ? state.pool.total() : 0);
+      const curWall = wallLeft !== undefined ? wallLeft : state.pool ? state.pool.total() : 0;
       if (curWall > 20) return { ok: false, reason: 'wall-gate' };
       flow.consume(seat, TIER3_COST);
       tier3Active = true;
@@ -272,7 +279,7 @@ function createKoromoHooks(seat, persistent = {}) {
     tryActivateTier4(state, wallLeft) {
       const flow = state.flow;
       if (!flow || !flow.canAfford(seat, TIER4_COST)) return { ok: false, reason: 'insufficient-flow' };
-      const curWall = wallLeft !== undefined ? wallLeft : (state.pool ? state.pool.total() : 0);
+      const curWall = wallLeft !== undefined ? wallLeft : state.pool ? state.pool.total() : 0;
       if (curWall > 14) return { ok: false, reason: 'wall-gate' };
       const hand = getHand(state, seat);
       if (shantenOf(hand) !== 0) return { ok: false, reason: 'precondition' };
@@ -282,7 +289,7 @@ function createKoromoHooks(seat, persistent = {}) {
       // Return the Haitei anchor tile (winning wait) for engine reservation
       const anchorTile = selectSecretWinningAnchor(hand, state.pool, (state && state.players) || [], {
         seat,
-        melds: (state && state.players && state.players[seat]) ? state.players[seat].melds : [],
+        melds: state && state.players && state.players[seat] ? state.players[seat].melds : [],
         bakaze: (state && state.bakaze) || 1,
         jikaze: ((seat - ((state && state.dealer) || 0) + 4) % 4) + 1,
         dora: ((state && state.doraIndicators) || []).map(DORA_NEXT),
@@ -293,7 +300,10 @@ function createKoromoHooks(seat, persistent = {}) {
 
     getTierInfo(state) {
       const flow = state.flow ? state.flow.get(seat) : 0;
-      const turn = (state.players && state.players[seat] && state.players[seat].discards) ? state.players[seat].discards.length + 1 : 1;
+      const turn =
+        state.players && state.players[seat] && state.players[seat].discards
+          ? state.players[seat].discards.length + 1
+          : 1;
       const wallLeft = state.pool ? state.pool.total() : 0;
       const hand = getHand(state, seat);
       const isTenpai = shantenOf(hand) === 0;
@@ -304,20 +314,49 @@ function createKoromoHooks(seat, persistent = {}) {
       const t4Pre = wallLeft <= 14 && isTenpai;
 
       return [
-        { tier: 1, name: 'Chilling Gaze', cost: TIER1_COST, canAfford: flow >= TIER1_COST, canActivate: flow >= TIER1_COST && t1Pre },
-        { tier: 2, name: 'Oceanic Mire', cost: TIER2_COST, canAfford: flow >= TIER2_COST, canActivate: flow >= TIER2_COST && t2Pre },
-        { tier: 3, name: 'Haitei Gravity', cost: TIER3_COST, canAfford: flow >= TIER3_COST, canActivate: flow >= TIER3_COST && t3Pre },
-        { tier: 4, name: 'Submerged Abyss', cost: TIER4_COST, canAfford: flow >= TIER4_COST, canActivate: flow >= TIER4_COST && t4Pre },
+        {
+          tier: 1,
+          name: 'Chilling Gaze',
+          cost: TIER1_COST,
+          canAfford: flow >= TIER1_COST,
+          canActivate: flow >= TIER1_COST && t1Pre,
+        },
+        {
+          tier: 2,
+          name: 'Oceanic Mire',
+          cost: TIER2_COST,
+          canAfford: flow >= TIER2_COST,
+          canActivate: flow >= TIER2_COST && t2Pre,
+        },
+        {
+          tier: 3,
+          name: 'Haitei Gravity',
+          cost: TIER3_COST,
+          canAfford: flow >= TIER3_COST,
+          canActivate: flow >= TIER3_COST && t3Pre,
+        },
+        {
+          tier: 4,
+          name: 'Submerged Abyss',
+          cost: TIER4_COST,
+          canAfford: flow >= TIER4_COST,
+          canActivate: flow >= TIER4_COST && t4Pre,
+        },
       ];
     },
 
     activateTier(state, tier, extraArg) {
       switch (tier) {
-        case 1: return this.tryActivateTier1(state, extraArg);
-        case 2: return this.tryActivateTier2(state, extraArg);
-        case 3: return this.tryActivateTier3(state, extraArg);
-        case 4: return this.tryActivateTier4(state, extraArg);
-        default: return { ok: false, reason: 'invalid-tier' };
+        case 1:
+          return this.tryActivateTier1(state, extraArg);
+        case 2:
+          return this.tryActivateTier2(state, extraArg);
+        case 3:
+          return this.tryActivateTier3(state, extraArg);
+        case 4:
+          return this.tryActivateTier4(state, extraArg);
+        default:
+          return { ok: false, reason: 'invalid-tier' };
       }
     },
 
@@ -339,7 +378,7 @@ function createKoromoHooks(seat, persistent = {}) {
     },
 
     // Settlement: check Haitei anchor win rate vs counterplay calls.
-    onSettlement(result, state) {
+    onSettlement(_result, _state) {
       if (tier4Active) {
         // Each meld call reduces the win rate by 25%; 3+ calls steal the tile.
         const stolen = counterplayCalls >= 3;
@@ -352,13 +391,19 @@ function createKoromoHooks(seat, persistent = {}) {
     },
 
     // Lifecycle: decrement durations.
-    onTurnEnd(state) {
+    onTurnEnd(_state) {
       if (tier1TurnsLeft > 0) tier1TurnsLeft--;
       if (tier2TurnsLeft > 0) tier2TurnsLeft--;
     },
 
     _state: () => ({ tier1TurnsLeft, tier2TurnsLeft, tier3Active, tier4Active, counterplayCalls }),
-    _resetTiers: () => { tier1TurnsLeft = 0; tier2TurnsLeft = 0; tier3Active = false; tier4Active = false; counterplayCalls = 0; },
+    _resetTiers: () => {
+      tier1TurnsLeft = 0;
+      tier2TurnsLeft = 0;
+      tier3Active = false;
+      tier4Active = false;
+      counterplayCalls = 0;
+    },
   };
 }
 
@@ -368,10 +413,19 @@ module.exports = {
   lunarPhase,
   lunarFlowMultiplier,
   KOROMO: {
-    TIER1_COST, TIER2_COST, TIER3_COST, TIER4_COST,
-    CRESCENT_FLOW_MULT, FULL_MOON_FLOW_MULT, FULL_MOON_THRESHOLD,
-    HESITATION_DRAIN, OCEANIC_MIRE_MULT, OCEANIC_MIRE_TURNS,
-    HAITEI_GRAVITY_MULT, HAITEI_FINAL_WEIGHT, ABYSS_OPPONENT_MULT,
+    TIER1_COST,
+    TIER2_COST,
+    TIER3_COST,
+    TIER4_COST,
+    CRESCENT_FLOW_MULT,
+    FULL_MOON_FLOW_MULT,
+    FULL_MOON_THRESHOLD,
+    HESITATION_DRAIN,
+    OCEANIC_MIRE_MULT,
+    OCEANIC_MIRE_TURNS,
+    HAITEI_GRAVITY_MULT,
+    HAITEI_FINAL_WEIGHT,
+    ABYSS_OPPONENT_MULT,
     MANGAN_CAP,
   },
 };

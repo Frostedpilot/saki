@@ -285,8 +285,14 @@ export class GameStore {
    * would be rendered as if the abandoned hand were still live.
    */
   public abandonSession(): void {
-    if (this.toastTimer) { clearTimeout(this.toastTimer); this.toastTimer = null; }
-    if (this.cutinTimer) { clearTimeout(this.cutinTimer); this.cutinTimer = null; }
+    if (this.toastTimer) {
+      clearTimeout(this.toastTimer);
+      this.toastTimer = null;
+    }
+    if (this.cutinTimer) {
+      clearTimeout(this.cutinTimer);
+      this.cutinTimer = null;
+    }
     this.toast = null;
     this.screen = 'lobby';
     this.roomCode = '';
@@ -662,7 +668,10 @@ export class GameStore {
   }
 
   public callPon(chosenTiles?: ProtocolTile[]): void {
-    const tiles = chosenTiles || this.actions.pon_options[0] || (this.actions.last_call_tile ? [this.actions.last_call_tile, this.actions.last_call_tile] : []);
+    const tiles =
+      chosenTiles ||
+      this.actions.pon_options[0] ||
+      (this.actions.last_call_tile ? [this.actions.last_call_tile, this.actions.last_call_tile] : []);
     if (this.actions.last_call_tile) {
       this.kuikaeBannedIndices = [this.actions.last_call_tile.index];
     }
@@ -731,7 +740,7 @@ export class GameStore {
   private handleServerMessage(msg: ServerMessage): void {
     if ('Error' in msg) {
       const err = (msg as any).Error;
-      const errMsg = typeof err === 'string' ? err : (err?.message || err?.code || 'Illegal action');
+      const errMsg = typeof err === 'string' ? err : err?.message || err?.code || 'Illegal action';
       const errCode = typeof err === 'object' && err?.code ? `[${err.code}] ` : '';
       if (this.currentTurn === this.yourSeat) {
         this.actions.can_discard = true;
@@ -795,7 +804,10 @@ export class GameStore {
     if ('GameOver' in msg) {
       this.scores = msg.GameOver.final_scores;
       this.isGameOver = true;
-      this.addLog('win', `🏁 Game Over! Final Scores: ${this.scores.map((s, i) => `${this.getSeatName(i)}: ${s}`).join(' | ')}`);
+      this.addLog(
+        'win',
+        `🏁 Game Over! Final Scores: ${this.scores.map((s, i) => `${this.getSeatName(i)}: ${s}`).join(' | ')}`
+      );
       this.notify();
       return;
     }
@@ -847,7 +859,9 @@ export class GameStore {
       // Check for own-turn Kan (Ankan 4 of a kind or Kakan pon upgrade)
       const allTiles = [...this.hand, td.tile];
       const counts: Record<number, number> = {};
-      allTiles.forEach((t) => { counts[t.index] = (counts[t.index] || 0) + 1; });
+      allTiles.forEach((t) => {
+        counts[t.index] = (counts[t.index] || 0) + 1;
+      });
       const ankanKey = Object.keys(counts).find((k) => counts[parseInt(k, 10)] === 4);
       const kakanMatch = this.melds[this.yourSeat].find(
         (m) => (m.callType === 'Pon' || m.callType === 'pon') && allTiles.some((t) => t.index === m.tiles[0]?.index)
@@ -864,7 +878,7 @@ export class GameStore {
         this.addLog(
           'rule',
           'Furiten Warning: You are in Furiten!',
-          'Your discard river contains one of your winning waits. You cannot declare Ron off other players\' discards. You can only win by self-draw (Tsumo).'
+          "Your discard river contains one of your winning waits. You cannot declare Ron off other players' discards. You can only win by self-draw (Tsumo)."
         );
       }
       if (td.can_tsumo) {
@@ -924,7 +938,10 @@ export class GameStore {
       }
 
       const isTsumogiri = td.is_tsumogiri ? ' (tsumogiri)' : '';
-      this.addLog('turn', `${seat === this.yourSeat ? 'You' : this.getSeatName(seat)} discarded ${tileToFace(td.tile)}${isTsumogiri}.`);
+      this.addLog(
+        'turn',
+        `${seat === this.yourSeat ? 'You' : this.getSeatName(seat)} discarded ${tileToFace(td.tile)}${isTsumogiri}.`
+      );
 
       this.notify();
       return;
@@ -944,8 +961,14 @@ export class GameStore {
       if (Array.isArray(ca.calls)) {
         for (const c of ca.calls) {
           if (typeof c === 'string') {
-            if (c === 'Ron') { this.actions.can_ron = true; callTypes.push('Ron'); }
-            if (c === 'Kan' || c === 'Daiminkan') { this.actions.can_kan = true; callTypes.push('Kan'); }
+            if (c === 'Ron') {
+              this.actions.can_ron = true;
+              callTypes.push('Ron');
+            }
+            if (c === 'Kan' || c === 'Daiminkan') {
+              this.actions.can_kan = true;
+              callTypes.push('Kan');
+            }
           }
           if (typeof c === 'object' && c !== null) {
             if ('Pon' in c) {
@@ -980,8 +1003,8 @@ export class GameStore {
       const isAnkan = pc.call_type === 'Ankan' || pc.call_type === 'ClosedKan';
       const isKakan = pc.call_type === 'Kakan';
 
-      let calledIdx = -1;
-      let orderedTiles: ProtocolTile[] = [];
+      let calledIdx: number;
+      let orderedTiles: ProtocolTile[];
 
       if (isAnkan) {
         calledIdx = -1;
@@ -1037,10 +1060,16 @@ export class GameStore {
       // discards, so without this the count drifts high after every call.
       if (callerSeat !== this.yourSeat) {
         const ct = String(pc.call_type || '').toLowerCase();
-        const taken = ct === 'chi' || ct === 'pon' ? 2
-          : ct === 'daiminkan' ? 3
-          : ct === 'ankan' || ct === 'closedkan' ? 4
-          : ct === 'kakan' ? 1 : 0;
+        const taken =
+          ct === 'chi' || ct === 'pon'
+            ? 2
+            : ct === 'daiminkan'
+              ? 3
+              : ct === 'ankan' || ct === 'closedkan'
+                ? 4
+                : ct === 'kakan'
+                  ? 1
+                  : 0;
         this.opponentTileCounts[callerSeat] = Math.max(0, (this.opponentTileCounts[callerSeat] || 0) - taken);
       }
 
@@ -1085,7 +1114,10 @@ export class GameStore {
         this.isRiichiMode = false;
         this.riichiCandidateIndices.clear();
       }
-      this.addLog('call', `${seat === this.yourSeat ? 'You' : this.getSeatName(seat)} declared RIICHI! 1,000 pt stick placed on center.`);
+      this.addLog(
+        'call',
+        `${seat === this.yourSeat ? 'You' : this.getSeatName(seat)} declared RIICHI! 1,000 pt stick placed on center.`
+      );
       this.notify();
       return;
     }
@@ -1116,15 +1148,13 @@ export class GameStore {
       this.scores = rw.scores;
       const delta = (this.scores[this.yourSeat] || 0) - (prevScore || 0);
 
-      const winnerName = isYouWinner ? 'You' : (this.seats[winnerSeat]?.name || `CPU ${winnerSeat}`);
+      const winnerName = isYouWinner ? 'You' : this.seats[winnerSeat]?.name || `CPU ${winnerSeat}`;
       const title = isYouWinner
         ? `Agari! You Won (+${rw.score_points} pts)`
         : `${winnerName} Won (${!isTsumo && loserSeat !== null ? `Ron from ${loserSeat === this.yourSeat ? 'You' : this.seats[loserSeat]?.name || `CPU ${loserSeat}`}` : 'Tsumo'})`;
 
       // Server sends player_hands indexed by absolute seat 0..3.
-      const handInfo = Array.isArray((rw as any).player_hands)
-        ? (rw as any).player_hands[winnerSeat]
-        : undefined;
+      const handInfo = Array.isArray((rw as any).player_hands) ? (rw as any).player_hands[winnerSeat] : undefined;
       const winningHand: ProtocolTile[] | undefined = handInfo?.hand
         ? sortTiles([...handInfo.hand])
         : isYouWinner

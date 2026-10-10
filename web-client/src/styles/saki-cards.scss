@@ -13,12 +13,16 @@
   width: var(--card-w);
   height: var(--card-h);
   border-radius: 5px;
-  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.6), 0 0 0 1.5px rgba(255, 215, 0, 0.4);
+  box-shadow:
+    0 4px 10px rgba(0, 0, 0, 0.6),
+    0 0 0 1.5px rgba(255, 215, 0, 0.4);
   background-image: url('/images/sakicardsv13.png');
   background-repeat: no-repeat;
   background-size: calc(var(--card-w) * 9) calc(var(--card-h) * 7);
   cursor: default;
-  transition: transform 0.18s ease, box-shadow 0.18s ease;
+  transition:
+    transform 0.18s ease,
+    box-shadow 0.18s ease;
   position: relative;
 
   .is-clickable & {
@@ -27,7 +31,9 @@
 
   &:hover {
     transform: translateY(-2px) scale(1.04);
-    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.8), 0 0 10px rgba(255, 215, 0, 0.8);
+    box-shadow:
+      0 6px 16px rgba(0, 0, 0, 0.8),
+      0 0 10px rgba(255, 215, 0, 0.8);
     z-index: 50;
   }
 
@@ -51,7 +57,9 @@
   background-image: url('/images/sakicardsv13.png');
   background-repeat: no-repeat;
   background-size: calc(var(--preview-w) * 9) calc(var(--preview-h) * 7);
-  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.9), 0 0 20px rgba(255, 215, 0, 0.6);
+  box-shadow:
+    0 12px 30px rgba(0, 0, 0, 0.9),
+    0 0 20px rgba(255, 215, 0, 0.6);
   z-index: 1000;
   pointer-events: none;
   animation: cardPopupFade 0.2s cubic-bezier(0.16, 1, 0.3, 1);
@@ -100,197 +108,465 @@
 
 /* Character Sprite Definitions */
 /* Row 0 */
-.saki-card.aislinn-wishart { @include card-pos(0, 0); }
-.saki-card-preview.aislinn-wishart { @include preview-pos(0, 0); }
+.saki-card.aislinn-wishart {
+  @include card-pos(0, 0);
+}
+.saki-card-preview.aislinn-wishart {
+  @include preview-pos(0, 0);
+}
 
-.saki-card.amae-koromo, .saki-card.koromo { @include card-pos(1, 0); }
-.saki-card-preview.amae-koromo, .saki-card-preview.koromo { @include preview-pos(1, 0); }
+.saki-card.amae-koromo,
+.saki-card.koromo {
+  @include card-pos(1, 0);
+}
+.saki-card-preview.amae-koromo,
+.saki-card-preview.koromo {
+  @include preview-pos(1, 0);
+}
 
-.saki-card.anetai-toyone { @include card-pos(2, 0); }
-.saki-card-preview.anetai-toyone { @include preview-pos(2, 0); }
+.saki-card.anetai-toyone {
+  @include card-pos(2, 0);
+}
+.saki-card-preview.anetai-toyone {
+  @include preview-pos(2, 0);
+}
 
-.saki-card.arakawa-kei { @include card-pos(3, 0); }
-.saki-card-preview.arakawa-kei { @include preview-pos(3, 0); }
+.saki-card.arakawa-kei {
+  @include card-pos(3, 0);
+}
+.saki-card-preview.arakawa-kei {
+  @include preview-pos(3, 0);
+}
 
-.saki-card.atago-hiroe { @include card-pos(4, 0); }
-.saki-card-preview.atago-hiroe { @include preview-pos(4, 0); }
+.saki-card.atago-hiroe {
+  @include card-pos(4, 0);
+}
+.saki-card-preview.atago-hiroe {
+  @include preview-pos(4, 0);
+}
 
-.saki-card.atago-kinue { @include card-pos(5, 0); }
-.saki-card-preview.atago-kinue { @include preview-pos(5, 0); }
+.saki-card.atago-kinue {
+  @include card-pos(5, 0);
+}
+.saki-card-preview.atago-kinue {
+  @include preview-pos(5, 0);
+}
 
-.saki-card.atarashi-ako { @include card-pos(6, 0); }
-.saki-card-preview.atarashi-ako { @include preview-pos(6, 0); }
+.saki-card.atarashi-ako {
+  @include card-pos(6, 0);
+}
+.saki-card-preview.atarashi-ako {
+  @include preview-pos(6, 0);
+}
 
-.saki-card.choe-myeonghwa { @include card-pos(7, 0); }
-.saki-card-preview.choe-myeonghwa { @include preview-pos(7, 0); }
+.saki-card.choe-myeonghwa {
+  @include card-pos(7, 0);
+}
+.saki-card-preview.choe-myeonghwa {
+  @include preview-pos(7, 0);
+}
 
-.saki-card.ezaki-hitomi { @include card-pos(8, 0); }
-.saki-card-preview.ezaki-hitomi { @include preview-pos(8, 0); }
+.saki-card.ezaki-hitomi {
+  @include card-pos(8, 0);
+}
+.saki-card-preview.ezaki-hitomi {
+  @include preview-pos(8, 0);
+}
 
 /* Row 1 */
-.saki-card.fukuji-mihoko { @include card-pos(0, 1); }
-.saki-card-preview.fukuji-mihoko { @include preview-pos(0, 1); }
+.saki-card.fukuji-mihoko {
+  @include card-pos(0, 1);
+}
+.saki-card-preview.fukuji-mihoko {
+  @include preview-pos(0, 1);
+}
 
-.saki-card.funakubo-hiroko { @include card-pos(1, 1); }
-.saki-card-preview.funakubo-hiroko { @include preview-pos(1, 1); }
+.saki-card.funakubo-hiroko {
+  @include card-pos(1, 1);
+}
+.saki-card-preview.funakubo-hiroko {
+  @include preview-pos(1, 1);
+}
 
-.saki-card.hanada-kirame { @include card-pos(2, 1); }
-.saki-card-preview.hanada-kirame { @include preview-pos(2, 1); }
+.saki-card.hanada-kirame {
+  @include card-pos(2, 1);
+}
+.saki-card-preview.hanada-kirame {
+  @include preview-pos(2, 1);
+}
 
-.saki-card.hao-huiyu { @include card-pos(3, 1); }
-.saki-card-preview.hao-huiyu { @include preview-pos(3, 1); }
+.saki-card.hao-huiyu {
+  @include card-pos(3, 1);
+}
+.saki-card-preview.hao-huiyu {
+  @include preview-pos(3, 1);
+}
 
-.saki-card.haramura-nodoka, .saki-card.nodoka { @include card-pos(4, 1); }
-.saki-card-preview.haramura-nodoka, .saki-card-preview.nodoka { @include preview-pos(4, 1); }
+.saki-card.haramura-nodoka,
+.saki-card.nodoka {
+  @include card-pos(4, 1);
+}
+.saki-card-preview.haramura-nodoka,
+.saki-card-preview.nodoka {
+  @include preview-pos(4, 1);
+}
 
-.saki-card.hirose-sumire { @include card-pos(5, 1); }
-.saki-card-preview.hirose-sumire { @include preview-pos(5, 1); }
+.saki-card.hirose-sumire {
+  @include card-pos(5, 1);
+}
+.saki-card-preview.hirose-sumire {
+  @include preview-pos(5, 1);
+}
 
-.saki-card.ikeda-kana { @include card-pos(6, 1); }
-.saki-card-preview.ikeda-kana { @include preview-pos(6, 1); }
+.saki-card.ikeda-kana {
+  @include card-pos(6, 1);
+}
+.saki-card-preview.ikeda-kana {
+  @include preview-pos(6, 1);
+}
 
-.saki-card.inoue-jun { @include card-pos(7, 1); }
-.saki-card-preview.inoue-jun { @include preview-pos(7, 1); }
+.saki-card.inoue-jun {
+  @include card-pos(7, 1);
+}
+.saki-card-preview.inoue-jun {
+  @include preview-pos(7, 1);
+}
 
-.saki-card.iwadate-yuan { @include card-pos(8, 1); }
-.saki-card-preview.iwadate-yuan { @include preview-pos(8, 1); }
+.saki-card.iwadate-yuan {
+  @include card-pos(8, 1);
+}
+.saki-card-preview.iwadate-yuan {
+  @include preview-pos(8, 1);
+}
 
 /* Row 2 */
-.saki-card.iwato-kasumi { @include card-pos(0, 2); }
-.saki-card-preview.iwato-kasumi { @include preview-pos(0, 2); }
+.saki-card.iwato-kasumi {
+  @include card-pos(0, 2);
+}
+.saki-card-preview.iwato-kasumi {
+  @include preview-pos(0, 2);
+}
 
-.saki-card.jindai-komaki { @include card-pos(1, 2); }
-.saki-card-preview.jindai-komaki { @include preview-pos(1, 2); }
+.saki-card.jindai-komaki {
+  @include card-pos(1, 2);
+}
+.saki-card-preview.jindai-komaki {
+  @include preview-pos(1, 2);
+}
 
-.saki-card.kajiki-yumi { @include card-pos(2, 2); }
-.saki-card-preview.kajiki-yumi { @include preview-pos(2, 2); }
+.saki-card.kajiki-yumi {
+  @include card-pos(2, 2);
+}
+.saki-card-preview.kajiki-yumi {
+  @include preview-pos(2, 2);
+}
 
-.saki-card.kainou-yoshiko { @include card-pos(3, 2); }
-.saki-card-preview.kainou-yoshiko { @include preview-pos(3, 2); }
+.saki-card.kainou-yoshiko {
+  @include card-pos(3, 2);
+}
+.saki-card-preview.kainou-yoshiko {
+  @include preview-pos(3, 2);
+}
 
-.saki-card.kakura-kurumi { @include card-pos(4, 2); }
-.saki-card-preview.kakura-kurumi { @include preview-pos(4, 2); }
+.saki-card.kakura-kurumi {
+  @include card-pos(4, 2);
+}
+.saki-card-preview.kakura-kurumi {
+  @include preview-pos(4, 2);
+}
 
-.saki-card.kanbara-satomi { @include card-pos(5, 2); }
-.saki-card-preview.kanbara-satomi { @include preview-pos(5, 2); }
+.saki-card.kanbara-satomi {
+  @include card-pos(5, 2);
+}
+.saki-card-preview.kanbara-satomi {
+  @include preview-pos(5, 2);
+}
 
-.saki-card.karijuku-tomoe { @include card-pos(6, 2); }
-.saki-card-preview.karijuku-tomoe { @include preview-pos(6, 2); }
+.saki-card.karijuku-tomoe {
+  @include card-pos(6, 2);
+}
+.saki-card-preview.karijuku-tomoe {
+  @include preview-pos(6, 2);
+}
 
-.saki-card.kataoka-yuuki, .saki-card.yuuki { @include card-pos(7, 2); }
-.saki-card-preview.kataoka-yuuki, .saki-card-preview.yuuki { @include preview-pos(7, 2); }
+.saki-card.kataoka-yuuki,
+.saki-card.yuuki {
+  @include card-pos(7, 2);
+}
+.saki-card-preview.kataoka-yuuki,
+.saki-card-preview.yuuki {
+  @include preview-pos(7, 2);
+}
 
-.saki-card.kosegawa-shiromi { @include card-pos(8, 2); }
-.saki-card-preview.kosegawa-shiromi { @include preview-pos(8, 2); }
+.saki-card.kosegawa-shiromi {
+  @include card-pos(8, 2);
+}
+.saki-card-preview.kosegawa-shiromi {
+  @include preview-pos(8, 2);
+}
 
 /* Row 3 */
-.saki-card.kunihiro-hajime { @include card-pos(0, 3); }
-.saki-card-preview.kunihiro-hajime { @include preview-pos(0, 3); }
+.saki-card.kunihiro-hajime {
+  @include card-pos(0, 3);
+}
+.saki-card-preview.kunihiro-hajime {
+  @include preview-pos(0, 3);
+}
 
-.saki-card.mase-yuuko { @include card-pos(1, 3); }
-.saki-card-preview.mase-yuuko { @include preview-pos(1, 3); }
+.saki-card.mase-yuuko {
+  @include card-pos(1, 3);
+}
+.saki-card-preview.mase-yuuko {
+  @include preview-pos(1, 3);
+}
 
-.saki-card.matano-seiko { @include card-pos(2, 3); }
-.saki-card-preview.matano-seiko { @include preview-pos(2, 3); }
+.saki-card.matano-seiko {
+  @include card-pos(2, 3);
+}
+.saki-card-preview.matano-seiko {
+  @include preview-pos(2, 3);
+}
 
-.saki-card.matsumi-kuro { @include card-pos(3, 3); }
-.saki-card-preview.matsumi-kuro { @include preview-pos(3, 3); }
+.saki-card.matsumi-kuro {
+  @include card-pos(3, 3);
+}
+.saki-card-preview.matsumi-kuro {
+  @include preview-pos(3, 3);
+}
 
-.saki-card.matsumi-yuu { @include card-pos(4, 3); }
-.saki-card-preview.matsumi-yuu { @include preview-pos(4, 3); }
+.saki-card.matsumi-yuu {
+  @include card-pos(4, 3);
+}
+.saki-card-preview.matsumi-yuu {
+  @include preview-pos(4, 3);
+}
 
-.saki-card.maya-yukiko { @include card-pos(5, 3); }
-.saki-card-preview.maya-yukiko { @include preview-pos(5, 3); }
+.saki-card.maya-yukiko {
+  @include card-pos(5, 3);
+}
+.saki-card-preview.maya-yukiko {
+  @include preview-pos(5, 3);
+}
 
-.saki-card.megan-davin { @include card-pos(6, 3); }
-.saki-card-preview.megan-davin { @include preview-pos(6, 3); }
+.saki-card.megan-davin {
+  @include card-pos(6, 3);
+}
+.saki-card-preview.megan-davin {
+  @include preview-pos(6, 3);
+}
 
-.saki-card.miyanaga-saki, .saki-card.saki { @include card-pos(7, 3); }
-.saki-card-preview.miyanaga-saki, .saki-card-preview.saki { @include preview-pos(7, 3); }
+.saki-card.miyanaga-saki,
+.saki-card.saki {
+  @include card-pos(7, 3);
+}
+.saki-card-preview.miyanaga-saki,
+.saki-card-preview.saki {
+  @include preview-pos(7, 3);
+}
 
-.saki-card.miyanaga-teru, .saki-card.teru { @include card-pos(8, 3); }
-.saki-card-preview.miyanaga-teru, .saki-card-preview.teru { @include preview-pos(8, 3); }
+.saki-card.miyanaga-teru,
+.saki-card.teru {
+  @include card-pos(8, 3);
+}
+.saki-card-preview.miyanaga-teru,
+.saki-card-preview.teru {
+  @include preview-pos(8, 3);
+}
 
 /* Row 4 */
-.saki-card.motouchi-naruka { @include card-pos(0, 4); }
-.saki-card-preview.motouchi-naruka { @include preview-pos(0, 4); }
+.saki-card.motouchi-naruka {
+  @include card-pos(0, 4);
+}
+.saki-card-preview.motouchi-naruka {
+  @include preview-pos(0, 4);
+}
 
-.saki-card.nanpo-kazue { @include card-pos(1, 4); }
-.saki-card-preview.nanpo-kazue { @include preview-pos(1, 4); }
+.saki-card.nanpo-kazue {
+  @include card-pos(1, 4);
+}
+.saki-card-preview.nanpo-kazue {
+  @include preview-pos(1, 4);
+}
 
-.saki-card.nelly-virsaladze { @include card-pos(2, 4); }
-.saki-card-preview.nelly-virsaladze { @include preview-pos(2, 4); }
+.saki-card.nelly-virsaladze {
+  @include card-pos(2, 4);
+}
+.saki-card-preview.nelly-virsaladze {
+  @include preview-pos(2, 4);
+}
 
-.saki-card.onjouji-toki, .saki-card.toki { @include card-pos(3, 4); }
-.saki-card-preview.onjouji-toki, .saki-card-preview.toki { @include preview-pos(3, 4); }
+.saki-card.onjouji-toki,
+.saki-card.toki {
+  @include card-pos(3, 4);
+}
+.saki-card-preview.onjouji-toki,
+.saki-card-preview.toki {
+  @include preview-pos(3, 4);
+}
 
-.saki-card.oohoshi-awai { @include card-pos(4, 4); }
-.saki-card-preview.oohoshi-awai { @include preview-pos(4, 4); }
+.saki-card.oohoshi-awai {
+  @include card-pos(4, 4);
+}
+.saki-card-preview.oohoshi-awai {
+  @include preview-pos(4, 4);
+}
 
-.saki-card.ryuumonbuchi-touka { @include card-pos(5, 4); }
-.saki-card-preview.ryuumonbuchi-touka { @include preview-pos(5, 4); }
+.saki-card.ryuumonbuchi-touka {
+  @include card-pos(5, 4);
+}
+.saki-card-preview.ryuumonbuchi-touka {
+  @include preview-pos(5, 4);
+}
 
-.saki-card.sagimori-arata { @include card-pos(6, 4); }
-.saki-card-preview.sagimori-arata { @include preview-pos(6, 4); }
+.saki-card.sagimori-arata {
+  @include card-pos(6, 4);
+}
+.saki-card-preview.sagimori-arata {
+  @include preview-pos(6, 4);
+}
 
-.saki-card.sawamura-tomoki { @include card-pos(7, 4); }
-.saki-card-preview.sawamura-tomoki { @include preview-pos(7, 4); }
+.saki-card.sawamura-tomoki {
+  @include card-pos(7, 4);
+}
+.saki-card-preview.sawamura-tomoki {
+  @include preview-pos(7, 4);
+}
 
-.saki-card.senoo-kaori { @include card-pos(8, 4); }
-.saki-card-preview.senoo-kaori { @include preview-pos(8, 4); }
+.saki-card.senoo-kaori {
+  @include card-pos(8, 4);
+}
+.saki-card-preview.senoo-kaori {
+  @include preview-pos(8, 4);
+}
 
 /* Row 5 */
-.saki-card.shibuya-takami { @include card-pos(0, 5); }
-.saki-card-preview.shibuya-takami { @include preview-pos(0, 5); }
+.saki-card.shibuya-takami {
+  @include card-pos(0, 5);
+}
+.saki-card-preview.shibuya-takami {
+  @include preview-pos(0, 5);
+}
 
-.saki-card.shimizudani-ryuuka { @include card-pos(1, 5); }
-.saki-card-preview.shimizudani-ryuuka { @include preview-pos(1, 5); }
+.saki-card.shimizudani-ryuuka {
+  @include card-pos(1, 5);
+}
+.saki-card-preview.shimizudani-ryuuka {
+  @include preview-pos(1, 5);
+}
 
-.saki-card.shirouzu-mairu { @include card-pos(2, 5); }
-.saki-card-preview.shirouzu-mairu { @include preview-pos(2, 5); }
+.saki-card.shirouzu-mairu {
+  @include card-pos(2, 5);
+}
+.saki-card-preview.shirouzu-mairu {
+  @include preview-pos(2, 5);
+}
 
-.saki-card.shishihara-sawaya { @include card-pos(3, 5); }
-.saki-card-preview.shishihara-sawaya { @include preview-pos(3, 5); }
+.saki-card.shishihara-sawaya {
+  @include card-pos(3, 5);
+}
+.saki-card-preview.shishihara-sawaya {
+  @include preview-pos(3, 5);
+}
 
-.saki-card.someya-mako, .saki-card.mako { @include card-pos(4, 5); }
-.saki-card-preview.someya-mako, .saki-card-preview.mako { @include preview-pos(4, 5); }
+.saki-card.someya-mako,
+.saki-card.mako {
+  @include card-pos(4, 5);
+}
+.saki-card-preview.someya-mako,
+.saki-card-preview.mako {
+  @include preview-pos(4, 5);
+}
 
-.saki-card.suehara-kyouko { @include card-pos(5, 5); }
-.saki-card-preview.suehara-kyouko { @include preview-pos(5, 5); }
+.saki-card.suehara-kyouko {
+  @include card-pos(5, 5);
+}
+.saki-card-preview.suehara-kyouko {
+  @include preview-pos(5, 5);
+}
 
-.saki-card.takakamo-shizuno { @include card-pos(6, 5); }
-.saki-card-preview.takakamo-shizuno { @include preview-pos(6, 5); }
+.saki-card.takakamo-shizuno {
+  @include card-pos(6, 5);
+}
+.saki-card-preview.takakamo-shizuno {
+  @include preview-pos(6, 5);
+}
 
-.saki-card.takei-hisa, .saki-card.hisa { @include card-pos(7, 5); }
-.saki-card-preview.takei-hisa, .saki-card-preview.hisa { @include preview-pos(7, 5); }
+.saki-card.takei-hisa,
+.saki-card.hisa {
+  @include card-pos(7, 5);
+}
+.saki-card-preview.takei-hisa,
+.saki-card-preview.hisa {
+  @include preview-pos(7, 5);
+}
 
-.saki-card.takimi-haru { @include card-pos(8, 5); }
-.saki-card-preview.takimi-haru { @include preview-pos(8, 5); }
+.saki-card.takimi-haru {
+  @include card-pos(8, 5);
+}
+.saki-card-preview.takimi-haru {
+  @include preview-pos(8, 5);
+}
 
 /* Row 6 */
-.saki-card.toyouko-momoko { @include card-pos(0, 6); }
-.saki-card-preview.toyouko-momoko { @include preview-pos(0, 6); }
+.saki-card.toyouko-momoko {
+  @include card-pos(0, 6);
+}
+.saki-card-preview.toyouko-momoko {
+  @include preview-pos(0, 6);
+}
 
-.saki-card.tsujigaito-satoha { @include card-pos(1, 6); }
-.saki-card-preview.tsujigaito-satoha { @include preview-pos(1, 6); }
+.saki-card.tsujigaito-satoha {
+  @include card-pos(1, 6);
+}
+.saki-card-preview.tsujigaito-satoha {
+  @include preview-pos(1, 6);
+}
 
-.saki-card.tsuruta-himeko { @include card-pos(2, 6); }
-.saki-card-preview.tsuruta-himeko { @include preview-pos(2, 6); }
+.saki-card.tsuruta-himeko {
+  @include card-pos(2, 6);
+}
+.saki-card-preview.tsuruta-himeko {
+  @include preview-pos(2, 6);
+}
 
-.saki-card.ueshige-suzu { @include card-pos(3, 6); }
-.saki-card-preview.ueshige-suzu { @include preview-pos(3, 6); }
+.saki-card.ueshige-suzu {
+  @include card-pos(3, 6);
+}
+.saki-card-preview.ueshige-suzu {
+  @include preview-pos(3, 6);
+}
 
-.saki-card.usuzawa-sae { @include card-pos(4, 6); }
-.saki-card-preview.usuzawa-sae { @include preview-pos(4, 6); }
+.saki-card.usuzawa-sae {
+  @include card-pos(4, 6);
+}
+.saki-card-preview.usuzawa-sae {
+  @include preview-pos(4, 6);
+}
 
-.saki-card.usuzumi-hatsumi { @include card-pos(5, 6); }
-.saki-card-preview.usuzumi-hatsumi { @include preview-pos(5, 6); }
+.saki-card.usuzumi-hatsumi {
+  @include card-pos(5, 6);
+}
+.saki-card-preview.usuzumi-hatsumi {
+  @include preview-pos(5, 6);
+}
 
-.saki-card.yae-kobashiri { @include card-pos(6, 6); }
-.saki-card-preview.yae-kobashiri { @include preview-pos(6, 6); }
+.saki-card.yae-kobashiri {
+  @include card-pos(6, 6);
+}
+.saki-card-preview.yae-kobashiri {
+  @include preview-pos(6, 6);
+}
 
-.saki-card.yoshitome-miharu { @include card-pos(7, 6); }
-.saki-card-preview.yoshitome-miharu { @include preview-pos(7, 6); }
+.saki-card.yoshitome-miharu {
+  @include card-pos(7, 6);
+}
+.saki-card-preview.yoshitome-miharu {
+  @include preview-pos(7, 6);
+}
 
-.saki-card.yumeno-maho { @include card-pos(8, 6); }
-.saki-card-preview.yumeno-maho { @include preview-pos(8, 6); }
+.saki-card.yumeno-maho {
+  @include card-pos(8, 6);
+}
+.saki-card-preview.yumeno-maho {
+  @include preview-pos(8, 6);
+}

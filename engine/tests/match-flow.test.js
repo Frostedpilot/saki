@@ -11,21 +11,25 @@ const F = require('../match-flow');
 const { RULES } = require('../rules-config');
 
 test('abort repeats dealer, increments honba, repeats kyoku', () => {
-  assert.deepEqual(
-    F.postHandFlow({ aborted: true, win: null, tenpaiSeats: [], dealer: 2 }),
-    { keepDealer: true, honba: 'increment', kyokuRepeat: true });
+  assert.deepEqual(F.postHandFlow({ aborted: true, win: null, tenpaiSeats: [], dealer: 2 }), {
+    keepDealer: true,
+    honba: 'increment',
+    kyokuRepeat: true,
+  });
 });
 
 test('dealer tsumo repeats dealer and increments honba', () => {
   assert.deepEqual(
     F.postHandFlow({ aborted: false, win: { type: 'tsumo', winnerSeats: [1] }, tenpaiSeats: [], dealer: 1 }),
-    { keepDealer: true, honba: 'increment', kyokuRepeat: true });
+    { keepDealer: true, honba: 'increment', kyokuRepeat: true }
+  );
 });
 
 test('non-dealer tsumo rotates and resets honba', () => {
   assert.deepEqual(
     F.postHandFlow({ aborted: false, win: { type: 'tsumo', winnerSeats: [2] }, tenpaiSeats: [], dealer: 0 }),
-    { keepDealer: false, honba: 'reset', kyokuRepeat: false });
+    { keepDealer: false, honba: 'reset', kyokuRepeat: false }
+  );
 });
 
 test('ron: game.js wins[] shape and table.js hits[] shape agree', () => {
@@ -35,21 +39,27 @@ test('ron: game.js wins[] shape and table.js hits[] shape agree', () => {
     // Dealer 1 is among winners -> repeat.
     assert.deepEqual(
       F.postHandFlow({ aborted: false, win: { type: 'ron', winnerSeats: seats }, tenpaiSeats: [], dealer: 1 }),
-      { keepDealer: true, honba: 'increment', kyokuRepeat: true });
+      { keepDealer: true, honba: 'increment', kyokuRepeat: true }
+    );
     // Dealer 0 is not -> rotate.
     assert.deepEqual(
       F.postHandFlow({ aborted: false, win: { type: 'ron', winnerSeats: seats }, tenpaiSeats: [], dealer: 0 }),
-      { keepDealer: false, honba: 'reset', kyokuRepeat: false });
+      { keepDealer: false, honba: 'reset', kyokuRepeat: false }
+    );
   }
 });
 
 test('exhaustive: dealer tenpai repeats, noten rotates; honba always increments', () => {
-  assert.deepEqual(
-    F.postHandFlow({ aborted: false, win: null, tenpaiSeats: [0, 2], dealer: 0 }),
-    { keepDealer: true, honba: 'increment', kyokuRepeat: true });
-  assert.deepEqual(
-    F.postHandFlow({ aborted: false, win: null, tenpaiSeats: [1, 2], dealer: 0 }),
-    { keepDealer: false, honba: 'increment', kyokuRepeat: false });
+  assert.deepEqual(F.postHandFlow({ aborted: false, win: null, tenpaiSeats: [0, 2], dealer: 0 }), {
+    keepDealer: true,
+    honba: 'increment',
+    kyokuRepeat: true,
+  });
+  assert.deepEqual(F.postHandFlow({ aborted: false, win: null, tenpaiSeats: [1, 2], dealer: 0 }), {
+    keepDealer: false,
+    honba: 'increment',
+    kyokuRepeat: false,
+  });
 });
 
 test('notenPayments matches the standard schedule and RULES.notenTotal', () => {

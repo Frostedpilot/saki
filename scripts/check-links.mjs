@@ -22,8 +22,9 @@ const LINK_RE = /\]\(\s*(<[^>\s]+>|[^)\s]+)(?:\s+(?:"[^"]*"|'[^']*'))?\s*\)/g;
 const AUTOLINK_RE = /<((?:\.?\.?\/[^>\s]*|#[^>\s]*))>/g;
 const REF_DEF_RE = /^\s*\[[^\]]+\]:\s*(\S+)/gm;
 
-const files = globSync('**/*.md', { cwd: ROOT, posix: false })
-  .filter((p) => !p.split(/[\\/]/).some((seg) => SKIP_DIRS.has(seg)));
+const files = globSync('**/*.md', { cwd: ROOT, posix: false }).filter(
+  (p) => !p.split(/[\\/]/).some((seg) => SKIP_DIRS.has(seg))
+);
 
 const dead = [];
 let checked = 0;
@@ -47,7 +48,11 @@ for (const rel of files) {
     if (target.startsWith('reference/')) continue;
     // Strip an anchor/query before resolving; decode %20 etc.
     let clean = target.split('#')[0].split('?')[0];
-    try { clean = decodeURIComponent(clean); } catch { /* keep raw */ }
+    try {
+      clean = decodeURIComponent(clean);
+    } catch {
+      /* keep raw */
+    }
     if (clean === '') continue;
     checked++;
     if (!existsSync(join(dir, clean))) {
@@ -87,8 +92,9 @@ if (dead.length || dupes.length) {
     for (const { title, a, b } of dupes) {
       console.error(`  "${title}" is claimed by both ${a} and ${b}`);
     }
-    console.error('\nOne document has probably been overwritten with another. '
-      + 'Check `git log --follow` on the newer one.');
+    console.error(
+      '\nOne document has probably been overwritten with another. ' + 'Check `git log --follow` on the newer one.'
+    );
     console.error('');
   }
   process.exit(1);

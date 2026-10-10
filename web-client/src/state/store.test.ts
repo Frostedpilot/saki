@@ -23,23 +23,55 @@ class FakeSocket {
   public sent: any[] = [];
   public sentRaw: any[] = [];
 
-  public onMessage(h: MessageHandler) { this.onMessageHandler = h; return () => { this.onMessageHandler = null; }; }
-  public onStatus(h: StatusHandler) { this.onStatusHandler = h; return () => { this.onStatusHandler = null; }; }
+  public onMessage(h: MessageHandler) {
+    this.onMessageHandler = h;
+    return () => {
+      this.onMessageHandler = null;
+    };
+  }
+  public onStatus(h: StatusHandler) {
+    this.onStatusHandler = h;
+    return () => {
+      this.onStatusHandler = null;
+    };
+  }
 
   // Outbound calls the store makes; recorded, not asserted on here.
-  public hello() { this.sent.push(['hello']); }
-  public joinRoom() { this.sent.push(['joinRoom']); }
-  public ready() { this.sent.push(['ready']); }
-  public discard() { this.sent.push(['discard']); }
-  public call() { this.sent.push(['call']); }
-  public riichi() { this.sent.push(['riichi']); }
-  public tsumo() { this.sent.push(['tsumo']); }
-  public powerAction() { this.sent.push(['powerAction']); }
-  public send(m: any) { this.sentRaw.push(m); }
+  public hello() {
+    this.sent.push(['hello']);
+  }
+  public joinRoom() {
+    this.sent.push(['joinRoom']);
+  }
+  public ready() {
+    this.sent.push(['ready']);
+  }
+  public discard() {
+    this.sent.push(['discard']);
+  }
+  public call() {
+    this.sent.push(['call']);
+  }
+  public riichi() {
+    this.sent.push(['riichi']);
+  }
+  public tsumo() {
+    this.sent.push(['tsumo']);
+  }
+  public powerAction() {
+    this.sent.push(['powerAction']);
+  }
+  public send(m: any) {
+    this.sentRaw.push(m);
+  }
 
   // Test drivers.
-  public emit(msg: any) { this.onMessageHandler?.(msg); }
-  public status(s: StatusHandler extends never ? never : any) { this.onStatusHandler?.(s); }
+  public emit(msg: any) {
+    this.onMessageHandler?.(msg);
+  }
+  public status(s: StatusHandler extends never ? never : any) {
+    this.onStatusHandler?.(s);
+  }
 }
 
 function makeStore() {
@@ -54,9 +86,19 @@ const gameStarted = (over: Record<string, any> = {}) => ({
     GameStarted: {
       seat_wind: 'East',
       hand: [
-        { index: 0 }, { index: 1 }, { index: 2 }, { index: 3 }, { index: 4 },
-        { index: 5 }, { index: 6 }, { index: 7 }, { index: 8 }, { index: 9 },
-        { index: 10 }, { index: 11 }, { index: 31 },
+        { index: 0 },
+        { index: 1 },
+        { index: 2 },
+        { index: 3 },
+        { index: 4 },
+        { index: 5 },
+        { index: 6 },
+        { index: 7 },
+        { index: 8 },
+        { index: 9 },
+        { index: 10 },
+        { index: 11 },
+        { index: 31 },
       ],
       scores: [25000, 25000, 25000, 25000],
       round_wind: 'East',
@@ -111,12 +153,7 @@ describe('RoomState', () => {
         code: 'ABCD',
         host_seat: 1,
         your_seat: 2,
-        seats: [
-          { Human: { name: 'Aki' } },
-          'Empty',
-          { Cpu: { level: 'Hard', personality: 'Aggressive' } },
-          'Empty',
-        ],
+        seats: [{ Human: { name: 'Aki' } }, 'Empty', { Cpu: { level: 'Hard', personality: 'Aggressive' } }, 'Empty'],
         power_seats: ['saki', 'none', 'koromo', 'yuuki'],
       },
     });
@@ -133,7 +170,9 @@ describe('RoomState', () => {
     const { store, socket } = makeStore();
     socket.emit({
       RoomState: {
-        code: 'WXYZ', host_seat: 0, your_seat: 0,
+        code: 'WXYZ',
+        host_seat: 0,
+        your_seat: 0,
         seats: ['Empty', 'Empty', 'Empty', 'Empty'],
         power_seats: ['nodoka', 'none', 'none', 'none'],
       },
@@ -146,7 +185,9 @@ describe('RoomState', () => {
     const { store, socket } = makeStore();
     socket.emit({
       RoomState: {
-        code: 'AAAA', host_seat: 0, your_seat: 0,
+        code: 'AAAA',
+        host_seat: 0,
+        your_seat: 0,
         seats: [{ Human: {} }, 'Empty', 'Empty', 'Empty'],
       },
     });
@@ -212,12 +253,13 @@ describe('server errors', () => {
   // dead: the old code tested `errMsg` for the concatenated code, but the server
   // sends prose messages. The payloads below are copied from table.js.
   test.each([
-    ['kuikae', { code: 'InvalidAction', message: 'kuikae: 1p is illegal after this call' },
-      /Kuikae rule/],
-    ['not your turn', { code: 'NotInTurn', message: 'not your turn to act' },
-      /Wait for your turn/i],
-    ['call window closed', { code: 'CallWindowClosed', message: 'call window closed or no call available' },
-      /Call window is already closed/i],
+    ['kuikae', { code: 'InvalidAction', message: 'kuikae: 1p is illegal after this call' }, /Kuikae rule/],
+    ['not your turn', { code: 'NotInTurn', message: 'not your turn to act' }, /Wait for your turn/i],
+    [
+      'call window closed',
+      { code: 'CallWindowClosed', message: 'call window closed or no call available' },
+      /Call window is already closed/i,
+    ],
   ])('translates the %s rejection', (_label, payload, expected) => {
     const { store, socket } = makeStore();
     socket.emit({ Error: payload });
@@ -235,8 +277,7 @@ describe('server errors', () => {
   test('a kuikae rejection carries an explanatory detail line', () => {
     const { store, socket } = makeStore();
     socket.emit({ Error: { code: 'InvalidAction', message: 'kuikae: 1p is illegal after this call' } });
-    expect(store.logs.some((e) => typeof e.details === 'string' && /Kuikae prohibits/.test(e.details)))
-      .toBe(true);
+    expect(store.logs.some((e) => typeof e.details === 'string' && /Kuikae prohibits/.test(e.details))).toBe(true);
   });
 
   test('a kuikae rejection gets the explanatory message', () => {

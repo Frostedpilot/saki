@@ -44,9 +44,16 @@ function makeTable({ from = 0 } = {}) {
 
   t.ctx = {
     players: [0, 1, 2, 3].map((s) => ({
-      seat: s, hand: [], melds: [], discards: [],
-      riichi: false, doubleRiichi: false, ippatsu: false,
-      tempFuriten: false, riichiWaits: [], lastDrawn: null,
+      seat: s,
+      hand: [],
+      melds: [],
+      discards: [],
+      riichi: false,
+      doubleRiichi: false,
+      ippatsu: false,
+      tempFuriten: false,
+      riichiWaits: [],
+      lastDrawn: null,
       // Default to human seats: the CPU branch in resolveCallWindow ignores
       // request() entirely and always rons when able, which would make the
       // scripted out-of-order responses below dead code.
@@ -111,7 +118,7 @@ test('pon priority goes to the claimant nearest in turn order, not first respons
   t.scriptedResponses = { 1: { type: 'Pon' }, 3: { type: 'Pon' } };
   // Make seat 3's response resolve before seat 1's.
   t.deferred = (seat, action) => {
-    if (seat === 3) return Promise.resolve(action);   // nearest-last? no: rank 3
+    if (seat === 3) return Promise.resolve(action); // nearest-last? no: rank 3
     if (seat === 1) return new Promise((r) => setTimeout(() => r(action), 5));
     return Promise.resolve(action);
   };
@@ -183,8 +190,11 @@ test('the nearest ron claimant collects the hand, and hits are turn-ordered', as
 
   const out = await t.resolveCallWindow(0, RON_TILE, {});
   assert.equal(out.end, true);
-  assert.deepEqual(out.winBy.hits.map((h) => h.seat), [1, 3],
-    'hits are in turn order, so hits[0] — who collects the riichi sticks — is the nearest');
+  assert.deepEqual(
+    out.winBy.hits.map((h) => h.seat),
+    [1, 3],
+    'hits are in turn order, so hits[0] — who collects the riichi sticks — is the nearest'
+  );
   assert.equal(out.winner, 1);
 });
 
@@ -198,8 +208,7 @@ test('passing on an available ron sets temporary furiten', async () => {
   t.scriptedResponses = { 1: { type: 'Pass' }, 2: { type: 'Pon' } };
 
   await t.resolveCallWindow(0, RON_TILE, {});
-  assert.equal(t.ctx.players[1].tempFuriten, true,
-    'a player who declines a ron is in furiten until their next draw');
+  assert.equal(t.ctx.players[1].tempFuriten, true, 'a player who declines a ron is in furiten until their next draw');
   assert.equal(t.ctx.players[2].tempFuriten, false);
 });
 

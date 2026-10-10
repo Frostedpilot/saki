@@ -124,7 +124,9 @@
 
   &.is-turn {
     border-color: #4ecca3;
-    box-shadow: 0 0 20px rgba(78, 204, 163, 0.4), inset 0 0 10px rgba(78, 204, 163, 0.15);
+    box-shadow:
+      0 0 20px rgba(78, 204, 163, 0.4),
+      inset 0 0 10px rgba(78, 204, 163, 0.15);
   }
 
   &__card-box {
@@ -193,8 +195,13 @@
 }
 
 @keyframes turnPulse {
-  from { opacity: 0.85; }
-  to { opacity: 1; box-shadow: 0 0 8px #4ecca3; }
+  from {
+    opacity: 0.85;
+  }
+  to {
+    opacity: 1;
+    box-shadow: 0 0 8px #4ecca3;
+  }
 }
 
 /* Mahjong Table Surface (Symmetric 5x5 Grid) */
@@ -206,11 +213,11 @@
   aspect-ratio: 1 / 1;
   display: grid;
   grid-template-areas:
-    "top-meld-l     top-hand     top-hand     top-hand     top-meld-r"
-    "left-hand      top-disc     top-disc     top-disc     right-hand"
-    "left-hand      left-disc    center       right-disc   right-hand"
-    "left-hand      bottom-disc  bottom-disc  bottom-disc  right-hand"
-    "bottom-meld-l  bottom-hand  bottom-hand  bottom-hand  bottom-meld-r";
+    'top-meld-l     top-hand     top-hand     top-hand     top-meld-r'
+    'left-hand      top-disc     top-disc     top-disc     right-hand'
+    'left-hand      left-disc    center       right-disc   right-hand'
+    'left-hand      bottom-disc  bottom-disc  bottom-disc  right-hand'
+    'bottom-meld-l  bottom-hand  bottom-hand  bottom-hand  bottom-meld-r';
   grid-template-rows: var(--hand-depth) 1fr var(--center-size) 1fr var(--hand-depth);
   grid-template-columns: var(--hand-depth) 1fr var(--center-size) 1fr var(--hand-depth);
   gap: 2px;
@@ -265,7 +272,9 @@
   border: 1.5px solid #38bdf8;
   border-radius: 20px;
   padding: 4px 14px;
-  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.75), 0 0 12px rgba(56, 189, 248, 0.35);
+  box-shadow:
+    0 4px 18px rgba(0, 0, 0, 0.75),
+    0 0 12px rgba(56, 189, 248, 0.35);
   backdrop-filter: blur(8px);
   white-space: nowrap;
   z-index: 60;
@@ -273,7 +282,9 @@
 
   &--riichi {
     border-color: #f59e0b;
-    box-shadow: 0 4px 18px rgba(0, 0, 0, 0.75), 0 0 14px rgba(245, 158, 11, 0.45);
+    box-shadow:
+      0 4px 18px rgba(0, 0, 0, 0.75),
+      0 0 14px rgba(245, 158, 11, 0.45);
     .hand-waits-hint__label {
       color: #fbbf24;
     }
@@ -403,7 +414,9 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.6), inset 0 0 16px rgba(0, 0, 0, 0.4);
+  box-shadow:
+    0 4px 14px rgba(0, 0, 0, 0.6),
+    inset 0 0 16px rgba(0, 0, 0, 0.4);
   overflow: hidden;
   box-sizing: border-box;
 
@@ -541,7 +554,9 @@
   border: 1.5px solid rgba(78, 204, 163, 0.8);
   padding: 6px 14px;
   border-radius: 24px;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.8), 0 0 16px rgba(78, 204, 163, 0.4);
+  box-shadow:
+    0 8px 24px rgba(0, 0, 0, 0.8),
+    0 0 16px rgba(78, 204, 163, 0.4);
   z-index: 100;
   animation: actionSlideUp 0.18s cubic-bezier(0.16, 1, 0.3, 1);
 
@@ -598,7 +613,9 @@
 
   &--riichi-mode {
     border-color: #f59e0b;
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.8), 0 0 16px rgba(245, 158, 11, 0.6);
+    box-shadow:
+      0 8px 24px rgba(0, 0, 0, 0.8),
+      0 0 16px rgba(245, 158, 11, 0.6);
   }
 
   &__prompt {
@@ -631,14 +648,25 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(90deg, transparent 0%, rgba(15, 10, 28, 0.94) 15%, rgba(28, 12, 45, 0.98) 50%, rgba(15, 10, 28, 0.94) 85%, transparent 100%);
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(15, 10, 28, 0.94) 15%,
+    rgba(28, 12, 45, 0.98) 50%,
+    rgba(15, 10, 28, 0.94) 85%,
+    transparent 100%
+  );
   border-top: 2px solid #ffd700;
   border-bottom: 2px solid #ff69b4;
-  box-shadow: 0 0 35px rgba(255, 105, 180, 0.5), inset 0 0 25px rgba(255, 215, 0, 0.3);
+  box-shadow:
+    0 0 35px rgba(255, 105, 180, 0.5),
+    inset 0 0 25px rgba(255, 215, 0, 0.3);
   opacity: 0;
   pointer-events: none !important;
   transform: scaleY(0);
-  transition: transform 0.22s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.22s ease;
+  transition:
+    transform 0.22s cubic-bezier(0.16, 1, 0.3, 1),
+    opacity 0.22s ease;
   z-index: 2000;
 
   &--show {
@@ -659,7 +687,9 @@
     font-size: 1.8rem;
     font-weight: 900;
     color: #ffd700;
-    text-shadow: 0 0 20px rgba(255, 215, 0, 0.9), 0 0 40px rgba(255, 105, 180, 0.8);
+    text-shadow:
+      0 0 20px rgba(255, 215, 0, 0.9),
+      0 0 40px rgba(255, 105, 180, 0.8);
     letter-spacing: 2px;
     animation: cutinSlide 0.3s cubic-bezier(0.16, 1, 0.3, 1);
   }
@@ -674,8 +704,14 @@
 }
 
 @keyframes cutinSlide {
-  from { transform: translateY(-10px) scale(0.95); opacity: 0; }
-  to { transform: translateY(0) scale(1); opacity: 1; }
+  from {
+    transform: translateY(-10px) scale(0.95);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0) scale(1);
+    opacity: 1;
+  }
 }
 
 /* Player Hand Flow Bar */
@@ -744,8 +780,13 @@
 }
 
 @keyframes pulseTag {
-  0% { opacity: 0.85; }
-  100% { opacity: 1; box-shadow: 0 0 12px #ff69b4; }
+  0% {
+    opacity: 0.85;
+  }
+  100% {
+    opacity: 1;
+    box-shadow: 0 0 12px #ff69b4;
+  }
 }
 
 /* Illegal move and Kuikae warning toast */
@@ -759,7 +800,9 @@
   gap: 10px;
   background: rgba(20, 10, 14, 0.94);
   border: 1.5px solid #e05252;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.7), 0 0 20px rgba(224, 82, 82, 0.5);
+  box-shadow:
+    0 8px 24px rgba(0, 0, 0, 0.7),
+    0 0 20px rgba(224, 82, 82, 0.5);
   border-radius: 8px;
   padding: 10px 22px;
   color: #f1f5f9;
@@ -771,7 +814,9 @@
 
   &--info {
     border-color: #4ecca3;
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.7), 0 0 20px rgba(78, 204, 163, 0.4);
+    box-shadow:
+      0 8px 24px rgba(0, 0, 0, 0.7),
+      0 0 20px rgba(78, 204, 163, 0.4);
   }
 
   &__icon {

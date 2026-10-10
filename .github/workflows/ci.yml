@@ -32,6 +32,11 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      # ESLint (no-unused-vars, no-redeclare, …) + prettier formatting.
+      # `npm run format` fixes; CI only checks.
+      - name: Lint and formatting
+        run: npm run lint --silent && npm run format:check --silent
+
       # 310 unit tests + 43 in-engine rule checks. The glob form is required:
       # a bare directory argument is rejected by Node 22.
       - name: Engine tests

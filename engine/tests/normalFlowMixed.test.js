@@ -11,9 +11,9 @@ function mixedTable() {
     seed: 21,
     roster: [
       [0, createSakiNormalHooks], // normal — extreme Saki
-      [1, createHisaHooks],       // flow — Hisa
-      [2, createYuuHooks],        // normal — Yuu
-      [3, createSakiHooks],       // flow — Saki
+      [1, createHisaHooks], // flow — Hisa
+      [2, createYuuHooks], // normal — Yuu
+      [3, createSakiHooks], // flow — Saki
     ],
   });
 }

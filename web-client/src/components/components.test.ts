@@ -34,11 +34,17 @@ function fakeStore(over: Record<string, any> = {}) {
     lastDiscard: null as { seat: number; index: number } | null,
     doraKinds: [] as string[],
     setHoveredTile(tile: any) {
-      this.hoveredTileKind = tile === null ? null : (typeof tile === 'string' ? tile : `idx${tile.index}`);
+      this.hoveredTileKind = tile === null ? null : typeof tile === 'string' ? tile : `idx${tile.index}`;
     },
-    isTileHoveredMatch() { return false; },
-    isTileDora() { return this.doraKinds.includes('x'); },
-    isTileAkaDora() { return false; },
+    isTileHoveredMatch() {
+      return false;
+    },
+    isTileDora() {
+      return this.doraKinds.includes('x');
+    },
+    isTileAkaDora() {
+      return false;
+    },
     isTileLastDiscard(seat: number, idx: number) {
       return Boolean(this.lastDiscard && this.lastDiscard.seat === seat && this.lastDiscard.index === idx);
     },
@@ -115,12 +121,16 @@ describe('renderMelds', () => {
 
   test('an ankan never rotates, even if a calledIndex is present', () => {
     // Rotation belongs to the *called* tile; a concealed kan has none.
-    const host = mount(renderMelds([{ callType: 'Ankan', tiles: [tile(4), tile(4), tile(4), tile(4)], calledIndex: 2 } as any]));
+    const host = mount(
+      renderMelds([{ callType: 'Ankan', tiles: [tile(4), tile(4), tile(4), tile(4)], calledIndex: 2 } as any])
+    );
     expect(host.querySelectorAll('.is-rotated').length).toBe(0);
   });
 
   test('a kakan gets the kakan modifier class', () => {
-    const host = mount(renderMelds([{ callType: 'Kakan', tiles: [tile(0), tile(0), tile(0), tile(0)], calledIndex: 3 } as any]));
+    const host = mount(
+      renderMelds([{ callType: 'Kakan', tiles: [tile(0), tile(0), tile(0), tile(0)], calledIndex: 3 } as any])
+    );
     expect(host.querySelector('.meld-set')!.className).toContain('meld-set--kakan');
     // The added fourth tile is the rotated one.
     const slots = [...host.querySelectorAll('.meld-set__slot')];
@@ -128,8 +138,7 @@ describe('renderMelds', () => {
   });
 
   test('a non-kakan meld does not carry the kakan class', () => {
-    expect(mount(renderMelds([pon()])).querySelector('.meld-set')!.className)
-      .not.toContain('meld-set--kakan');
+    expect(mount(renderMelds([pon()])).querySelector('.meld-set')!.className).not.toContain('meld-set--kakan');
   });
 
   test('the placement reaches the container class', () => {
@@ -151,7 +160,9 @@ describe('renderMelds', () => {
     const store = fakeStore();
     store.isTileDora = () => true;
     store.isTileAkaDora = (t: any) => Boolean(t.red_dora);
-    const host = mount(renderMelds([{ callType: 'Pon', tiles: [tile(0), tile(4, true), tile(0)], calledIndex: -1 } as any], store));
+    const host = mount(
+      renderMelds([{ callType: 'Pon', tiles: [tile(0), tile(4, true), tile(0)], calledIndex: -1 } as any], store)
+    );
     expect(host.querySelectorAll('.mahjong-tile--dora').length).toBe(3);
     expect(host.querySelectorAll('.mahjong-tile--aka-dora').length).toBe(1);
   });
@@ -167,7 +178,9 @@ describe('renderMelds', () => {
   });
 
   test('multiple melds each render their own set', () => {
-    const host = mount(renderMelds([pon(), { callType: 'Chi', tiles: [tile(1), tile(2), tile(3)], calledIndex: 0 } as any]));
+    const host = mount(
+      renderMelds([pon(), { callType: 'Chi', tiles: [tile(1), tile(2), tile(3)], calledIndex: 0 } as any])
+    );
     expect(host.querySelectorAll('.meld-set').length).toBe(2);
   });
 });
@@ -182,8 +195,7 @@ describe('renderDiscards', () => {
     Array.from({ length: n }, (_, i) => ({ tile: tile(i % 9), ...extra }));
 
   test('renders an empty pond without throwing', () => {
-    expect(mount(renderDiscards([])).querySelectorAll('.discard-pond__tile-wrapper').length)
-      .toBe(0);
+    expect(mount(renderDiscards([])).querySelectorAll('.discard-pond__tile-wrapper').length).toBe(0);
   });
 
   test('lays the pond out six tiles per row', () => {
@@ -191,15 +203,17 @@ describe('renderDiscards', () => {
     const rows = host.querySelectorAll('.discard-pond__row');
     expect(rows.length).toBe(3);
     // 6 + 6 + 2
-    expect([...rows].map((r) => r.querySelectorAll('.discard-pond__tile-wrapper').length))
-      .toEqual([6, 6, 2]);
+    expect([...rows].map((r) => r.querySelectorAll('.discard-pond__tile-wrapper').length)).toEqual([6, 6, 2]);
   });
 
   test('a full 18-tile pond is exactly three rows', () => {
     const host = mount(renderDiscards(pond(18)));
     expect(host.querySelectorAll('.discard-pond__row').length).toBe(3);
-    expect([...host.querySelectorAll('.discard-pond__row')]
-      .map((r) => r.querySelectorAll('.discard-pond__tile-wrapper').length)).toEqual([6, 6, 6]);
+    expect(
+      [...host.querySelectorAll('.discard-pond__row')].map(
+        (r) => r.querySelectorAll('.discard-pond__tile-wrapper').length
+      )
+    ).toEqual([6, 6, 6]);
   });
 
   test('tiles past 18 flow into a fourth row', () => {
@@ -207,15 +221,15 @@ describe('renderDiscards', () => {
     // grows to a fourth row instead of piling into the last one.
     const host = mount(renderDiscards(pond(21)));
     expect(host.querySelectorAll('.discard-pond__row').length).toBe(4);
-    expect([...host.querySelectorAll('.discard-pond__row')]
-      .map((r) => r.querySelectorAll('.discard-pond__tile-wrapper').length)).toEqual([6, 6, 6, 3]);
+    expect(
+      [...host.querySelectorAll('.discard-pond__row')].map(
+        (r) => r.querySelectorAll('.discard-pond__tile-wrapper').length
+      )
+    ).toEqual([6, 6, 6, 3]);
   });
 
   test('a riichi discard is rotated', () => {
-    const host = mount(renderDiscards([
-      { tile: tile(0) },
-      { tile: tile(1), is_riichi: true },
-    ]));
+    const host = mount(renderDiscards([{ tile: tile(0) }, { tile: tile(1), is_riichi: true }]));
     expect(host.querySelectorAll('.is-riichi').length).toBe(1);
     expect(host.querySelector('.mahjong-tile--rotated')).not.toBeNull();
   });
@@ -276,13 +290,11 @@ describe('renderDiscards', () => {
 
 describe('renderSakiCard', () => {
   test('renders the No Power placeholder for none', () => {
-    expect(mount(renderSakiCard({ character: 'none' })).querySelector('.saki-card-empty'))
-      .not.toBeNull();
+    expect(mount(renderSakiCard({ character: 'none' })).querySelector('.saki-card-empty')).not.toBeNull();
   });
 
   test('an empty character also shows the placeholder', () => {
-    expect(mount(renderSakiCard({ character: '' })).querySelector('.saki-card-empty'))
-      .not.toBeNull();
+    expect(mount(renderSakiCard({ character: '' })).querySelector('.saki-card-empty')).not.toBeNull();
   });
 
   test('maps a short id to the full character class', () => {
@@ -326,22 +338,33 @@ describe('renderSakiCard', () => {
   });
 
   test('placement defaults to bottom and is otherwise applied', () => {
-    expect(mount(renderSakiCard({ character: 'saki' })).querySelector('.saki-card-wrapper')!.className)
-      .toContain('saki-card-wrapper--bottom');
-    expect(mount(renderSakiCard({ character: 'saki', placement: 'left' }))
-      .querySelector('.saki-card-wrapper')!.className).toContain('saki-card-wrapper--left');
+    expect(mount(renderSakiCard({ character: 'saki' })).querySelector('.saki-card-wrapper')!.className).toContain(
+      'saki-card-wrapper--bottom'
+    );
+    expect(
+      mount(renderSakiCard({ character: 'saki', placement: 'left' })).querySelector('.saki-card-wrapper')!.className
+    ).toContain('saki-card-wrapper--left');
   });
 
   test('the disabled class appears only when disabled', () => {
-    expect(mount(renderSakiCard({ character: 'saki' })).querySelector('.saki-card')!.className)
-      .not.toMatch(/\bdisabled\b/);
-    expect(mount(renderSakiCard({ character: 'saki', disabled: true }))
-      .querySelector('.saki-card')!.className).toMatch(/\bdisabled\b/);
+    expect(mount(renderSakiCard({ character: 'saki' })).querySelector('.saki-card')!.className).not.toMatch(
+      /\bdisabled\b/
+    );
+    expect(mount(renderSakiCard({ character: 'saki', disabled: true })).querySelector('.saki-card')!.className).toMatch(
+      /\bdisabled\b/
+    );
   });
 
   test('the onClick fires when supplied', () => {
     let clicks = 0;
-    const host = mount(renderSakiCard({ character: 'saki', onClick: () => { clicks++; } }));
+    const host = mount(
+      renderSakiCard({
+        character: 'saki',
+        onClick: () => {
+          clicks++;
+        },
+      })
+    );
     (host.querySelector('.saki-card-wrapper') as HTMLElement).dispatchEvent(new Event('click'));
     expect(clicks).toBe(1);
   });
@@ -351,9 +374,15 @@ describe('renderSakiCard', () => {
   // unreachable — but if one ever wires it, the disabled card stays inert.
   test('disabled suppresses onClick', () => {
     let clicks = 0;
-    const host = mount(renderSakiCard({
-      character: 'saki', disabled: true, onClick: () => { clicks++; },
-    }));
+    const host = mount(
+      renderSakiCard({
+        character: 'saki',
+        disabled: true,
+        onClick: () => {
+          clicks++;
+        },
+      })
+    );
     (host.querySelector('.saki-card-wrapper') as HTMLElement).dispatchEvent(new Event('click'));
     expect(clicks).toBe(0);
   });

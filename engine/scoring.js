@@ -3,7 +3,9 @@
 const Riichi = require('riichi');
 const { toHandStr, norm } = require('./tiles');
 
-function meldStr(m) { return toHandStr(m.tiles); }
+function meldStr(m) {
+  return toHandStr(m.tiles);
+}
 
 // ctx: {dora[], bakaze, jikaze, riichi, doubleRiichi, ippatsu, kanFlag(k), lastFlag(h), tenhou(t)}
 function scoreHand(closed, melds, winTile, isTsumo, ctx) {
@@ -13,7 +15,7 @@ function scoreHand(closed, melds, winTile, isTsumo, ctx) {
   if (ctx.dora && ctx.dora.length) str += '+d' + ctx.dora.map(norm).join('');
   let ex = '';
   if (ctx.tenhou) ex += 't';
-  ex += ctx.doubleRiichi ? 'w' : (ctx.riichi ? 'r' : '');
+  ex += ctx.doubleRiichi ? 'w' : ctx.riichi ? 'r' : '';
   if (ctx.ippatsu) ex += 'i';
   if (ctx.kanFlag) ex += 'k';
   if (ctx.lastFlag) ex += 'h';

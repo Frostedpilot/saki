@@ -17,7 +17,8 @@ function sakiState(seed = 42, score = 25000, hand = null) {
     setupDeadWall(s);
     for (let k = 0; k < 13; k++) for (let seat = 1; seat < 4; seat++) s.players[seat].hand.push(s.pool.sample());
   } else {
-    setupDeadWall(s); dealHands(s);
+    setupDeadWall(s);
+    dealHands(s);
   }
   s.scores = [25000, 25000, 25000, 25000];
   s.scores[0] = score;
@@ -100,8 +101,8 @@ test('T1 fallback: non-tenpai -> pins best ukeire tile', () => {
   assert.equal(s.deadWall[0], res.pin, 'on-deck slot holds best ukeire');
   // every boosted tile is a genuine ukeire tile; non-ukeire stays 1.0
   const { hairiOf } = require('../powers/trajectoryPlanner');
-  const uke = new Set(Object.keys(hairiOf(hand).wait || {}).map(t => (t[0] === '0' ? '5' + t[1] : t)));
-  assert.ok(res.waits.every(w => uke.has(w)));
+  const uke = new Set(Object.keys(hairiOf(hand).wait || {}).map((t) => (t[0] === '0' ? '5' + t[1] : t)));
+  assert.ok(res.waits.every((w) => uke.has(w)));
   assert.equal(s.flow.get(0), 25);
 });
 
@@ -142,7 +143,7 @@ test('T1 weights conserve: boosted rinshan draw keeps audit clean', () => {
   const drawn = s.pool.sample(res.weightOf);
   assert.ok(typeof drawn === 'string');
   s.players[0].hand.push(drawn);
-  const parts = [...s.players.flatMap(p => [p.hand, p.discards]), s.deadWall];
+  const parts = [...s.players.flatMap((p) => [p.hand, p.discards]), s.deadWall];
   assert.deepEqual(s.pool.audit(parts), []);
 });
 
@@ -152,7 +153,8 @@ test('T1 deterministic weights: same hand+pool state -> same branch', () => {
     s.flow.set(0, 100);
     return S.createSakiHooks(0).tryActivateTier1(s);
   };
-  const a = mk(), b = mk();
+  const a = mk(),
+    b = mk();
   assert.equal(a.branch, b.branch);
   assert.deepEqual(a.waits, b.waits);
 });

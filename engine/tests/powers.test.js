@@ -26,7 +26,7 @@ test('computeDrawWeights defaults to all 1.0', () => {
   const pool = DynamicPool.full(createRNG(1));
   const w = d.computeDrawWeights(0, fakeState(pool), {});
   assert.ok(Object.keys(w).length > 30);
-  assert.ok(Object.values(w).every(v => v === 1.0));
+  assert.ok(Object.values(w).every((v) => v === 1.0));
 });
 
 test('registered hook controls weights', () => {
@@ -39,7 +39,11 @@ test('registered hook controls weights', () => {
 
 test('throwing / NaN hooks fall back to 1.0', () => {
   const d = new PowerDispatcher();
-  d.register(0, { onPowerDraw: () => { throw new Error('x'); } });
+  d.register(0, {
+    onPowerDraw: () => {
+      throw new Error('x');
+    },
+  });
   d.register(1, { onPowerDraw: () => NaN });
   d.register(2, { onPowerDraw: () => -1 });
   const pool = DynamicPool.full(createRNG(1));
@@ -57,7 +61,7 @@ test('clear() removes hooks', () => {
 
 test('biased hook actually biases sampling (statistical, seeded)', () => {
   const d = new PowerDispatcher();
-  d.register(0, { onPowerDraw: tile => (tile === '7z' ? 50.0 : 1.0) });
+  d.register(0, { onPowerDraw: (tile) => (tile === '7z' ? 50.0 : 1.0) });
   let hits = 0;
   const N = 60;
   for (let i = 0; i < N; i++) {
@@ -74,9 +78,11 @@ test('field aura + turn clock + settlement hooks fire', () => {
   const d = new PowerDispatcher();
   let settled = 0;
   d.register(2, {
-    applyFieldAura: w => ({ ...w, X: 1 }),
+    applyFieldAura: (w) => ({ ...w, X: 1 }),
     getTurnClock: () => 6,
-    onSettlement: () => { settled++; },
+    onSettlement: () => {
+      settled++;
+    },
   });
   assert.equal(d.getTurnClock(2, {}), 6);
   assert.deepEqual(d.applyFieldAura(2, {}, {}), { X: 1 });

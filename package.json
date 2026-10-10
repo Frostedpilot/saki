@@ -19,6 +19,15 @@
     "test:client": "npm test --workspace web-client && npm run build --workspace web-client",
     "links": "node scripts/check-links.mjs",
     "smoke": "node engine/game.js --seed 42 --kyoku 1",
-    "check": "npm run test && npm run links"
+    "lint": "eslint engine server scripts web-client/src eslint.config.mjs",
+    "format": "prettier --write engine server scripts web-client/src web-client/*.ts web-client/*.html .github/workflows/ci.yml eslint.config.mjs",
+    "format:check": "prettier --check engine server scripts web-client/src web-client/*.ts web-client/*.html .github/workflows/ci.yml eslint.config.mjs",
+    "check": "npm run lint && npm run test && npm run links"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "eslint": "^10.12.0",
+    "prettier": "^3.9.10",
+    "typescript-eslint": "^8.71.1"
   }
 }

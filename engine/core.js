@@ -16,10 +16,12 @@ function createMatchState({ seed = 1, nSeats = 4 } = {}) {
   const pool = DynamicPool.full(rng);
   const flow = new FlowManager(nSeats);
   return {
-    rng, pool, flow,
+    rng,
+    pool,
+    flow,
     powers: dispatcher,
     players: Array.from({ length: nSeats }, (_, i) => ({ seat: i, hand: [], melds: [], discards: [] })),
-    deadWall: [],       // 14 wanpai tiles (Phase 1)
+    deadWall: [], // 14 wanpai tiles (Phase 1)
     turn: 0,
   };
 }

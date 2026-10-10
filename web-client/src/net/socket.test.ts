@@ -32,7 +32,9 @@ class FakeWebSocket {
     FakeWebSocket.instances.push(this);
   }
 
-  public send(data: string) { this.sent.push(data); }
+  public send(data: string) {
+    this.sent.push(data);
+  }
   // A real WebSocket fires onclose when closed, and GameSocket relies on that for its
   // reconnect path (both via serverClose and via the onerror -> close() route). The fake
   // has to do the same or the reconnect tests would pass for the wrong reason.
@@ -43,9 +45,16 @@ class FakeWebSocket {
     this.onclose?.();
   }
   // Test drivers
-  public open() { this.readyState = FakeWebSocket.OPEN; this.onopen?.(); }
-  public emit(data: any) { this.onmessage?.({ data }); }
-  public serverClose() { this.close(); }
+  public open() {
+    this.readyState = FakeWebSocket.OPEN;
+    this.onopen?.();
+  }
+  public emit(data: any) {
+    this.onmessage?.({ data });
+  }
+  public serverClose() {
+    this.close();
+  }
 }
 
 const REAL_WS = globalThis.WebSocket;
@@ -169,7 +178,9 @@ describe('GameSocket dispatch', () => {
     // fault was in the code reacting to it.
     const s = new GameSocket('ws://test/ws');
     const seen: any[] = [];
-    s.onMessage(() => { throw new Error('store blew up'); });
+    s.onMessage(() => {
+      throw new Error('store blew up');
+    });
     s.onMessage((m) => seen.push(m));
     const errs: string[] = [];
     const realErr = console.error;
@@ -309,7 +320,9 @@ describe('GameSocket reconnect', () => {
     const errs: string[] = [];
     const realErr = console.error;
     console.error = (...a: any[]) => errs.push(a.join(' '));
-    (globalThis as any).WebSocket = function Boom() { throw new Error('refused'); };
+    (globalThis as any).WebSocket = function Boom() {
+      throw new Error('refused');
+    };
     try {
       const { s, statuses } = make();
       s.connect();

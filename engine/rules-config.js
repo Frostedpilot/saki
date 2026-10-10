@@ -17,10 +17,10 @@ const RULES = {
   riichiValue: 1000,
   minWallForRiichi: 4,
   honbaTsumo: 100, // per payer on tsumo
-  honbaRon: 300,   // per win on ron
+  honbaRon: 300, // per win on ron
   minHan: 1,
   overtimeMinHan: 2, // ryanhan-shibari during enchousen
-  notenTotal: 3000,   // points moved at an exhaustive draw (1 tenpai: +3000/-1000)
+  notenTotal: 3000, // points moved at an exhaustive draw (1 tenpai: +3000/-1000)
   maxKan: 4,
   rinshanSlots: 4,
   deadWallLength: 14,

@@ -1,0 +1,11 @@
+node_modules
+dist
+server/public
+web-client/public
+web-client/dist
+web-client/src/assets
+package-lock.json
+*.min.js
+# Docs prose stays author-formatted (prettier would rewrap paragraphs and
+# create diff noise); formatting is enforced on code only.
+*.md

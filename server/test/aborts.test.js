@@ -34,8 +34,13 @@ function makeTable() {
 
   t.ctx = {
     players: [0, 1, 2, 3].map((s) => ({
-      seat: s, hand: [], melds: [], discards: [],
-      riichi: false, doubleRiichi: false, ippatsu: false,
+      seat: s,
+      hand: [],
+      melds: [],
+      discards: [],
+      riichi: false,
+      doubleRiichi: false,
+      ippatsu: false,
     })),
     dealer: 0,
     bakaze: 1,
@@ -177,7 +182,10 @@ test('nagashi mangan: closed terminal discarder wins mangan tsumo', async () => 
   assert.equal(sum(t), before);
   // Rotation: dealer not among nagashi -> rotates.
   const keepDealer = t.applyPostSettlementFlow({
-    outcome, winBy: { type: 'nagashi', hits: [{ seat: 1 }] }, winner: 1, dealer: 0,
+    outcome,
+    winBy: { type: 'nagashi', hits: [{ seat: 1 }] },
+    winner: 1,
+    dealer: 0,
   });
   assert.equal(keepDealer, false);
 });
@@ -195,7 +203,10 @@ test('nagashi mangan: dealer nagashi repeats the deal', async () => {
   // Dealer mangan: 4000 all -> +12000.
   assert.deepEqual(t.scores, [25000 + 12000, 21000, 21000, 21000]);
   const keepDealer = t.applyPostSettlementFlow({
-    outcome, winBy: { type: 'nagashi', hits: [{ seat: 0 }] }, winner: 0, dealer: 0,
+    outcome,
+    winBy: { type: 'nagashi', hits: [{ seat: 0 }] },
+    winner: 0,
+    dealer: 0,
   });
   assert.equal(keepDealer, true);
   assert.equal(t.honba, 1);

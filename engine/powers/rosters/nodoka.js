@@ -5,47 +5,31 @@
 const { norm } = require('../../tiles');
 const { shantenOf, hairiOf, ukeire, getOptimalBridges } = require('../trajectoryPlanner');
 const { getEvaluator } = require('../mjaiAdapter');
-const { evaluateNodokaHand } = require('../nodokaEval');
 
 const TIER1_COST = 25;
 const TIER2_COST = 50;
 const TIER3_COST = 100;
 const TIER4_COST = 150;
-const OPTIMAL_DISCARD_FLOW = 3.5;   // bonus for max-ukeire discard
-const SUBOPTIMAL_PENALTY = -10.0;   // flow drain for bad discard
-const SUBOPTIMAL_THRESHOLD = 3;     // uke-ire gap to trigger penalty
+const OPTIMAL_DISCARD_FLOW = 3.5; // bonus for max-ukeire discard
+const SUBOPTIMAL_PENALTY = -10.0; // flow drain for bad discard
+const SUBOPTIMAL_THRESHOLD = 3; // uke-ire gap to trigger penalty
 const NODOCCHI_MODE_THRESHOLD = 50; // flow >= 50 enters Nodocchi Mode
-const NODOCCHI_BASE_FLOW = 2.0;     // flow per turn in Nodocchi Mode
+const NODOCCHI_BASE_FLOW = 2.0; // flow per turn in Nodocchi Mode
 
 function getHand(state, seat) {
   return (state.players[seat] && state.players[seat].hand) || [];
-}
-
-function getScore(state, seat) {
-  if (state.scores && state.scores[seat] !== undefined) return state.scores[seat];
-  return 25000;
 }
 
 function isNodocchi(flow) {
   return flow >= NODOCCHI_MODE_THRESHOLD;
 }
 
-// Phase 1: Flow generation override.
-// Returns bonus flow on a legal discard (added to base 1.5 by FlowManager).
-// - If Nodocchi Mode: +0.5 extra (total 2.0 from flow gen perspective).
-// - If Human Stance and discard was optimal: +2.0 extra (total 3.5).
-function computeFlowBonus(discard, handBefore, flow, pool) {
-  if (isNodocchi(flow)) return NODOCCHI_BASE_FLOW - 1.5; // net +0.5 beyond base
-  const { tile } = findOptimalDiscard(handBefore, pool);
-  if (tile !== null && norm(discard) === tile) return OPTIMAL_DISCARD_FLOW - 1.5; // net +2.0
-  return 0;
-}
-
 // Find the discard from a 14-tile hand that maximizes uke-ire.
 // Returns { tile, uke } or { tile: null, uke: -1 } when not 14 tiles.
 function findOptimalDiscard(hand, pool) {
   if (!hand || hand.length < 14) return { tile: null, uke: -1 };
-  let bestTile = null, bestUke = -1;
+  let bestTile = null,
+    bestUke = -1;
   const tried = new Set();
   for (const t of hand) {
     const k = norm(t);
@@ -53,7 +37,10 @@ function findOptimalDiscard(hand, pool) {
     tried.add(k);
     const rest = hand.filter((_, i) => i !== hand.indexOf(t));
     const u = ukeire(rest, pool);
-    if (u > bestUke) { bestUke = u; bestTile = k; }
+    if (u > bestUke) {
+      bestUke = u;
+      bestTile = k;
+    }
   }
   return { tile: bestTile, uke: bestUke };
 }
@@ -124,7 +111,7 @@ function createNodokaHooks(seat) {
       // Nodocchi Mode passive: uke-ire boost
       if (isNodocchi(flow) && hand.length >= 13) {
         const gain = calculateUkeireGainLocal(hand, tile);
-        return 1.0 + (gain * 0.25);
+        return 1.0 + gain * 0.25;
       }
 
       return 1.0;
@@ -202,20 +189,49 @@ function createNodokaHooks(seat) {
       const t4Pre = sh === 0;
 
       return [
-        { tier: 1, name: 'Statistical Filter', cost: TIER1_COST, canAfford: flow >= TIER1_COST, canActivate: flow >= TIER1_COST && t1Pre },
-        { tier: 2, name: 'Optimal Discard Matrix', cost: TIER2_COST, canAfford: flow >= TIER2_COST, canActivate: flow >= TIER2_COST && t2Pre },
-        { tier: 3, name: 'Shanten Compression', cost: TIER3_COST, canAfford: flow >= TIER3_COST, canActivate: flow >= TIER3_COST && t3Pre },
-        { tier: 4, name: 'EV Singularity', cost: TIER4_COST, canAfford: flow >= TIER4_COST, canActivate: flow >= TIER4_COST && t4Pre },
+        {
+          tier: 1,
+          name: 'Statistical Filter',
+          cost: TIER1_COST,
+          canAfford: flow >= TIER1_COST,
+          canActivate: flow >= TIER1_COST && t1Pre,
+        },
+        {
+          tier: 2,
+          name: 'Optimal Discard Matrix',
+          cost: TIER2_COST,
+          canAfford: flow >= TIER2_COST,
+          canActivate: flow >= TIER2_COST && t2Pre,
+        },
+        {
+          tier: 3,
+          name: 'Shanten Compression',
+          cost: TIER3_COST,
+          canAfford: flow >= TIER3_COST,
+          canActivate: flow >= TIER3_COST && t3Pre,
+        },
+        {
+          tier: 4,
+          name: 'EV Singularity',
+          cost: TIER4_COST,
+          canAfford: flow >= TIER4_COST,
+          canActivate: flow >= TIER4_COST && t4Pre,
+        },
       ];
     },
 
     activateTier(state, tier) {
       switch (tier) {
-        case 1: return this.tryActivateTier1(state);
-        case 2: return this.tryActivateTier2(state);
-        case 3: return this.tryActivateTier3(state);
-        case 4: return this.tryActivateTier4(state);
-        default: return { ok: false, reason: 'invalid-tier' };
+        case 1:
+          return this.tryActivateTier1(state);
+        case 2:
+          return this.tryActivateTier2(state);
+        case 3:
+          return this.tryActivateTier3(state);
+        case 4:
+          return this.tryActivateTier4(state);
+        default:
+          return { ok: false, reason: 'invalid-tier' };
       }
     },
 
@@ -237,7 +253,7 @@ function createNodokaHooks(seat) {
     },
 
     // Lifecycle: decrement tier durations per turn.
-    onTurnEnd(state) {
+    onTurnEnd(_state) {
       if (tier1TurnsLeft > 0) tier1TurnsLeft--;
       if (tier3TurnsLeft > 0) tier3TurnsLeft--;
       if (tier4TurnsLeft > 0) tier4TurnsLeft--;
@@ -245,8 +261,13 @@ function createNodokaHooks(seat) {
 
     // Settlement: consume all flow on EV Singularity win.
     onSettlement(result, state) {
-      if (result && result.type === 'tsumo' && result.winner === seat &&
-          typeof result.tag === 'string' && result.tag.includes('EV_SINGULARITY')) {
+      if (
+        result &&
+        result.type === 'tsumo' &&
+        result.winner === seat &&
+        typeof result.tag === 'string' &&
+        result.tag.includes('EV_SINGULARITY')
+      ) {
         if (state.flow) state.flow.consumeAll(seat);
       }
       tier2Active = false;
@@ -255,12 +276,17 @@ function createNodokaHooks(seat) {
     // HUD Advice channel: real-time expected value recommendation
     getHudAdvice(state) {
       const evalRes = getEvaluator().evaluate(state, seat);
-      return (evalRes && evalRes.summary) ? evalRes.summary : 'Nodocchi: Awaiting draw';
+      return evalRes && evalRes.summary ? evalRes.summary : 'Nodocchi: Awaiting draw';
     },
 
     // Expose internal state for testing
     _state: () => ({ tier1TurnsLeft, tier2Active, tier3TurnsLeft, tier4TurnsLeft }),
-    _resetTiers: () => { tier1TurnsLeft = 0; tier2Active = false; tier3TurnsLeft = 0; tier4TurnsLeft = 0; },
+    _resetTiers: () => {
+      tier1TurnsLeft = 0;
+      tier2Active = false;
+      tier3TurnsLeft = 0;
+      tier4TurnsLeft = 0;
+    },
   };
 }
 
@@ -272,7 +298,7 @@ function isDeadTerminalOrHonor(tile, hand) {
   const isTerminal = /^[19][mps]$/.test(n);
   const isHonor = /[z]$/.test(n);
   if (!isTerminal && !isHonor) return false;
-  const count = hand.filter(t => norm(t) === n).length;
+  const count = hand.filter((t) => norm(t) === n).length;
   return count <= 1; // isolated (not part of pair+)
 }
 
@@ -285,7 +311,7 @@ function calculateUkeireGainLocal(hand, tile) {
 
 // Remove one physical copy of `tile` (norm-sensitive) from a hand.
 function withoutOne(hand, tile) {
-  const idx = hand.findIndex(t => norm(t) === norm(tile));
+  const idx = hand.findIndex((t) => norm(t) === norm(tile));
   if (idx < 0) return [...hand];
   return [...hand.slice(0, idx), ...hand.slice(idx + 1)];
 }
@@ -296,8 +322,14 @@ module.exports = {
   findOptimalDiscard,
   isDeadTerminalOrHonor,
   NODOKA: {
-    TIER1_COST, TIER2_COST, TIER3_COST, TIER4_COST,
-    OPTIMAL_DISCARD_FLOW, SUBOPTIMAL_PENALTY, SUBOPTIMAL_THRESHOLD,
-    NODOCCHI_MODE_THRESHOLD, NODOCCHI_BASE_FLOW,
+    TIER1_COST,
+    TIER2_COST,
+    TIER3_COST,
+    TIER4_COST,
+    OPTIMAL_DISCARD_FLOW,
+    SUBOPTIMAL_PENALTY,
+    SUBOPTIMAL_THRESHOLD,
+    NODOCCHI_MODE_THRESHOLD,
+    NODOCCHI_BASE_FLOW,
   },
 };

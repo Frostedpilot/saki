@@ -8,8 +8,8 @@ const TIER1_COST = 25;
 const TIER2_COST = 50;
 const TIER3_COST = 100;
 const TIER4_COST = 150;
-const BASE_RAMP_START = 2.5;  // flow per turn starting turn 7
-const RAMP_STEP = 0.5;        // +0.5 each subsequent turn
+const BASE_RAMP_START = 2.5; // flow per turn starting turn 7
+const RAMP_STEP = 0.5; // +0.5 each subsequent turn
 const SAFE_DISCARD_FLOW = 15; // +15% for safe discard vs multi-meld opponent
 
 function getHand(state, seat) {
@@ -21,13 +21,13 @@ function getDiscards(state, seat) {
 }
 
 function getMeldCount(state, seat) {
-  return (state.players[seat] && state.players[seat].melds) ? state.players[seat].melds.length : 0;
+  return state.players[seat] && state.players[seat].melds ? state.players[seat].melds.length : 0;
 }
 
 // Check if a discard is safe against a specific opponent (simplified:
 // the tile appears in that opponent's discard river — genbutsu).
 function isSafeAgainst(discard, targetDiscards) {
-  return targetDiscards.some(d => norm(d) === norm(discard));
+  return targetDiscards.some((d) => norm(d) === norm(discard));
 }
 
 // Phase 1: flow generation modifier — delayed ignition.
@@ -74,7 +74,7 @@ function createMakoHooks(seat) {
       // T2: Flow Reroute — +40% uke-ire boost
       if (tier2TurnsLeft > 0) {
         const gain = ukeire([...hand, tile].slice(-14), state.pool) - ukeire(hand, state.pool);
-        return 1.0 + Math.max(0, gain) * 0.40;
+        return 1.0 + Math.max(0, gain) * 0.4;
       }
 
       // T4: Omnipresent Recall — winning wait magnet (tenpai only)
@@ -136,7 +136,12 @@ function createMakoHooks(seat) {
     tryActivateTier2(state, turn) {
       const flow = state.flow;
       if (!flow || !flow.canAfford(seat, TIER2_COST)) return { ok: false, reason: 'insufficient-flow' };
-      const curTurn = turn !== undefined ? turn : ((state.players && state.players[seat] && state.players[seat].discards) ? state.players[seat].discards.length + 1 : 1);
+      const curTurn =
+        turn !== undefined
+          ? turn
+          : state.players && state.players[seat] && state.players[seat].discards
+            ? state.players[seat].discards.length + 1
+            : 1;
       if (curTurn < 7 || curTurn > 12) return { ok: false, reason: 'turn-gate' };
       flow.consume(seat, TIER2_COST);
       tier2TurnsLeft = 3;
@@ -163,7 +168,12 @@ function createMakoHooks(seat) {
       if (!flow || !flow.canAfford(seat, TIER4_COST)) return { ok: false, reason: 'insufficient-flow' };
       const hand = getHand(state, seat);
       if (shantenOf(hand) !== 0) return { ok: false, reason: 'precondition' };
-      const curTurn = turn !== undefined ? turn : ((state.players && state.players[seat] && state.players[seat].discards) ? state.players[seat].discards.length + 1 : 1);
+      const curTurn =
+        turn !== undefined
+          ? turn
+          : state.players && state.players[seat] && state.players[seat].discards
+            ? state.players[seat].discards.length + 1
+            : 1;
       if (curTurn < 8 || curTurn > 16) return { ok: false, reason: 'turn-gate' };
       flow.consume(seat, TIER4_COST);
       tier4Active = true;
@@ -179,7 +189,10 @@ function createMakoHooks(seat) {
 
     getTierInfo(state) {
       const flow = state.flow ? state.flow.get(seat) : 0;
-      const turn = (state.players && state.players[seat] && state.players[seat].discards) ? state.players[seat].discards.length + 1 : 1;
+      const turn =
+        state.players && state.players[seat] && state.players[seat].discards
+          ? state.players[seat].discards.length + 1
+          : 1;
       const hand = getHand(state, seat);
 
       const t1Pre = true;
@@ -188,20 +201,49 @@ function createMakoHooks(seat) {
       const t4Pre = shantenOf(hand) === 0 && turn >= 8 && turn <= 16;
 
       return [
-        { tier: 1, name: 'Match Recognition', cost: TIER1_COST, canAfford: flow >= TIER1_COST, canActivate: flow >= TIER1_COST && t1Pre },
-        { tier: 2, name: 'Flow Reroute', cost: TIER2_COST, canAfford: flow >= TIER2_COST, canActivate: flow >= TIER2_COST && t2Pre },
-        { tier: 3, name: 'River Mirroring', cost: TIER3_COST, canAfford: flow >= TIER3_COST, canActivate: flow >= TIER3_COST && t3Pre },
-        { tier: 4, name: 'Omnipresent Recall', cost: TIER4_COST, canAfford: flow >= TIER4_COST, canActivate: flow >= TIER4_COST && t4Pre },
+        {
+          tier: 1,
+          name: 'Match Recognition',
+          cost: TIER1_COST,
+          canAfford: flow >= TIER1_COST,
+          canActivate: flow >= TIER1_COST && t1Pre,
+        },
+        {
+          tier: 2,
+          name: 'Flow Reroute',
+          cost: TIER2_COST,
+          canAfford: flow >= TIER2_COST,
+          canActivate: flow >= TIER2_COST && t2Pre,
+        },
+        {
+          tier: 3,
+          name: 'River Mirroring',
+          cost: TIER3_COST,
+          canAfford: flow >= TIER3_COST,
+          canActivate: flow >= TIER3_COST && t3Pre,
+        },
+        {
+          tier: 4,
+          name: 'Omnipresent Recall',
+          cost: TIER4_COST,
+          canAfford: flow >= TIER4_COST,
+          canActivate: flow >= TIER4_COST && t4Pre,
+        },
       ];
     },
 
     activateTier(state, tier, extraArg) {
       switch (tier) {
-        case 1: return this.tryActivateTier1(state);
-        case 2: return this.tryActivateTier2(state, extraArg);
-        case 3: return this.tryActivateTier3(state, extraArg);
-        case 4: return this.tryActivateTier4(state, extraArg);
-        default: return { ok: false, reason: 'invalid-tier' };
+        case 1:
+          return this.tryActivateTier1(state);
+        case 2:
+          return this.tryActivateTier2(state, extraArg);
+        case 3:
+          return this.tryActivateTier3(state, extraArg);
+        case 4:
+          return this.tryActivateTier4(state, extraArg);
+        default:
+          return { ok: false, reason: 'invalid-tier' };
       }
     },
 
@@ -223,20 +265,26 @@ function createMakoHooks(seat) {
     },
 
     // Lifecycle: decrement durations.
-    onTurnEnd(state) {
+    onTurnEnd(_state) {
       if (tier1TurnsLeft > 0) tier1TurnsLeft--;
       if (tier2TurnsLeft > 0) tier2TurnsLeft--;
       if (tier3TurnsLeft > 0) tier3TurnsLeft--;
     },
 
     // Settlement: reset tier4 on win.
-    onSettlement(result, state) {
+    onSettlement(result, _state) {
       if (result && result.winner === seat) tier4Active = false;
       return {};
     },
 
     _state: () => ({ tier1TurnsLeft, tier2TurnsLeft, tier3TurnsLeft, tier4Active, tier3Target }),
-    _resetTiers: () => { tier1TurnsLeft = 0; tier2TurnsLeft = 0; tier3TurnsLeft = 0; tier4Active = false; tier3Target = -1; },
+    _resetTiers: () => {
+      tier1TurnsLeft = 0;
+      tier2TurnsLeft = 0;
+      tier3TurnsLeft = 0;
+      tier4Active = false;
+      tier3Target = -1;
+    },
   };
 }
 
@@ -245,7 +293,12 @@ module.exports = {
   computeFlowPerTurn,
   isSafeAgainst,
   MAKO: {
-    TIER1_COST, TIER2_COST, TIER3_COST, TIER4_COST,
-    BASE_RAMP_START, RAMP_STEP, SAFE_DISCARD_FLOW,
+    TIER1_COST,
+    TIER2_COST,
+    TIER3_COST,
+    TIER4_COST,
+    BASE_RAMP_START,
+    RAMP_STEP,
+    SAFE_DISCARD_FLOW,
   },
 };

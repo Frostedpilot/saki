@@ -43,7 +43,7 @@ function getHand(state, seat) {
 // Pure: 1.35 when equilibrium active AND exactly 2 copies held (norm-aware).
 function passiveWeight(tile, sakiHand, score) {
   if (!evaluateEquilibrium(score)) return 1.0;
-  const n = sakiHand.filter(t => norm(t) === norm(tile)).length;
+  const n = sakiHand.filter((t) => norm(t) === norm(tile)).length;
   return n === 2 ? TRIPLET_AFFINITY : 1.0;
 }
 
@@ -69,21 +69,21 @@ function rinshanWeights(sakiHand, pool) {
   const waits = h && h.wait ? Object.keys(h.wait) : [];
   const tenpai = shantenOf(sakiHand) === 0 && waits.length > 0;
   if (tenpai) {
-    const live = waits.filter(w => isLive(pool, w));
+    const live = waits.filter((w) => isLive(pool, w));
     if (live.length) {
       const boosted = new Set(live.flatMap(expandAka).map(norm));
       return {
         branch: 'wait',
-        weightOf: t => (boosted.has(norm(t)) ? RINSHAN_WAIT_WEIGHT : 1.0),
+        weightOf: (t) => (boosted.has(norm(t)) ? RINSHAN_WAIT_WEIGHT : 1.0),
         waits: live,
       };
     }
   }
-  const liveUke = waits.filter(w => isLive(pool, w));
+  const liveUke = waits.filter((w) => isLive(pool, w));
   const boosted = new Set(liveUke.flatMap(expandAka).map(norm));
   return {
     branch: 'ukeire',
-    weightOf: t => (boosted.has(norm(t)) ? UKEIRE_WEIGHT : 1.0),
+    weightOf: (t) => (boosted.has(norm(t)) ? UKEIRE_WEIGHT : 1.0),
     waits: liveUke,
   };
 }
@@ -103,11 +103,17 @@ function kindCounts(hand) {
 }
 // Kinds held 3+ (closed koutsu candidates), sorted for determinism.
 function closedTriplets(hand) {
-  return Object.entries(kindCounts(hand)).filter(([, n]) => n >= 3).map(([k]) => k).sort();
+  return Object.entries(kindCounts(hand))
+    .filter(([, n]) => n >= 3)
+    .map(([k]) => k)
+    .sort();
 }
 // Kinds held exactly 2 (excludes triplet kinds).
 function closedPairs(hand) {
-  return Object.entries(kindCounts(hand)).filter(([, n]) => n === 2).map(([k]) => k).sort();
+  return Object.entries(kindCounts(hand))
+    .filter(([, n]) => n === 2)
+    .map(([k]) => k)
+    .sort();
 }
 
 // Physical 4th-copy selection: prefer the exact kind, else its aka variant.
@@ -125,9 +131,9 @@ function physicalCopy(pool, normKind) {
 // Fixed-boost weight fn over live waits (T2: 5.0x).
 function waitBoostWeights(sakiHand, pool, boost) {
   const h = hairiOf(sakiHand);
-  const waits = h && h.wait ? Object.keys(h.wait).filter(w => isLive(pool, w)) : [];
+  const waits = h && h.wait ? Object.keys(h.wait).filter((w) => isLive(pool, w)) : [];
   const boosted = new Set(waits.flatMap(expandAka).map(norm));
-  return { waits, weightOf: t => (boosted.has(norm(t)) ? boost : 1.0) };
+  return { waits, weightOf: (t) => (boosted.has(norm(t)) ? boost : 1.0) };
 }
 
 // Multiplier w so that P(wait) ~= p under the current pool:
@@ -141,7 +147,7 @@ function weightForProbability(p, targetCopies, otherMass) {
 // calibrated so their combined draw probability ~= p.
 function winProbabilityWeights(sakiHand, pool, p) {
   const h = hairiOf(sakiHand);
-  const waits = h && h.wait ? Object.keys(h.wait).filter(w => isLive(pool, w)) : [];
+  const waits = h && h.wait ? Object.keys(h.wait).filter((w) => isLive(pool, w)) : [];
   const boosted = new Set(waits.flatMap(expandAka).map(norm));
   let w = 1.0;
   if (pool && waits.length) {
@@ -150,7 +156,7 @@ function winProbabilityWeights(sakiHand, pool, p) {
     const others = pool.total() - n;
     w = weightForProbability(p, n, others);
   }
-  return { waits, weight: w, weightOf: t => (boosted.has(norm(t)) ? w : 1.0) };
+  return { waits, weight: w, weightOf: (t) => (boosted.has(norm(t)) ? w : 1.0) };
 }
 
 // Kan-dora seeding: swap the kan-dora indicator at
@@ -164,8 +170,12 @@ function seedKanDora(state, kanCount = 1, seat = 0) {
   const hand = getHand(state, seat);
   if (!hand.length) return null;
   const counts = kindCounts(hand);
-  let h = null;
-  try { h = hairiOf(hand); } catch { h = null; }
+  let h;
+  try {
+    h = hairiOf(hand);
+  } catch {
+    h = null;
+  }
   const waitSet = new Set(h && h.wait ? Object.keys(h.wait).map(norm) : []);
   let best = null;
   let bestScore = -Infinity;
@@ -217,7 +227,9 @@ function winningWaitsExact(state, seat) {
     try {
       const r = scoreHand([...hand, k], melds, k, true, ctx);
       if (r && r.isAgari && (r.yakuman > 0 || r.han >= 1)) out.push(k);
-    } catch { /* not this kind */ }
+    } catch {
+      /* not this kind */
+    }
   }
   return out.sort();
 }
@@ -225,27 +237,39 @@ function winningWaitsExact(state, seat) {
 // Live tiles that reduce shanten (deterministic: strongest gain, then kind).
 function advancingTilesExact(state, seat) {
   const p = state.players[seat] || {};
-  const hand = (p.hand || []);
-  const melds = (p.melds || []);
+  const hand = p.hand || [];
+  const melds = p.melds || [];
   const tiles = [...hand];
   for (const m of melds) {
     if (Array.isArray(m.tiles)) tiles.push(...m.tiles.slice(0, 4).map(norm));
   }
   const analysis = tiles.slice(0, 14);
-  let before = 99;
-  try { before = shantenOf(analysis); } catch { return []; }
-  let h = null;
-  try { h = hairiOf(analysis); } catch { h = null; }
+  let before;
+  try {
+    before = shantenOf(analysis);
+  } catch {
+    return [];
+  }
+  let h;
+  try {
+    h = hairiOf(analysis);
+  } catch {
+    h = null;
+  }
   const candidates = h && h.wait ? Object.keys(h.wait) : [];
   const hits = [];
   for (const kind of candidates) {
     const copy = physicalCopy(state.pool, kind);
     if (!copy) continue;
-    let after = 99;
-    try { after = shantenOf([...analysis, kind]); } catch { continue; }
+    let after;
+    try {
+      after = shantenOf([...analysis, kind]);
+    } catch {
+      continue;
+    }
     if (after < before && after >= 0) hits.push({ kind, copy, gain: before - after });
   }
-  hits.sort((a, b) => (b.gain - a.gain) || (a.kind < b.kind ? -1 : a.kind > b.kind ? 1 : 0));
+  hits.sort((a, b) => b.gain - a.gain || (a.kind < b.kind ? -1 : a.kind > b.kind ? 1 : 0));
   return hits;
 }
 
@@ -256,7 +280,7 @@ function guaranteeRinshanSlot(state, seat, rinshanIdx) {
   if (!state.deadWall || slotIdx < 0 || slotIdx >= state.deadWall.length) return null;
   const { exchangeDeadWallSlot } = require('../../core');
   const waits = winningWaitsExact(state, seat);
-  const live = waits.filter(w => isLive(state.pool, w));
+  const live = waits.filter((w) => isLive(state.pool, w));
   if (live.length) {
     const pin = physicalCopy(state.pool, live[0]);
     if (pin !== null && exchangeDeadWallSlot(state, slotIdx, pin)) {
@@ -301,7 +325,10 @@ function shapeSakiStartingHand(pool, minShanten = 2, maxShanten = 3) {
     const guard = new Set();
     while (tripKinds.length < 2) {
       const k = KINDS[Math.floor(rng.next() * KINDS.length)];
-      if (!guard.has(k)) { guard.add(k); tripKinds.push(k); }
+      if (!guard.has(k)) {
+        guard.add(k);
+        tripKinds.push(k);
+      }
     }
     let pairKind = null;
     for (let i = 0; i < 20 && pairKind === null; i++) {
@@ -330,7 +357,10 @@ function shapeSakiStartingHand(pool, minShanten = 2, maxShanten = 3) {
         for (let i = 0; i < use; i++) take.push(c);
         remaining -= use;
       }
-      if (remaining > 0) { ok = false; break; }
+      if (remaining > 0) {
+        ok = false;
+        break;
+      }
     }
     if (!ok) continue;
     // shanten check on the physical tiles
@@ -350,7 +380,13 @@ function createSakiHooks(seat) {
       type: 'flow',
       name: 'Saki Miyanaga',
       school: 'Kiyosumi',
-      tiers: { passive: 0, ridgeGlimmer: TIER1_COST, twinRidges: TIER2_COST, tripleSummit: TIER3_COST, suukantsu: TIER4_COST },
+      tiers: {
+        passive: 0,
+        ridgeGlimmer: TIER1_COST,
+        twinRidges: TIER2_COST,
+        tripleSummit: TIER3_COST,
+        suukantsu: TIER4_COST,
+      },
     },
 
     // Phase 2: Trajectory Shaper — pure weight, no mutation.
@@ -376,9 +412,27 @@ function createSakiHooks(seat) {
       const dora = seedKanDora(state, Number.isInteger(kanCount) ? kanCount : 1, seat);
       flow.consume(seat, TIER1_COST);
       if (g) {
-        return { ok: true, branch: g.branch, waits, weightOf, event: { type: 'RINSHAN_RESONANCE_TRIGGER', tier: 1 }, pin: g.pin, slotIdx: g.slotIdx, pinned: true, dora };
+        return {
+          ok: true,
+          branch: g.branch,
+          waits,
+          weightOf,
+          event: { type: 'RINSHAN_RESONANCE_TRIGGER', tier: 1 },
+          pin: g.pin,
+          slotIdx: g.slotIdx,
+          pinned: true,
+          dora,
+        };
       }
-      return { ok: true, branch: wBranch, waits, weightOf, event: { type: 'RINSHAN_RESONANCE_TRIGGER', tier: 1 }, pinned: false, dora };
+      return {
+        ok: true,
+        branch: wBranch,
+        waits,
+        weightOf,
+        event: { type: 'RINSHAN_RESONANCE_TRIGGER', tier: 1 },
+        pinned: false,
+        dora,
+      };
     },
 
     // Tier 2 (50): Twin Ridges. Guarantees the CURRENT rinshan (win if live,
@@ -405,7 +459,16 @@ function createSakiHooks(seat) {
         // Fallback: Tier 1 behavior, 20% of the T2 cost refunded (net 40).
         const { branch, weightOf, waits } = rinshanWeights(hand, state.pool);
         flow.consume(seat, TIER2_COST - TIER2_REFUND);
-        return { ok: true, fallback: 'tier1', branch, waits, weightOf, event: { type: 'RINSHAN_RESONANCE_TRIGGER', tier: 2 }, pinned: false, dora };
+        return {
+          ok: true,
+          fallback: 'tier1',
+          branch,
+          waits,
+          weightOf,
+          event: { type: 'RINSHAN_RESONANCE_TRIGGER', tier: 2 },
+          pinned: false,
+          dora,
+        };
       }
       const { weightOf, waits } = waitBoostWeights(hand, state.pool, TWIN_WAIT_WEIGHT);
       // Keep a weighted sample only on the chained NEXT slot when it was not
@@ -415,7 +478,19 @@ function createSakiHooks(seat) {
         rinshanSlot1 = sampleRinshan(state, nextIdx, weightOf);
       }
       flow.consume(seat, TIER2_COST);
-      return { ok: true, kanTile, rinshanSlot1, waits, weightOf, event: { type: 'RINSHAN_RESONANCE_TRIGGER', tier: 2 }, pin: g ? g.pin : null, slotIdx: g ? g.slotIdx : deck, branch: g ? g.branch : 'chain', pinned: !!g, dora };
+      return {
+        ok: true,
+        kanTile,
+        rinshanSlot1,
+        waits,
+        weightOf,
+        event: { type: 'RINSHAN_RESONANCE_TRIGGER', tier: 2 },
+        pin: g ? g.pin : null,
+        slotIdx: g ? g.slotIdx : deck,
+        branch: g ? g.branch : 'chain',
+        pinned: !!g,
+        dora,
+      };
     },
 
     // Tier 3 (100): Triple Summit. Guarantees CURRENT rinshan (win if live,
@@ -444,7 +519,19 @@ function createSakiHooks(seat) {
       const dora = seedKanDora(state, kCount, seat);
       const { weightOf, waits } = winProbabilityWeights(hand, state.pool, SUMMIT_WIN_PROBABILITY);
       flow.consume(seat, TIER3_COST);
-      return { ok: true, pins, dora, rinshanSlot2: pins[1] || null, waits, weightOf, event: { type: 'RINSHAN_RESONANCE_TRIGGER', tier: 3 }, pin: g ? g.pin : null, slotIdx: deck, branch: g ? g.branch : 'chain', pinned: !!g };
+      return {
+        ok: true,
+        pins,
+        dora,
+        rinshanSlot2: pins[1] || null,
+        waits,
+        weightOf,
+        event: { type: 'RINSHAN_RESONANCE_TRIGGER', tier: 3 },
+        pin: g ? g.pin : null,
+        slotIdx: deck,
+        branch: g ? g.branch : 'chain',
+        pinned: !!g,
+      };
     },
 
     // Tier 4 (150): Suukantsu Bounded Climax. Requires 3 closed triplets.
@@ -477,12 +564,37 @@ function createSakiHooks(seat) {
         if (copy !== null) exchangeDeadWallSlot(state, farIdx, copy);
         const mid = winProbabilityWeights(hand, state.pool, SUMMIT_WIN_PROBABILITY);
         flow.consume(seat, TIER4_COST);
-        return { ok: true, branch: 'win', pins, dora, rinshanSlot2: pins[1] || null, haiteiSlot3: copy, waits: liveExact, weightOf: mid.weightOf, event: { type: 'RINSHAN_RESONANCE_TRIGGER', tier: 4 }, pin: g ? g.pin : null, slotIdx: deck, pinned: !!g };
+        return {
+          ok: true,
+          branch: 'win',
+          pins,
+          dora,
+          rinshanSlot2: pins[1] || null,
+          haiteiSlot3: copy,
+          waits: liveExact,
+          weightOf: mid.weightOf,
+          event: { type: 'RINSHAN_RESONANCE_TRIGGER', tier: 4 },
+          pin: g ? g.pin : null,
+          slotIdx: deck,
+          pinned: !!g,
+        };
       }
       const completer = firstLiveUkeire(hand, state.pool) || firstLivePoolTile(state.pool);
-      if (completer !== null && state.deadWall && deck + 2 < state.deadWall.length) exchangeDeadWallSlot(state, deck + 2, completer);
+      if (completer !== null && state.deadWall && deck + 2 < state.deadWall.length)
+        exchangeDeadWallSlot(state, deck + 2, completer);
       flow.consume(seat, TIER4_COST);
-      return { ok: true, branch: g ? g.branch : 'fallback', pins, dora, rinshanSlot2: completer, waits: [], event: { type: 'RINSHAN_RESONANCE_TRIGGER', tier: 4 }, pin: g ? g.pin : null, slotIdx: deck, pinned: !!g };
+      return {
+        ok: true,
+        branch: g ? g.branch : 'fallback',
+        pins,
+        dora,
+        rinshanSlot2: completer,
+        waits: [],
+        event: { type: 'RINSHAN_RESONANCE_TRIGGER', tier: 4 },
+        pin: g ? g.pin : null,
+        slotIdx: deck,
+        pinned: !!g,
+      };
     },
 
     getTierInfo(state) {
@@ -497,20 +609,49 @@ function createSakiHooks(seat) {
       const t4Pre = trips.length >= 3;
 
       return [
-        { tier: 1, name: 'Ridge Glimmer', cost: TIER1_COST, canAfford: flow >= TIER1_COST, canActivate: flow >= TIER1_COST && t1Pre },
-        { tier: 2, name: 'Twin Ridges', cost: TIER2_COST, canAfford: flow >= TIER2_COST, canActivate: flow >= TIER2_COST && t2Pre },
-        { tier: 3, name: 'Triple Summit', cost: TIER3_COST, canAfford: flow >= TIER3_COST, canActivate: flow >= TIER3_COST && t3Pre },
-        { tier: 4, name: 'Suukantsu Climax', cost: TIER4_COST, canAfford: flow >= TIER4_COST, canActivate: flow >= TIER4_COST && t4Pre },
+        {
+          tier: 1,
+          name: 'Ridge Glimmer',
+          cost: TIER1_COST,
+          canAfford: flow >= TIER1_COST,
+          canActivate: flow >= TIER1_COST && t1Pre,
+        },
+        {
+          tier: 2,
+          name: 'Twin Ridges',
+          cost: TIER2_COST,
+          canAfford: flow >= TIER2_COST,
+          canActivate: flow >= TIER2_COST && t2Pre,
+        },
+        {
+          tier: 3,
+          name: 'Triple Summit',
+          cost: TIER3_COST,
+          canAfford: flow >= TIER3_COST,
+          canActivate: flow >= TIER3_COST && t3Pre,
+        },
+        {
+          tier: 4,
+          name: 'Suukantsu Climax',
+          cost: TIER4_COST,
+          canAfford: flow >= TIER4_COST,
+          canActivate: flow >= TIER4_COST && t4Pre,
+        },
       ];
     },
 
     activateTier(state, tier, kanCount = 1, rinshanIdx = 0) {
       switch (tier) {
-        case 1: return this.tryActivateTier1(state, kanCount, rinshanIdx);
-        case 2: return this.tryActivateTier2(state, kanCount, rinshanIdx);
-        case 3: return this.tryActivateTier3(state, kanCount, rinshanIdx);
-        case 4: return this.tryActivateTier4(state, kanCount, rinshanIdx);
-        default: return { ok: false, reason: 'invalid-tier' };
+        case 1:
+          return this.tryActivateTier1(state, kanCount, rinshanIdx);
+        case 2:
+          return this.tryActivateTier2(state, kanCount, rinshanIdx);
+        case 3:
+          return this.tryActivateTier3(state, kanCount, rinshanIdx);
+        case 4:
+          return this.tryActivateTier4(state, kanCount, rinshanIdx);
+        default:
+          return { ok: false, reason: 'invalid-tier' };
       }
     },
 
@@ -531,14 +672,20 @@ function createSakiHooks(seat) {
       return { activated: false, reason: 'invalid-tier' };
     },
 
-    onTurnStart(state, opts) {
+    onTurnStart(_state, _opts) {
       // Saki is a Kan-reactive specialist; turn-start triggers are inactive
       return { activated: false, reason: 'kan-only' };
     },
 
     // Phase 3: Settlement Modifier hook — consumes all flow on rinshan win.
     onSettlement(result, state) {
-      if (result && result.type === 'tsumo' && result.winner === seat && typeof result.tag === 'string' && result.tag.includes('RINSHAN')) {
+      if (
+        result &&
+        result.type === 'tsumo' &&
+        result.winner === seat &&
+        typeof result.tag === 'string' &&
+        result.tag.includes('RINSHAN')
+      ) {
         if (state.flow) state.flow.consumeAll(seat);
       }
     },
@@ -564,8 +711,17 @@ module.exports = {
   shapeSakiStartingHand,
   createSakiHooks,
   SAKI: {
-    START_SCORE, EQUILIBRIUM_BAND, TRIPLET_AFFINITY, RINSHAN_WAIT_WEIGHT,
-    UKEIRE_WEIGHT, TWIN_WAIT_WEIGHT, SUMMIT_WIN_PROBABILITY,
-    TIER1_COST, TIER2_COST, TIER2_REFUND, TIER3_COST, TIER4_COST,
+    START_SCORE,
+    EQUILIBRIUM_BAND,
+    TRIPLET_AFFINITY,
+    RINSHAN_WAIT_WEIGHT,
+    UKEIRE_WEIGHT,
+    TWIN_WAIT_WEIGHT,
+    SUMMIT_WIN_PROBABILITY,
+    TIER1_COST,
+    TIER2_COST,
+    TIER2_REFUND,
+    TIER3_COST,
+    TIER4_COST,
   },
 };

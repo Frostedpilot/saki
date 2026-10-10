@@ -60,12 +60,16 @@ const JP_TO_KIND = {
 
 // Wind-based yakuhai: the lib emits per-wind names.
 const ROUND_WIND_KIND = {
-  場風東: 'ValueHonourRoundWind', 場風南: 'ValueHonourRoundWind',
-  場風西: 'ValueHonourRoundWind', 場風北: 'ValueHonourRoundWind',
+  場風東: 'ValueHonourRoundWind',
+  場風南: 'ValueHonourRoundWind',
+  場風西: 'ValueHonourRoundWind',
+  場風北: 'ValueHonourRoundWind',
 };
 const SEAT_WIND_KIND = {
-  自風東: 'ValueHonourSeatWind', 自風南: 'ValueHonourSeatWind',
-  自風西: 'ValueHonourSeatWind', 自風北: 'ValueHonourSeatWind',
+  自風東: 'ValueHonourSeatWind',
+  自風南: 'ValueHonourSeatWind',
+  自風西: 'ValueHonourSeatWind',
+  自風北: 'ValueHonourSeatWind',
 };
 
 // Dora entries have their own ScoreItem::Dora(DoraLabel) shape.
@@ -91,7 +95,7 @@ const LEGACY_ALIASES = new Set(['両立直', '清一色（喰い下がり）']);
 // exhaustive: yaku-map.test.js fails if the lib grows a yaku that is neither
 // mapped nor listed here.
 const UNSUPPORTED_BY_PROTOCOL = new Set([
-  '人和',   // renhou — no Kind variant in riichi_mahjong_rs
+  '人和', // renhou — no Kind variant in riichi_mahjong_rs
   '大七星', // Big Seven Stars — no Kind variant
 ]);
 
@@ -117,10 +121,14 @@ function rankFromResult(result) {
   if (result.yakuman > 0) return 'Yakuman';
   if (result.name && result.name.includes('役満')) return 'Yakuman';
   switch (result.name) {
-    case '満貫': return 'Mangan';
-    case '跳満': return 'Haneman';
-    case '倍満': return 'Baiman';
-    case '三倍満': return 'Sanbaiman';
+    case '満貫':
+      return 'Mangan';
+    case '跳満':
+      return 'Haneman';
+    case '倍満':
+      return 'Baiman';
+    case '三倍満':
+      return 'Sanbaiman';
     default:
       if (result.name && result.name.endsWith('倍役満')) return 'Yakuman';
       return 'Normal';

@@ -7,7 +7,7 @@ function parseDiscardIndex(input, hand) {
   const last = hand.length - 1;
   if (!hand.length) return -1;
   const a = String(input === undefined || input === null ? '' : input).trim();
-  const exact = hand.findIndex(x => x === a || norm(x) === a);
+  const exact = hand.findIndex((x) => x === a || norm(x) === a);
   if (exact >= 0) return exact;
   const nn = parseInt(a, 10);
   if (!isNaN(nn) && nn >= 0 && nn < hand.length) return nn;

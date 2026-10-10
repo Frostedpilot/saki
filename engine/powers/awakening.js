@@ -9,7 +9,7 @@
 
 const AWAKENING_LOW_THRESHOLD = 15;
 const AWAKENING_FULL_THRESHOLD = 80;
-const RIICHI_DAMPING_FACTOR = 0.90;
+const RIICHI_DAMPING_FACTOR = 0.9;
 
 /**
  * Computes the awakening scaling factor in [0.0, 1.0] from current Flow.
@@ -29,7 +29,7 @@ function getAwakeningFactor(flow) {
  */
 function isOpponentRiichi(state, seat) {
   if (!state || !Array.isArray(state.players)) return false;
-  return state.players.some(p => p && p.seat !== seat && Boolean(p.riichi));
+  return state.players.some((p) => p && p.seat !== seat && Boolean(p.riichi));
 }
 
 /**

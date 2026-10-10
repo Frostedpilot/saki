@@ -10,9 +10,19 @@
 
 import { describe, test, expect } from 'vitest';
 import {
-  tileToFace, faceToTile, sortTiles, areTilesEqual, isSameSuit, tileNumber,
-  getKuikaeBannedIndices, normFace, getDoraFromIndicator, DORA_NEXT,
-  tilesToCounts, shantenOfTiles, hairiOfTiles,
+  tileToFace,
+  faceToTile,
+  sortTiles,
+  areTilesEqual,
+  isSameSuit,
+  tileNumber,
+  getKuikaeBannedIndices,
+  normFace,
+  getDoraFromIndicator,
+  DORA_NEXT,
+  tilesToCounts,
+  shantenOfTiles,
+  hairiOfTiles,
 } from './tile-utils';
 
 // The engine's KINDS order, which the protocol index encodes:
@@ -21,10 +31,40 @@ import {
 //   18-26 1s..9s
 //   27-33 1z..7z
 const ALL_FACES = [
-  '1m', '2m', '3m', '4m', '5m', '6m', '7m', '8m', '9m',
-  '1p', '2p', '3p', '4p', '5p', '6p', '7p', '8p', '9p',
-  '1s', '2s', '3s', '4s', '5s', '6s', '7s', '8s', '9s',
-  '1z', '2z', '3z', '4z', '5z', '6z', '7z',
+  '1m',
+  '2m',
+  '3m',
+  '4m',
+  '5m',
+  '6m',
+  '7m',
+  '8m',
+  '9m',
+  '1p',
+  '2p',
+  '3p',
+  '4p',
+  '5p',
+  '6p',
+  '7p',
+  '8p',
+  '9p',
+  '1s',
+  '2s',
+  '3s',
+  '4s',
+  '5s',
+  '6s',
+  '7s',
+  '8s',
+  '9s',
+  '1z',
+  '2z',
+  '3z',
+  '4z',
+  '5z',
+  '6z',
+  '7z',
 ];
 
 describe('tileToFace', () => {
@@ -74,9 +114,7 @@ describe('faceToTile', () => {
 
 describe('sortTiles', () => {
   test('orders by wire index, which is suit then number', () => {
-    const shuffled = [
-      { index: 33 }, { index: 0 }, { index: 18 }, { index: 9 }, { index: 4 },
-    ];
+    const shuffled = [{ index: 33 }, { index: 0 }, { index: 18 }, { index: 9 }, { index: 4 }];
     expect(sortTiles(shuffled).map((t) => t.index)).toEqual([0, 4, 9, 18, 33]);
   });
 
@@ -105,8 +143,8 @@ describe('areTilesEqual', () => {
 
 describe('isSameSuit', () => {
   test('is true within a suit and false across suits', () => {
-    expect(isSameSuit({ index: 0 }, { index: 8 })).toBe(true);   // 1m, 9m
-    expect(isSameSuit({ index: 8 }, { index: 9 })).toBe(false);  // 9m, 1p
+    expect(isSameSuit({ index: 0 }, { index: 8 })).toBe(true); // 1m, 9m
+    expect(isSameSuit({ index: 8 }, { index: 9 })).toBe(false); // 9m, 1p
     expect(isSameSuit({ index: 20 }, { index: 22 })).toBe(true); // 3s, 5s
   });
 
@@ -119,8 +157,9 @@ describe('isSameSuit', () => {
 
 describe('tileNumber', () => {
   test('is 1-based within the suit for all 34 tiles', () => {
-    expect(ALL_FACES.map((_, i) => tileNumber({ index: i })))
-      .toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 1, 2, 3, 4, 5, 6, 7, 8, 9, 1, 2, 3, 4, 5, 6, 7, 8, 9, 1, 2, 3, 4, 5, 6, 7]);
+    expect(ALL_FACES.map((_, i) => tileNumber({ index: i }))).toEqual([
+      1, 2, 3, 4, 5, 6, 7, 8, 9, 1, 2, 3, 4, 5, 6, 7, 8, 9, 1, 2, 3, 4, 5, 6, 7, 8, 9, 1, 2, 3, 4, 5, 6, 7,
+    ]);
   });
 });
 
@@ -134,23 +173,23 @@ describe('normFace', () => {
 
 describe('getDoraFromIndicator', () => {
   test('follows the indicator round the suit, wrapping 9 to 1', () => {
-    expect(getDoraFromIndicator({ index: 0 })).toBe('2m');   // 1m -> 2m
-    expect(getDoraFromIndicator({ index: 7 })).toBe('9m');   // 8m -> 9m
-    expect(getDoraFromIndicator({ index: 8 })).toBe('1m');   // 9m -> 1m
-    expect(getDoraFromIndicator({ index: 17 })).toBe('1p');  // 9p -> 1p
-    expect(getDoraFromIndicator({ index: 26 })).toBe('1s');  // 9s -> 1s
+    expect(getDoraFromIndicator({ index: 0 })).toBe('2m'); // 1m -> 2m
+    expect(getDoraFromIndicator({ index: 7 })).toBe('9m'); // 8m -> 9m
+    expect(getDoraFromIndicator({ index: 8 })).toBe('1m'); // 9m -> 1m
+    expect(getDoraFromIndicator({ index: 17 })).toBe('1p'); // 9p -> 1p
+    expect(getDoraFromIndicator({ index: 26 })).toBe('1s'); // 9s -> 1s
   });
 
   test('cycles the four winds separately from the three dragons', () => {
     // Matches engine/tiles.js `DORA_NEXT`, which is the authority: winds cycle
     // 1z->2z->3z->4z->1z and dragons cycle 5z->6z->7z->5z. Note that 4z therefore
     // points at 1z, not at 5z — the winds are their own cycle.
-    expect(getDoraFromIndicator({ index: 27 })).toBe('2z');  // 1z East -> South
-    expect(getDoraFromIndicator({ index: 29 })).toBe('4z');  // 3z West -> North
-    expect(getDoraFromIndicator({ index: 30 })).toBe('1z');  // 4z North -> East (wraps)
-    expect(getDoraFromIndicator({ index: 31 })).toBe('6z');  // 5z White -> Green
-    expect(getDoraFromIndicator({ index: 32 })).toBe('7z');  // 6z Green -> Red
-    expect(getDoraFromIndicator({ index: 33 })).toBe('5z');  // 7z Red -> White (wraps)
+    expect(getDoraFromIndicator({ index: 27 })).toBe('2z'); // 1z East -> South
+    expect(getDoraFromIndicator({ index: 29 })).toBe('4z'); // 3z West -> North
+    expect(getDoraFromIndicator({ index: 30 })).toBe('1z'); // 4z North -> East (wraps)
+    expect(getDoraFromIndicator({ index: 31 })).toBe('6z'); // 5z White -> Green
+    expect(getDoraFromIndicator({ index: 32 })).toBe('7z'); // 6z Green -> Red
+    expect(getDoraFromIndicator({ index: 33 })).toBe('5z'); // 7z Red -> White (wraps)
   });
 
   test('a red 5 indicator still counts as a 5', () => {
@@ -187,28 +226,29 @@ describe('getKuikaeBannedIndices', () => {
   });
 
   test('after pon, bans the called tile only — a triplet has no sequence ends', () => {
-    expect(getKuikaeBannedIndices(called, [{ index: 9 }, { index: 9 }, { index: 9 }]))
-      .toEqual([9]);
+    expect(getKuikaeBannedIndices(called, [{ index: 9 }, { index: 9 }, { index: 9 }])).toEqual([9]);
   });
 
   test('after chi on 4p5p, bans 3p and 6p', () => {
-    expect(getKuikaeBannedIndices({ index: 13 }, [{ index: 12 }, { index: 13 }]).sort((a, b) => a - b))
-      .toEqual([11, 13, 14]);   // 3p, the called 5p, 6p
+    expect(getKuikaeBannedIndices({ index: 13 }, [{ index: 12 }, { index: 13 }]).sort((a, b) => a - b)).toEqual([
+      11, 13, 14,
+    ]); // 3p, the called 5p, 6p
   });
 
   test('after chi on 1p2p, only the 3p end is banned (no 0p exists)', () => {
-    expect(getKuikaeBannedIndices({ index: 9 }, [{ index: 9 }, { index: 10 }]).sort((a, b) => a - b))
-      .toEqual([9, 11]);
+    expect(getKuikaeBannedIndices({ index: 9 }, [{ index: 9 }, { index: 10 }]).sort((a, b) => a - b)).toEqual([9, 11]);
   });
 
   test('after chi on 8p9p, only the 7p end is banned (no 10p exists)', () => {
-    expect(getKuikaeBannedIndices({ index: 17 }, [{ index: 16 }, { index: 17 }]).sort((a, b) => a - b))
-      .toEqual([15, 17]);
+    expect(getKuikaeBannedIndices({ index: 17 }, [{ index: 16 }, { index: 17 }]).sort((a, b) => a - b)).toEqual([
+      15, 17,
+    ]);
   });
 
   test('after chi on 3p4p, both ends are banned', () => {
-    expect(getKuikaeBannedIndices({ index: 11 }, [{ index: 11 }, { index: 12 }]).sort((a, b) => a - b))
-      .toEqual([10, 11, 13]);   // 2p, the called 3p, 5p
+    expect(getKuikaeBannedIndices({ index: 11 }, [{ index: 11 }, { index: 12 }]).sort((a, b) => a - b)).toEqual([
+      10, 11, 13,
+    ]); // 2p, the called 3p, 5p
   });
 
   test('a non-adjacent hand is only itself', () => {
@@ -221,7 +261,10 @@ describe('getKuikaeBannedIndices', () => {
     // `kuikaeBannedIndices.includes(...)` in store.ts. Noted so a refactor does not
     // come to rely on the list being unique.
     for (let c = 0; c < 34; c++) {
-      for (const hand of [[{ index: 0 }, { index: 1 }], [{ index: 27 }, { index: 30 }]]) {
+      for (const hand of [
+        [{ index: 0 }, { index: 1 }],
+        [{ index: 27 }, { index: 30 }],
+      ]) {
         for (const b of getKuikaeBannedIndices({ index: c }, hand)) {
           expect(b).toBeGreaterThanOrEqual(0);
           expect(b).toBeLessThanOrEqual(33);
@@ -240,11 +283,11 @@ describe('tilesToCounts', () => {
 
   test('places each tile in the right row and column', () => {
     const counts = tilesToCounts([{ index: 0 }, { index: 4 }, { index: 9 }, { index: 22 }, { index: 27 }]);
-    expect(counts[0][0]).toBe(1);  // 1m
-    expect(counts[0][4]).toBe(1);  // 5m
-    expect(counts[1][0]).toBe(1);  // 1p
-    expect(counts[2][4]).toBe(1);  // 5s
-    expect(counts[3][0]).toBe(1);  // 1z
+    expect(counts[0][0]).toBe(1); // 1m
+    expect(counts[0][4]).toBe(1); // 5m
+    expect(counts[1][0]).toBe(1); // 1p
+    expect(counts[2][4]).toBe(1); // 5s
+    expect(counts[3][0]).toBe(1); // 1z
   });
 
   test('counts duplicates', () => {
@@ -264,7 +307,7 @@ describe('shantenOfTiles / hairiOfTiles', () => {
   // a divergence here would show the board drawing shanten the server disagrees
   // with.
   const complete14 = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 31, 31]; // 123m456m789m123p 55z
-  const tenpai13 = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 31];    // same, waiting 3p
+  const tenpai13 = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 31]; // same, waiting 3p
   const chiitoi13 = [0, 8, 9, 17, 18, 26, 27, 28, 29, 30, 31, 32, 33];
   const junk13 = [1, 4, 7, 10, 13, 16, 19, 22, 25, 28, 30, 5, 9];
   const T = (idx: number[]) => idx.map((index) => ({ index }));

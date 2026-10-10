@@ -100,7 +100,9 @@ function winningWaits(state, seat, pool) {
     try {
       const r = scoreHand([...hand, k], melds, k, true, ctx);
       if (r && r.isAgari && (r.yakuman > 0 || r.han >= 1)) out.push(k);
-    } catch { /* just not this kind */ }
+    } catch {
+      /* just not this kind */
+    }
   }
   return out.sort();
 }
@@ -119,7 +121,7 @@ function advancingTiles(state, seat, pool) {
     if (after < before && after >= 0) hits.push({ kind, copy, gain: before - after });
   }
   // Deterministic: strongest gain first, then tile order.
-  hits.sort((a, b) => (b.gain - a.gain) || (a.kind < b.kind ? -1 : a.kind > b.kind ? 1 : 0));
+  hits.sort((a, b) => b.gain - a.gain || (a.kind < b.kind ? -1 : a.kind > b.kind ? 1 : 0));
   return hits;
 }
 
@@ -135,7 +137,9 @@ function createSakiNormalHooks(seat) {
       passiveName: 'Ridge Bias / Ridge Resonance (Normal)',
       tiers: {},
     },
-    getTierInfo() { return []; },
+    getTierInfo() {
+      return [];
+    },
 
     // Phase 2: passive kan bias — the 4th copy of a held triplet draws hot.
     onPowerDraw(tile, state) {
@@ -163,7 +167,7 @@ function createSakiNormalHooks(seat) {
       let branch = 'advance';
       const waits = winningWaits(state, seat, pool);
       if (waits.length) {
-        const live = waits.filter(w => isLive(pool, w));
+        const live = waits.filter((w) => isLive(pool, w));
         if (live.length) {
           pin = physicalCopy(pool, live[0]);
           branch = 'win';
@@ -194,7 +198,9 @@ function createSakiNormalHooks(seat) {
       };
     },
 
-    isPowerActive() { return !disabled; },
+    isPowerActive() {
+      return !disabled;
+    },
 
     getHudAdvice() {
       return disabled

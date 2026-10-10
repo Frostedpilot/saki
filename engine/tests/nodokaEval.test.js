@@ -97,7 +97,7 @@ test('Nodoka T3: bridge boost applies toward evaluator preferred discard line', 
 
   hooks.tryActivateTier3(state);
   const { getOptimalBridges } = require('../powers/trajectoryPlanner');
-  const keptHand = hand.filter(t => t !== '1m');
+  const keptHand = hand.filter((t) => t !== '1m');
   const bridges = getOptimalBridges(keptHand, state.pool, 2);
 
   assert.ok(bridges.length > 0);

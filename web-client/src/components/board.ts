@@ -58,17 +58,17 @@ export function renderBoard(store: GameStore): TemplateResult {
         <div class="player-station__info">
           <div class="player-station__name-row">
             <span class="player-station__name">${getPlayerName(seat)}</span>
-            <span class="player-station__wind ${isDealer(seat) ? 'is-dealer' : ''}">
-              ${getSeatWind(seat)}
-            </span>
+            <span class="player-station__wind ${isDealer(seat) ? 'is-dealer' : ''}"> ${getSeatWind(seat)} </span>
           </div>
-          ${isTurn
-            ? html`
-                <span class="player-station__turn-pill">
-                  ${seat === store.yourSeat ? '🎯 YOUR TURN' : '⚡ THINKING...'}
-                </span>
-              `
-            : ''}
+          ${
+            isTurn
+              ? html`
+                  <span class="player-station__turn-pill">
+                    ${seat === store.yourSeat ? '🎯 YOUR TURN' : '⚡ THINKING...'}
+                  </span>
+                `
+              : ''
+          }
           <div class="player-station__score">${store.scores[seat] ?? 25000}</div>
         </div>
       </div>
@@ -96,48 +96,34 @@ export function renderBoard(store: GameStore): TemplateResult {
     <div class="mahjong-board">
       <!-- Header -->
       <header class="board-header">
-        <div class="board-header__title">
-          SAKI <span>MAHJONG</span>
-        </div>
+        <div class="board-header__title">SAKI <span>MAHJONG</span></div>
         <div class="board-header__meta">
           <span>Room: <strong>${store.roomCode}</strong></span>
           <span>Round: <strong>${store.roundWind} ${store.roundNumber}</strong></span>
           <span>Your Seat: <strong>${getSeatWind(store.yourSeat)}</strong></span>
-          <button class="board-header__leave-btn" @click=${() => store.leaveRoom()}>
-            Leave Game
-          </button>
+          <button class="board-header__leave-btn" @click=${() => store.leaveRoom()}>Leave Game</button>
         </div>
       </header>
 
       <!-- Viewport Wrapper (Centers the board and displays outer HUD) -->
       <div class="board-viewport">
         <!-- Player Stations (Non-intrusive outer HUD) -->
-        ${renderStation(bottomSeat, 'bottom')}
-        ${renderStation(rightSeat, 'right')}
-        ${renderStation(topSeat, 'top')}
+        ${renderStation(bottomSeat, 'bottom')} ${renderStation(rightSeat, 'right')} ${renderStation(topSeat, 'top')}
         ${renderStation(leftSeat, 'left')}
 
         <!-- Symmetric Mahjong Table Surface (5x5 grid) -->
         <main class="board-table">
           <!-- Top Melds (Left corner of top player) -->
-          <div class="zone-top-melds">
-            ${renderMelds(store.melds[topSeat], store, 'top')}
-          </div>
+          <div class="zone-top-melds">${renderMelds(store.melds[topSeat], store, 'top')}</div>
 
           <!-- Top Hand (Opponent 2) -->
-          <div class="zone-top-hand">
-            ${renderOpponentHand(store.opponentTileCounts[topSeat])}
-          </div>
+          <div class="zone-top-hand">${renderOpponentHand(store.opponentTileCounts[topSeat])}</div>
 
           <!-- Right Melds (Top corner of right player) -->
-          <div class="zone-right-melds">
-            ${renderMelds(store.melds[rightSeat], store, 'right')}
-          </div>
+          <div class="zone-right-melds">${renderMelds(store.melds[rightSeat], store, 'right')}</div>
 
           <!-- Left Hand (Opponent 3) -->
-          <div class="zone-left-hand">
-            ${renderOpponentHand(store.opponentTileCounts[leftSeat], true)}
-          </div>
+          <div class="zone-left-hand">${renderOpponentHand(store.opponentTileCounts[leftSeat], true)}</div>
 
           <!-- TOP RIVER (Seat 2 Discards) -->
           ${renderDiscards(store.discards[topSeat], 'top', store, topSeat)}
@@ -166,22 +152,17 @@ export function renderBoard(store: GameStore): TemplateResult {
           ${renderDiscards(store.discards[rightSeat], 'right', store, rightSeat)}
 
           <!-- Right Hand (Opponent 1) -->
-          <div class="zone-right-hand">
-            ${renderOpponentHand(store.opponentTileCounts[rightSeat], true)}
-          </div>
+          <div class="zone-right-hand">${renderOpponentHand(store.opponentTileCounts[rightSeat], true)}</div>
 
           <!-- Left Melds (Bottom corner of left player) -->
-          <div class="zone-left-melds">
-            ${renderMelds(store.melds[leftSeat], store, 'left')}
-          </div>
+          <div class="zone-left-melds">${renderMelds(store.melds[leftSeat], store, 'left')}</div>
 
           <!-- BOTTOM RIVER (Your Discards) -->
           ${renderDiscards(store.discards[bottomSeat], 'bottom', store, bottomSeat)}
 
           <!-- Bottom Hand & Action Bar (Player 0) -->
           <div class="zone-bottom-hand">
-            ${renderActionBar(store)}
-            ${renderPlayerFlowBar()}
+            ${renderActionBar(store)} ${renderPlayerFlowBar()}
             ${renderPlayerHand({
               tiles: store.hand,
               drawnTile: store.drawnTile,
@@ -194,9 +175,7 @@ export function renderBoard(store: GameStore): TemplateResult {
           </div>
 
           <!-- Bottom Melds (Right corner of your hand) -->
-          <div class="zone-bottom-melds">
-            ${renderMelds(store.melds[bottomSeat], store, 'bottom')}
-          </div>
+          <div class="zone-bottom-melds">${renderMelds(store.melds[bottomSeat], store, 'bottom')}</div>
         </main>
 
         <!-- Action and Rule HUD Log (Bottom-Right) -->
@@ -215,14 +194,16 @@ export function renderBoard(store: GameStore): TemplateResult {
       </div>
 
       <!-- Toast alerts (Kuikae and illegal actions) -->
-      ${store.toast
-        ? html`
-            <div class="game-toast game-toast--${store.toast.type}" role="status" aria-live="polite">
-              <span class="game-toast__icon">${store.toast.type === 'error' ? '⚠️' : '⚡'}</span>
-              <span class="game-toast__text">${store.toast.text}</span>
-            </div>
-          `
-        : ''}
+      ${
+        store.toast
+          ? html`
+              <div class="game-toast game-toast--${store.toast.type}" role="status" aria-live="polite">
+                <span class="game-toast__icon">${store.toast.type === 'error' ? '⚠️' : '⚡'}</span>
+                <span class="game-toast__text">${store.toast.text}</span>
+              </div>
+            `
+          : ''
+      }
     </div>
   `;
 }

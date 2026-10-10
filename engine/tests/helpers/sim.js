@@ -7,7 +7,7 @@ const { PowerDispatcher } = require('../../powers');
 
 // roster: [[seat, createHooksFn], ...]. Tables are isolated per instantiation.
 function createTable({ seed = 1, nSeats, roster = [] } = {}) {
-  const seats = nSeats || (roster.length ? Math.max(...roster.map(r => r[0])) + 1 : 4);
+  const seats = nSeats || (roster.length ? Math.max(...roster.map((r) => r[0])) + 1 : 4);
   const state = createMatchState({ seed, nSeats: seats });
   state.powers = new PowerDispatcher();
   state.bakaze = 1; // East round default
@@ -56,10 +56,7 @@ function sumTiles(state) {
 }
 
 function auditProblems(state) {
-  return state.pool.audit([
-    ...state.players.flatMap(p => [p.hand, p.discards, p.melds]),
-    state.deadWall,
-  ]);
+  return state.pool.audit([...state.players.flatMap((p) => [p.hand, p.discards, p.melds]), state.deadWall]);
 }
 
 // Full weight map for `seat` (self hooks × all field auras). No RNG consumed.
@@ -78,7 +75,7 @@ function runTurn(state, seat, turn, opts = {}) {
   let discarded;
   if (opts.keepNorms && opts.keepNorms.size) {
     const hand = state.players[seat].hand;
-    const need = hand.filter(t => !opts.keepNorms.has(t));
+    const need = hand.filter((t) => !opts.keepNorms.has(t));
     discarded = need.length ? need[0] : drawn;
   } else {
     discarded = drawn; // tsumogiri
@@ -113,8 +110,7 @@ function runRounds(state, axes, rounds, opts = {}) {
   const { sampleEvery = 0 } = opts;
   const log = [];
   let turn = 0;
-  outer:
-  for (let r = 0; r < rounds; r++) {
+  outer: for (let r = 0; r < rounds; r++) {
     for (const seat of axes) {
       turn++;
       if (state.pool.total() <= 0) break outer;
@@ -122,7 +118,7 @@ function runRounds(state, axes, rounds, opts = {}) {
       if (sampleEvery > 0 && turn % sampleEvery === 1 && entry.drawn !== null) {
         const w = weightsSnapshot(state, seat);
         entry.weights = Object.fromEntries(w);
-        entry.nonUnit = Object.values(w).filter(v => v !== 1.0).length;
+        entry.nonUnit = Object.values(w).filter((v) => v !== 1.0).length;
       }
       log.push({ round: r + 1, seat, turn, ...entry });
     }
@@ -131,6 +127,13 @@ function runRounds(state, axes, rounds, opts = {}) {
 }
 
 module.exports = {
-  createTable, setup, deadWall, scriptHand, runTurn, runRounds,
-  weightsSnapshot, auditProblems, sumTiles,
+  createTable,
+  setup,
+  deadWall,
+  scriptHand,
+  runTurn,
+  runRounds,
+  weightsSnapshot,
+  auditProblems,
+  sumTiles,
 };

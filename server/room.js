@@ -19,11 +19,20 @@ function defaultPowerSeats() {
     // Don't silently drop unparseable or out-of-range entries: a typo here
     // previously produced a room with no powers and no explanation.
     const dropped = [];
-    String(raw).split(',').map((s) => parseInt(String(s).trim(), 10)).forEach((n, i) => {
-      if (!Number.isFinite(n)) { dropped.push(`${String(raw).split(',')[i]} (not a number)`); return; }
-      if (n < 0 || n > 3) { dropped.push(`${n} (seat must be 0-3)`); return; }
-      seats[n] = 'saki';
-    });
+    String(raw)
+      .split(',')
+      .map((s) => parseInt(String(s).trim(), 10))
+      .forEach((n, i) => {
+        if (!Number.isFinite(n)) {
+          dropped.push(`${String(raw).split(',')[i]} (not a number)`);
+          return;
+        }
+        if (n < 0 || n > 3) {
+          dropped.push(`${n} (seat must be 0-3)`);
+          return;
+        }
+        seats[n] = 'saki';
+      });
     if (dropped.length) console.warn(`[config] SAKI_POWER_SEATS: ignoring ${dropped.join(', ')}`);
     return seats;
   }
@@ -44,9 +53,11 @@ function resolveMatchSeed() {
   if (raw !== undefined && raw !== '') {
     const n = parseInt(raw, 10);
     if (Number.isFinite(n)) return n | 0;
-    console.warn(`[config] SAKI_SEED must be an integer (got ${JSON.stringify(raw)}) — ignoring it and using a random seed`);
+    console.warn(
+      `[config] SAKI_SEED must be an integer (got ${JSON.stringify(raw)}) — ignoring it and using a random seed`
+    );
   }
-  return (Math.floor(Math.random() * 0x7fffffff)) | 0;
+  return Math.floor(Math.random() * 0x7fffffff) | 0;
 }
 
 class Room {
@@ -72,7 +83,11 @@ class Room {
   sendTo(seat, msg) {
     const s = this.seats[seat];
     if (!s || s.kind !== 'human') return;
-    try { if (s.ws.readyState === 1) s.ws.send(JSON.stringify(msg)); } catch { /* ignore */ }
+    try {
+      if (s.ws.readyState === 1) s.ws.send(JSON.stringify(msg));
+    } catch {
+      /* ignore */
+    }
   }
 
   sendError(seat, code, message) {
@@ -110,8 +125,12 @@ class Room {
     const seat = this.seats.findIndex((s) => s === null);
     if (seat < 0) return -1;
     this.seats[seat] = {
-      kind: 'human', name: name || `P${seat + 1}`,
-      ws: client.ws, connected: true, sessionToken: client.sessionToken, client,
+      kind: 'human',
+      name: name || `P${seat + 1}`,
+      ws: client.ws,
+      connected: true,
+      sessionToken: client.sessionToken,
+      client,
     };
     client.room = this;
     client.seat = seat;
@@ -132,7 +151,8 @@ class Room {
       if (seat === this.hostSeat) {
         const next = [1, 2, 3].find((s) => this.seats[s] && this.seats[s].kind === 'human');
         const first = [0, 1, 2, 3].find((s) => this.seats[s] && this.seats[s].kind === 'human');
-        if (next !== undefined) this.hostSeat = next; else if (first !== undefined) this.hostSeat = first;
+        if (next !== undefined) this.hostSeat = next;
+        else if (first !== undefined) this.hostSeat = first;
       }
     }
     client.room = null;
@@ -176,7 +196,8 @@ class Room {
         dropped.push(`seat ${i}: ${JSON.stringify(p)}`);
         return 'none';
       });
-      if (dropped.length) this.sendError(client.seat, 'InvalidPower', `unknown power(s) replaced with none: ${dropped.join(', ')}`);
+      if (dropped.length)
+        this.sendError(client.seat, 'InvalidPower', `unknown power(s) replaced with none: ${dropped.join(', ')}`);
       if (this.game) this.game.powerSeats = this.powerSeats;
     }
     this.broadcastRoomState();
@@ -202,14 +223,15 @@ class Room {
       if (!this.seats[s]) {
         const cfg = pendingConfigs.shift() || {};
         this.seats[s] = {
-          kind: 'cpu', level: cfg.level || 'Normal',
+          kind: 'cpu',
+          level: cfg.level || 'Normal',
           personality: cfg.personality || 'Balanced',
         };
       }
     }
     this.postGame = false;
     this.returnedToLobby = [false, false, false, false];
-this.game = new Table(this, resolveMatchSeed());
+    this.game = new Table(this, resolveMatchSeed());
     this.broadcastRoomState();
     this.game.run().catch((e) => console.error(`[bridge] ${this.code} game error:`, e));
   }

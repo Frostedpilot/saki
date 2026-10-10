@@ -38,7 +38,7 @@ const escapeRe = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 // the settlement paths are checked. Everything else in the file is live code.
 const GAME_SETTLEMENT = GAME_JS.replace(
   /async function selftest[\s\S]*?\nasync function main/,
-  '\nasync function main',
+  '\nasync function main'
 );
 
 // ------------------------------------------------------------ the values
@@ -60,20 +60,26 @@ test('notenTotal splits into the standard per-seat schedule', () => {
   const { notenTotal } = RULES;
   assert.deepEqual(
     [0, 1, 2, 3].map((n) => [0, notenTotal, notenTotal / 2, notenTotal / 3][n]),
-    [0, 3000, 1500, 1000],
+    [0, 3000, 1500, 1000]
   );
   assert.deepEqual(
     [0, 1, 2, 3].map((n) => [0, notenTotal / 3, notenTotal / 2, notenTotal][n]),
-    [0, 1000, 1500, 3000],
+    [0, 1000, 1500, 3000]
   );
 });
 
 // ------------------------------------------------------- the config is live
 
 test('both rule front-ends import rules-config', () => {
-  for (const [name, src] of [['engine/game.js', GAME_JS], ['server/table.js', TABLE_JS]]) {
-    assert.match(src, /require\('\.\.\/engine\/rules-config'\)|require\('\.\/rules-config'\)/,
-      `${name} must read the shared constants instead of hardcoding them`);
+  for (const [name, src] of [
+    ['engine/game.js', GAME_JS],
+    ['server/table.js', TABLE_JS],
+  ]) {
+    assert.match(
+      src,
+      /require\('\.\.\/engine\/rules-config'\)|require\('\.\/rules-config'\)/,
+      `${name} must read the shared constants instead of hardcoding them`
+    );
   }
 });
 
@@ -88,14 +94,15 @@ test('each shared constant is actually referenced, not merely imported', () => {
   const gameUses = ['startScore', 'riichiValue', 'honbaTsumo', 'honbaRon'];
   const tableUses = ['startScore', 'riichiValue', 'honbaTsumo', 'honbaRon'];
   for (const key of gameUses) {
-    assert.match(GAME_JS, new RegExp(`RULES\\.${key}\\b`),
-      `engine/game.js should use RULES.${key}`);
+    assert.match(GAME_JS, new RegExp(`RULES\\.${key}\\b`), `engine/game.js should use RULES.${key}`);
   }
   for (const key of tableUses) {
-    assert.match(TABLE_JS, new RegExp(`RULES\\.${key}\\b`),
-      `server/table.js should use RULES.${key}`);
+    assert.match(TABLE_JS, new RegExp(`RULES\\.${key}\\b`), `server/table.js should use RULES.${key}`);
   }
-  for (const [name, src] of [['engine/game.js', GAME_JS], ['server/table.js', TABLE_JS]]) {
+  for (const [name, src] of [
+    ['engine/game.js', GAME_JS],
+    ['server/table.js', TABLE_JS],
+  ]) {
     const direct = new RegExp('RULES\\.notenTotal\\b').test(src);
     const viaFlow = /notenPayments|match-flow/.test(src);
     assert.ok(direct || viaFlow, `${name} should consume notenTotal directly or via match-flow`);
@@ -113,8 +120,7 @@ test('engine/game.js settlement uses RULES, not literals', () => {
     ['[0, 3000, 1500, 1000][nTen]', 'noten schedule'],
   ];
   for (const [snippet, what] of forbidden) {
-    assert.doesNotMatch(GAME_SETTLEMENT, new RegExp(escapeRe(snippet)),
-      `engine/game.js hardcodes the ${what} again`);
+    assert.doesNotMatch(GAME_SETTLEMENT, new RegExp(escapeRe(snippet)), `engine/game.js hardcodes the ${what} again`);
   }
 });
 
@@ -127,15 +133,15 @@ test('server/table.js settlement uses RULES, not literals', () => {
     ['[0, 3000, 1500, 1000][nTen]', 'noten schedule'],
   ];
   for (const [snippet, what] of forbidden) {
-    assert.doesNotMatch(TABLE_JS, new RegExp(escapeRe(snippet)),
-      `server/table.js hardcodes the ${what} again`);
+    assert.doesNotMatch(TABLE_JS, new RegExp(escapeRe(snippet)), `server/table.js hardcodes the ${what} again`);
   }
 });
 
 test('the two front-ends settle a riichi declaration identically', () => {
   // Same expression shape on both sides, so a change to one is a visible diff
-  // against the other rather than an invisible divergence.
-  const game = GAME_JS.match(/scores\[pl\.id\] ([+-]=) (RULES\.\w+); ctx\.riichiPool \+= (RULES\.\w+);/);
+  // against the other rather than an invisible divergence. Whitespace-tolerant:
+  // prettier may put the debit and the pool credit on separate lines.
+  const game = GAME_JS.match(/scores\[pl\.id\] ([+-]=) (RULES\.\w+);\s*ctx\.riichiPool \+= (RULES\.\w+);/);
   const table = TABLE_JS.match(/this\.scores\[seat\] ([+-]=) (RULES\.\w+);\s*ctx\.riichiPool \+= (RULES\.\w+);/);
   assert.ok(game, 'engine/game.js riichi debit not found in the expected shape');
   assert.ok(table, 'server/table.js riichi debit not found in the expected shape');

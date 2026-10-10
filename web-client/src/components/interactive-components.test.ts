@@ -35,29 +35,65 @@ function fakeStore(over: Record<string, any> = {}) {
     drawnTile: null as any,
     hand: [] as any[],
     actions: {
-      can_discard: false, can_riichi: false, can_tsumo: false, can_kan: false,
-      can_chi: false, can_pon: false, can_ron: false,
+      can_discard: false,
+      can_riichi: false,
+      can_tsumo: false,
+      can_kan: false,
+      can_chi: false,
+      can_pon: false,
+      can_ron: false,
     },
     // recorders
     hovered: [] as any[],
     hoveredDiscard: [] as any[],
     calls: [] as string[],
     discarded: [] as any[],
-    setHoveredTile(t: any) { this.hovered.push(t); },
-    setHoveredDiscardTile(i: number | null) { this.hoveredDiscard.push(i); },
-    getTenpaiWaits() { return []; },
-    isTileHoveredMatch() { return false; },
-    isTileDora() { return false; },
-    isTileAkaDora() { return false; },
-    cancelRiichiMode() { this.calls.push('cancelRiichiMode'); },
-    callTsumo() { this.calls.push('callTsumo'); },
-    callRon() { this.calls.push('callRon'); },
-    callPon() { this.calls.push('callPon'); },
-    callChi() { this.calls.push('callChi'); },
-    callKan(i: number) { this.calls.push('callKan:' + i); },
-    enterRiichiMode() { this.calls.push('enterRiichiMode'); },
-    passAction() { this.calls.push('passAction'); },
-    discard(t: any) { this.discarded.push(t); this.calls.push('discard'); },
+    setHoveredTile(t: any) {
+      this.hovered.push(t);
+    },
+    setHoveredDiscardTile(i: number | null) {
+      this.hoveredDiscard.push(i);
+    },
+    getTenpaiWaits() {
+      return [];
+    },
+    isTileHoveredMatch() {
+      return false;
+    },
+    isTileDora() {
+      return false;
+    },
+    isTileAkaDora() {
+      return false;
+    },
+    cancelRiichiMode() {
+      this.calls.push('cancelRiichiMode');
+    },
+    callTsumo() {
+      this.calls.push('callTsumo');
+    },
+    callRon() {
+      this.calls.push('callRon');
+    },
+    callPon() {
+      this.calls.push('callPon');
+    },
+    callChi() {
+      this.calls.push('callChi');
+    },
+    callKan(i: number) {
+      this.calls.push('callKan:' + i);
+    },
+    enterRiichiMode() {
+      this.calls.push('enterRiichiMode');
+    },
+    passAction() {
+      this.calls.push('passAction');
+    },
+    discard(t: any) {
+      this.discarded.push(t);
+      this.calls.push('discard');
+    },
     ...over,
   } as any;
 }
@@ -97,10 +133,12 @@ describe('renderOpponentHand', () => {
   });
 
   test('the vertical variant adds its class', () => {
-    expect(mount(renderOpponentHand(3, true)).querySelector('.opponent-hand')!.className)
-      .toContain('opponent-hand--vertical');
-    expect(mount(renderOpponentHand(3)).querySelector('.opponent-hand')!.className)
-      .not.toContain('opponent-hand--vertical');
+    expect(mount(renderOpponentHand(3, true)).querySelector('.opponent-hand')!.className).toContain(
+      'opponent-hand--vertical'
+    );
+    expect(mount(renderOpponentHand(3)).querySelector('.opponent-hand')!.className).not.toContain(
+      'opponent-hand--vertical'
+    );
   });
 });
 
@@ -113,9 +151,15 @@ describe('renderPlayerHand', () => {
   });
 
   test('a drawn tile is rendered separately, after a gap', () => {
-    const host = mount(renderPlayerHand(handProps({
-      tiles: tiles(0, 1, 2), drawnTile: tile(5), canDiscard: true,
-    })));
+    const host = mount(
+      renderPlayerHand(
+        handProps({
+          tiles: tiles(0, 1, 2),
+          drawnTile: tile(5),
+          canDiscard: true,
+        })
+      )
+    );
     expect(host.querySelectorAll('.player-hand__drawn-gap').length).toBe(1);
     expect(host.querySelectorAll('.player-hand .mahjong-tile').length).toBe(4);
   });
@@ -132,9 +176,15 @@ describe('renderPlayerHand', () => {
 
   test('clicking a tile discards it', () => {
     const discarded: any[] = [];
-    const host = mount(renderPlayerHand(handProps({
-      tiles: tiles(0, 1, 2), canDiscard: true, onDiscard: (t) => discarded.push(t),
-    })));
+    const host = mount(
+      renderPlayerHand(
+        handProps({
+          tiles: tiles(0, 1, 2),
+          canDiscard: true,
+          onDiscard: (t) => discarded.push(t),
+        })
+      )
+    );
     (host.querySelectorAll('.mahjong-tile')[1] as HTMLElement).dispatchEvent(new Event('click'));
     expect(discarded.length).toBe(1);
     expect(discarded[0].index).toBe(1);
@@ -145,12 +195,19 @@ describe('renderPlayerHand', () => {
   test('a banned tile is grayed and routes to the banned handler, not to discard', () => {
     const discarded: any[] = [];
     let bannedClicks = 0;
-    const host = mount(renderPlayerHand(handProps({
-      tiles: tiles(0, 1, 2), canDiscard: true,
-      bannedIndices: [1],
-      onDiscard: (t) => discarded.push(t),
-      onBannedClick: () => { bannedClicks++; },
-    })));
+    const host = mount(
+      renderPlayerHand(
+        handProps({
+          tiles: tiles(0, 1, 2),
+          canDiscard: true,
+          bannedIndices: [1],
+          onDiscard: (t) => discarded.push(t),
+          onBannedClick: () => {
+            bannedClicks++;
+          },
+        })
+      )
+    );
     const tiles_ = [...host.querySelectorAll('.mahjong-tile')];
     expect(grayed(host).length).toBe(1);
     tiles_[1].dispatchEvent(new Event('click'));
@@ -162,18 +219,30 @@ describe('renderPlayerHand', () => {
     // Fixed: `clickable` now excludes banned tiles, so a kuikae-banned tile no
     // longer gets pointer-cursor + hover lift while grayed. Clicking still
     // routes to onBannedClick (asserted above) so the *why* affordance remains.
-    const host = mount(renderPlayerHand(handProps({
-      tiles: tiles(0, 1, 2), canDiscard: true, bannedIndices: [1],
-    })));
+    const host = mount(
+      renderPlayerHand(
+        handProps({
+          tiles: tiles(0, 1, 2),
+          canDiscard: true,
+          bannedIndices: [1],
+        })
+      )
+    );
     expect(grayed(host).length).toBe(1);
     expect(clickable(host).length).toBe(2);
   });
 
   test('every copy of a banned kind is banned, not just one position', () => {
     // Kuikae bans a tile *kind*: two 1m in hand are both undiscardable.
-    const host = mount(renderPlayerHand(handProps({
-      tiles: tiles(0, 0, 5), canDiscard: true, bannedIndices: [0],
-    })));
+    const host = mount(
+      renderPlayerHand(
+        handProps({
+          tiles: tiles(0, 0, 5),
+          canDiscard: true,
+          bannedIndices: [0],
+        })
+      )
+    );
     expect(grayed(host).length).toBe(2);
   });
 
@@ -183,9 +252,15 @@ describe('renderPlayerHand', () => {
     const store = fakeStore();
     store.isRiichiMode = true;
     store.riichiCandidateIndices = new Set([1, 3]);
-    const host = mount(renderPlayerHand(handProps({
-      tiles: tiles(0, 1, 2, 3), canDiscard: true, store,
-    })));
+    const host = mount(
+      renderPlayerHand(
+        handProps({
+          tiles: tiles(0, 1, 2, 3),
+          canDiscard: true,
+          store,
+        })
+      )
+    );
     expect(clickable(host).length).toBe(2);
     expect(grayed(host).length).toBe(2);
   });
@@ -194,9 +269,15 @@ describe('renderPlayerHand', () => {
     const store = fakeStore();
     store.isRiichiMode = true;
     store.riichiCandidateIndices = new Set([2]);
-    const host = mount(renderPlayerHand(handProps({
-      tiles: tiles(0, 1, 2, 3), canDiscard: true, store,
-    })));
+    const host = mount(
+      renderPlayerHand(
+        handProps({
+          tiles: tiles(0, 1, 2, 3),
+          canDiscard: true,
+          store,
+        })
+      )
+    );
     expect(host.querySelectorAll('.mahjong-tile--riichi-candidate').length).toBe(1);
   });
 
@@ -205,9 +286,16 @@ describe('renderPlayerHand', () => {
     const store = fakeStore();
     store.isRiichiMode = true;
     store.riichiCandidateIndices = new Set([1]);
-    const host = mount(renderPlayerHand(handProps({
-      tiles: tiles(0, 1, 2, 3), canDiscard: true, store, onDiscard: (t) => discarded.push(t),
-    })));
+    const host = mount(
+      renderPlayerHand(
+        handProps({
+          tiles: tiles(0, 1, 2, 3),
+          canDiscard: true,
+          store,
+          onDiscard: (t) => discarded.push(t),
+        })
+      )
+    );
     const all = [...host.querySelectorAll('.mahjong-tile')];
     all[2].dispatchEvent(new Event('click'));
     expect(discarded.length).toBe(0);
@@ -224,9 +312,16 @@ describe('renderPlayerHand', () => {
     store.isRiichiMode = true;
     const hand = tiles(0, 1, 2);
     store.riichiCandidateIndices = new Set([hand.length]); // only the drawn tile
-    const host = mount(renderPlayerHand(handProps({
-      tiles: hand, drawnTile: tile(9), canDiscard: true, store,
-    })));
+    const host = mount(
+      renderPlayerHand(
+        handProps({
+          tiles: hand,
+          drawnTile: tile(9),
+          canDiscard: true,
+          store,
+        })
+      )
+    );
     const drawn = host.querySelector('.player-hand__drawn-gap .mahjong-tile')!;
     expect(drawn.className).toContain('mahjong-tile--riichi-candidate');
     expect(clickable(host).length).toBe(1);
@@ -239,9 +334,16 @@ describe('renderPlayerHand', () => {
     const store = fakeStore();
     store.riichiDeclared = [true, false, false, false];
     store.yourSeat = 0;
-    const host = mount(renderPlayerHand(handProps({
-      tiles: tiles(0, 1, 2), drawnTile: tile(5), canDiscard: true, store,
-    })));
+    const host = mount(
+      renderPlayerHand(
+        handProps({
+          tiles: tiles(0, 1, 2),
+          drawnTile: tile(5),
+          canDiscard: true,
+          store,
+        })
+      )
+    );
     expect(clickable(host).length).toBe(1);
     expect(clickable(host)[0].querySelector('.mahjong-tile')).toBeNull();
   });
@@ -249,9 +351,16 @@ describe('renderPlayerHand', () => {
   test('in riichi the undrawn tiles are grayed', () => {
     const store = fakeStore();
     store.riichiDeclared = [true, false, false, false];
-    const host = mount(renderPlayerHand(handProps({
-      tiles: tiles(0, 1, 2), drawnTile: tile(5), canDiscard: true, store,
-    })));
+    const host = mount(
+      renderPlayerHand(
+        handProps({
+          tiles: tiles(0, 1, 2),
+          drawnTile: tile(5),
+          canDiscard: true,
+          store,
+        })
+      )
+    );
     expect(grayed(host).length).toBe(3);
   });
 
@@ -260,9 +369,16 @@ describe('renderPlayerHand', () => {
     const store = fakeStore();
     store.yourSeat = 2;
     store.riichiDeclared = [true, false, false, false];
-    const host = mount(renderPlayerHand(handProps({
-      tiles: tiles(0, 1, 2), drawnTile: tile(5), canDiscard: true, store,
-    })));
+    const host = mount(
+      renderPlayerHand(
+        handProps({
+          tiles: tiles(0, 1, 2),
+          drawnTile: tile(5),
+          canDiscard: true,
+          store,
+        })
+      )
+    );
     expect(grayed(host).length, 'seat 2 is not the riichi player').toBe(0);
   });
 
@@ -283,8 +399,9 @@ describe('renderPlayerHand', () => {
   test('the waits hint only appears when there are waits', () => {
     const withNone = fakeStore();
     withNone.getTenpaiWaits = () => [];
-    expect(mount(renderPlayerHand(handProps({ tiles: tiles(0, 1, 2), store: withNone })))
-      .querySelector('.hand-waits-hint')).toBeNull();
+    expect(
+      mount(renderPlayerHand(handProps({ tiles: tiles(0, 1, 2), store: withNone }))).querySelector('.hand-waits-hint')
+    ).toBeNull();
 
     const withSome = fakeStore();
     withSome.riichiDeclared = [true, false, false, false];

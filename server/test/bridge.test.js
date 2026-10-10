@@ -49,9 +49,10 @@ test('protocol tile codec correctly maps red dora and normal tiles', () => {
 // time. Pinning the seed turns "run it repeatedly and hope" into one deterministic run
 // that fails on the first try — which is the only reason a conservation bug like that
 // is caught at all.
-const FIXED_SEED = process.env.BRIDGE_TEST_SEED !== undefined && process.env.BRIDGE_TEST_SEED !== ''
-  ? parseInt(process.env.BRIDGE_TEST_SEED, 10)
-  : 20240617;
+const FIXED_SEED =
+  process.env.BRIDGE_TEST_SEED !== undefined && process.env.BRIDGE_TEST_SEED !== ''
+    ? parseInt(process.env.BRIDGE_TEST_SEED, 10)
+    : 20240617;
 
 function startServer(seed = FIXED_SEED) {
   return new Promise((resolve, reject) => {
@@ -67,13 +68,21 @@ function startServer(seed = FIXED_SEED) {
       },
     });
     let log = '';
-    const timer = setTimeout(() => { child.kill(); reject(new Error('server start timeout')); }, 15000);
+    const timer = setTimeout(() => {
+      child.kill();
+      reject(new Error('server start timeout'));
+    }, 15000);
     child.stdout.on('data', (d) => {
       log += d.toString();
       const m = log.match(/listening on http:\/\/127\.0\.0\.1:(\d+)/);
-      if (m) { clearTimeout(timer); resolve({ child, port: parseInt(m[1], 10), log: () => log }); }
+      if (m) {
+        clearTimeout(timer);
+        resolve({ child, port: parseInt(m[1], 10), log: () => log });
+      }
     });
-    child.stderr.on('data', (d) => { log += d.toString(); });
+    child.stderr.on('data', (d) => {
+      log += d.toString();
+    });
     child.on('exit', (code) => {
       clearTimeout(timer);
       reject(new Error(`server exited early (${code}):\n${log}`));
@@ -88,7 +97,17 @@ class MockClient {
     this.waiting = null;
     this.errors = [];
     this.scoreSnapshots = [];
-    this.counts = { GameStarted: 0, TileDrawn: 0, OtherPlayerDrew: 0, TileDiscarded: 0, RoundWon: 0, RoundDraw: 0, CallAvailable: 0, PlayerCalled: 0, PlayerRiichi: 0 };
+    this.counts = {
+      GameStarted: 0,
+      TileDrawn: 0,
+      OtherPlayerDrew: 0,
+      TileDiscarded: 0,
+      RoundWon: 0,
+      RoundDraw: 0,
+      CallAvailable: 0,
+      PlayerCalled: 0,
+      PlayerRiichi: 0,
+    };
     this.sent = false; // did we just reply to a TileDrawn?
     this.opened = new Promise((res, rej) => {
       this.ws.on('open', res);
@@ -105,7 +124,10 @@ class MockClient {
       this.errors.push(m.Error);
       // Resilient recovery: if we're mid-turn and the server rejected our
       // (only possibly-invalid) action, fall back to a tsumogiri discard.
-      if (this.sent) { this.send({ Action: { Discard: { tile: null } } }); this.sent = false; }
+      if (this.sent) {
+        this.send({ Action: { Discard: { tile: null } } });
+        this.sent = false;
+      }
       this.enqueue(m);
       return;
     }
@@ -122,9 +144,13 @@ class MockClient {
       if (ev.TileDrawn) {
         const t = ev.TileDrawn;
         this.sent = true;
-        if (t.can_tsumo) { this.send({ Action: 'Tsumo' }); }
-        else if (t.can_riichi && Math.random() < 0.3) { this.send({ Action: { Riichi: { tile: null } } }); }
-        else { this.send({ Action: { Discard: { tile: null } } }); }
+        if (t.can_tsumo) {
+          this.send({ Action: 'Tsumo' });
+        } else if (t.can_riichi && Math.random() < 0.3) {
+          this.send({ Action: { Riichi: { tile: null } } });
+        } else {
+          this.send({ Action: { Discard: { tile: null } } });
+        }
       } else if (ev.CallAvailable) {
         const calls = ev.CallAvailable.calls || [];
         this.send({ Action: calls.includes('Ron') ? 'Ron' : 'Pass' });
@@ -139,8 +165,11 @@ class MockClient {
   }
 
   enqueue(m) {
-    if (this.waiting) { const w = this.waiting; this.waiting = null; w(m); }
-    else this.frames.push(m);
+    if (this.waiting) {
+      const w = this.waiting;
+      this.waiting = null;
+      w(m);
+    } else this.frames.push(m);
   }
 
   send(obj) {
@@ -150,7 +179,9 @@ class MockClient {
 
   async next() {
     if (this.frames.length) return this.frames.shift();
-    return new Promise((res) => { this.waiting = res; });
+    return new Promise((res) => {
+      this.waiting = res;
+    });
   }
 
   async nextWhere(pred, timeoutMs = 40000) {
@@ -164,7 +195,13 @@ class MockClient {
     }
   }
 
-  close() { try { this.ws.close(); } catch { /* ignore */ } }
+  close() {
+    try {
+      this.ws.close();
+    } catch {
+      /* ignore */
+    }
+  }
 }
 
 test('Hello is rejected when the client asks for a different protocol version', { timeout: 30000 }, async () => {
@@ -179,7 +216,10 @@ test('Hello is rejected when the client asks for a different protocol version', 
     assert.equal(err.Error.code, 'VersionMismatch');
     assert.match(err.Error.message, /v6/);
     // No session was minted, so no Welcome follows.
-    assert.equal(client.frames.some((m) => m.Welcome), false);
+    assert.equal(
+      client.frames.some((m) => m.Welcome),
+      false
+    );
   } finally {
     if (client) client.close();
     server.child.kill();
@@ -253,8 +293,10 @@ test('a non-numeric SAKI_SEED warns and falls back to random rather than silentl
     process.env.SAKI_SEED = 'not-a-number';
     const seed = resolveMatchSeed();
     assert.ok(Number.isInteger(seed), 'it still returns a usable seed');
-    assert.ok(warnings.some((w) => /SAKI_SEED/.test(w)),
-      'a bad seed must be reported, not silently ignored — the same rule as SAKI_POWER_SEATS');
+    assert.ok(
+      warnings.some((w) => /SAKI_SEED/.test(w)),
+      'a bad seed must be reported, not silently ignored — the same rule as SAKI_POWER_SEATS'
+    );
   } finally {
     console.warn = realWarn;
     if (saved === undefined) delete process.env.SAKI_SEED;
@@ -303,7 +345,10 @@ test('full bridge match (1 human + 3 CPU) completes with GameOver', { timeout: 9
       if (Date.now() > deadline) throw new Error('match did not finish in time');
       const m = await client.next();
       if (++msgs % 5 === 0) console.log(`[test] ...${msgs} non-event frames, still waiting`);
-      if (m.GameOver) { gameOverMsg = m.GameOver; break; }
+      if (m.GameOver) {
+        gameOverMsg = m.GameOver;
+        break;
+      }
       // All event-driven responses are handled inside onMessage.
     }
     console.log('[test] GAMEOVER received after', msgs, 'non-event frames');
@@ -339,12 +384,17 @@ test('full bridge match (1 human + 3 CPU) completes with GameOver', { timeout: 9
     const finalTotal = gameOverMsg.final_scores.reduce((a, b) => a + b, 0);
     const forfeited = TOTAL - finalTotal;
     assert.ok(forfeited >= 0, `final scores exceed the starting total: ${finalTotal} > ${TOTAL}`);
-    assert.equal(forfeited % STICK, 0,
+    assert.equal(
+      forfeited % STICK,
+      0,
       `the ${forfeited} lost at match end must be whole riichi sticks, which would show ` +
-      `up as a fractional score, not as a missing round ${STICK}`);
+        `up as a fractional score, not as a missing round ${STICK}`
+    );
     if (forfeited > 0) {
-      console.log(`[test] ${forfeited / STICK} riichi stick(s) forfeited at match end ` +
-        `(final total ${finalTotal}, expected under the rules)`);
+      console.log(
+        `[test] ${forfeited / STICK} riichi stick(s) forfeited at match end ` +
+          `(final total ${finalTotal}, expected under the rules)`
+      );
     }
     // A match is seeded from Math.random(), so it may legitimately end with all
     // four hands drawn and no winner. Log rather than assert; settlement.test.js
@@ -367,52 +417,56 @@ test('full bridge match (1 human + 3 CPU) completes with GameOver', { timeout: 9
   }
 });
 
-test('normal-type powers on the wire: yuu/saki-normal report passive pills, koromo stays flow', { timeout: 90000 }, async () => {
-  const server = await startServer();
-  let client;
-  try {
-    client = new MockClient(`ws://127.0.0.1:${server.port}/ws`);
-    await client.opened;
-    client.send({ Hello: { protocol_version: 6, session_token: null, display_name: 'PowersTester' } });
-    await client.nextWhere((m) => m.Welcome);
+test(
+  'normal-type powers on the wire: yuu/saki-normal report passive pills, koromo stays flow',
+  { timeout: 90000 },
+  async () => {
+    const server = await startServer();
+    let client;
+    try {
+      client = new MockClient(`ws://127.0.0.1:${server.port}/ws`);
+      await client.opened;
+      client.send({ Hello: { protocol_version: 6, session_token: null, display_name: 'PowersTester' } });
+      await client.nextWhere((m) => m.Welcome);
 
-    client.send({ CreateRoom: { length: 'EastOnly', rules: {} } });
-    await client.nextWhere((m) => m.RoomState);
+      client.send({ CreateRoom: { length: 'EastOnly', rules: {} } });
+      await client.nextWhere((m) => m.RoomState);
 
-    // Host sets a mixed table: two normal-type (yuu, saki-normal), one flow.
-    client.send({ SetPowers: { power_seats: ['yuu', 'saki-normal', 'koromo', 'none'] } });
-    client.send({ StartGame: {} });
-    await client.nextWhere((m) => m.Event && m.Event.GameStarted);
+      // Host sets a mixed table: two normal-type (yuu, saki-normal), one flow.
+      client.send({ SetPowers: { power_seats: ['yuu', 'saki-normal', 'koromo', 'none'] } });
+      client.send({ StartGame: {} });
+      await client.nextWhere((m) => m.Event && m.Event.GameStarted);
 
-    // Watch the SuperpowerIndicator stream until every seat has been seen once.
-    const seen = new Map(); // seat -> indicator
-    const deadline = Date.now() + 60000;
-    while (seen.size < 3) {
-      if (Date.now() > deadline) throw new Error('did not see all three power indicators');
-      const m = await client.nextWhere((x) => x.Event && x.Event.SuperpowerIndicator);
-      const spi = m.Event.SuperpowerIndicator;
-      if (!seen.has(spi.seat)) seen.set(spi.seat, spi);
+      // Watch the SuperpowerIndicator stream until every seat has been seen once.
+      const seen = new Map(); // seat -> indicator
+      const deadline = Date.now() + 60000;
+      while (seen.size < 3) {
+        if (Date.now() > deadline) throw new Error('did not see all three power indicators');
+        const m = await client.nextWhere((x) => x.Event && x.Event.SuperpowerIndicator);
+        const spi = m.Event.SuperpowerIndicator;
+        if (!seen.has(spi.seat)) seen.set(spi.seat, spi);
+      }
+
+      const yuu = seen.get(0);
+      const sakiNormal = seen.get(1);
+      const koromo = seen.get(2);
+
+      assert.equal(yuu.power, 'yuu');
+      assert.equal(yuu.type, 'normal');
+      assert.equal(yuu.gauge, null, 'normal-type powers must report a null gauge');
+      assert.equal(yuu.available_tiers.length, 0);
+
+      assert.equal(sakiNormal.power, 'saki-normal');
+      assert.equal(sakiNormal.type, 'normal');
+      assert.equal(sakiNormal.gauge, null);
+
+      assert.equal(koromo.power, 'koromo');
+      assert.equal(koromo.type, 'flow');
+      assert.equal(koromo.available_tiers.length, 4, 'flow seat keeps its tier ladder');
+      assert.ok(typeof koromo.gauge === 'number', 'flow seat keeps its gauge');
+    } finally {
+      if (client) client.close();
+      server.child.kill();
     }
-
-    const yuu = seen.get(0);
-    const sakiNormal = seen.get(1);
-    const koromo = seen.get(2);
-
-    assert.equal(yuu.power, 'yuu');
-    assert.equal(yuu.type, 'normal');
-    assert.equal(yuu.gauge, null, 'normal-type powers must report a null gauge');
-    assert.equal(yuu.available_tiers.length, 0);
-
-    assert.equal(sakiNormal.power, 'saki-normal');
-    assert.equal(sakiNormal.type, 'normal');
-    assert.equal(sakiNormal.gauge, null);
-
-    assert.equal(koromo.power, 'koromo');
-    assert.equal(koromo.type, 'flow');
-    assert.equal(koromo.available_tiers.length, 4, 'flow seat keeps its tier ladder');
-    assert.ok(typeof koromo.gauge === 'number', 'flow seat keeps its gauge');
-  } finally {
-    if (client) client.close();
-    server.child.kill();
   }
-});
+);

@@ -39,11 +39,18 @@ function makeTable() {
   t.settlePowerHook = () => {};
   t.playerHandsInfo = () => [];
 
-t.ctx = {
+  t.ctx = {
     players: [0, 1, 2, 3].map((s) => ({
-      seat: s, hand: [], melds: [], discards: [],
-      riichi: false, doubleRiichi: false, ippatsu: false,
-      tempFuriten: false, riichiWaits: [], lastDrawn: null,
+      seat: s,
+      hand: [],
+      melds: [],
+      discards: [],
+      riichi: false,
+      doubleRiichi: false,
+      ippatsu: false,
+      tempFuriten: false,
+      riichiWaits: [],
+      lastDrawn: null,
     })),
     dealer: 0,
     bakaze: 1,
@@ -59,7 +66,9 @@ t.ctx = {
     poolTotal: () => 40,
     baseDora: () => [],
     uraDora: () => [],
-    revealKanDora() { this.kanCount++; },
+    revealKanDora() {
+      this.kanCount++;
+    },
     state: {
       powers: { hooksFor: () => null, onSettlement() {}, broadcastPlayerKan() {} },
       flow: null,

@@ -2,7 +2,7 @@
 // Unifies the built-in pure JS evaluator and external MJAI bot backends
 // (mjai-manue-go / akochan / mortal) behind a single hermetic contract.
 const { evaluateNodokaHand } = require('./nodokaEval');
-const { norm, DORA_NEXT } = require('../tiles');
+const { DORA_NEXT } = require('../tiles');
 
 /**
  * Abstract Base Class / Interface for Nodoka Evaluators.
@@ -14,7 +14,7 @@ class NodokaEvaluator {
    * @param {number} seat - Nodoka seat
    * @returns {Object} { discard, rawTile, shanten, ukeire, isTenpai, waits, expPt, winProb, summary }
    */
-  evaluate(state, seat) {
+  evaluate(_state, _seat) {
     throw new Error('evaluate() must be implemented by subclass');
   }
 }
@@ -30,7 +30,7 @@ class BuiltinNodokaEvaluator extends NodokaEvaluator {
     }
     const player = state.players[seat];
     const hand = player.hand || [];
-    const opponents = state.players.filter(p => p && p.seat !== seat);
+    const opponents = state.players.filter((p) => p && p.seat !== seat);
     const ctx = {
       seat,
       bakaze: state.bakaze || 1,

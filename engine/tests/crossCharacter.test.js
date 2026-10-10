@@ -40,12 +40,21 @@ const TENPAI_C = ['2p', '2p', '2p', '6s', '6s', '6s', '9p', '9p', '9p', '1m', '2
 // - overrides pool.counts when `counts` is given (object or fn(state))
 //   so Koromo's wall-limit tier gates (T4 requires wall ≤ 14) can pass
 // - applies flows and scores
-function makeFieldTable({ seats = 2, roster = [[0, createKoromoHooks]], hands = { 0: TENPAI_HAND, 1: SHANTEN2_HAND }, counts, flows = {}, scores = {} } = {}) {
+function makeFieldTable({
+  seats = 2,
+  roster = [[0, createKoromoHooks]],
+  hands = { 0: TENPAI_HAND, 1: SHANTEN2_HAND },
+  counts,
+  flows = {},
+  scores = {},
+} = {}) {
   const { state, hooks } = sim.createTable({ seed: 11, nSeats: seats, roster });
   for (const [s, hand] of Object.entries(hands)) sim.scriptHand(state, Number(s), hand);
   sim.deadWall(state); // dead wall takes only what the scripts left behind
   for (const [s, v] of Object.entries(flows)) state.flow.set(Number(s), v);
-  for (const [s, v] of Object.entries(scores)) { (state.scores = state.scores || {})[Number(s)] = v; }
+  for (const [s, v] of Object.entries(scores)) {
+    (state.scores = state.scores || {})[Number(s)] = v;
+  }
   if (typeof counts === 'function') state.pool.counts = counts(state);
   else if (counts) state.pool.counts = { ...counts };
   return { state, hooks };
@@ -79,7 +88,7 @@ test('A1: Koromo T2 mire dampens the lone opponent draw to exactly 0.60', () => 
   const w = sim.weightsSnapshot(state, 1); // opponent draws
   const broads = getOptimalBridges(SHANTEN2_HAND, state.pool, 4);
   for (const b of broads) {
-    if (b in w) assert.equal(w[b], 0.60, `advancing tile ${b}`);
+    if (b in w) assert.equal(w[b], 0.6, `advancing tile ${b}`);
   }
   // flat tile (no shanten decrease) stays untouched
   if ('1p' in w) assert.equal(w['1p'], 1.0);
@@ -95,9 +104,9 @@ test('A2: Koromo T4 abyss dampens the lone opponent to exactly 0.20 and skips he
   assert.equal(r.anchorTile, '7s'); // her haitei anchor is her winning wait
 
   const w = sim.weightsSnapshot(state, 1);
-  assert.equal(w['1m'], 0.20); // advancing
-  assert.equal(w['4s'], 0.20); // advancing
-  assert.equal(w['1p'], 1.0);  // flat
+  assert.equal(w['1m'], 0.2); // advancing
+  assert.equal(w['4s'], 0.2); // advancing
+  assert.equal(w['1p'], 1.0); // flat
 
   const own = sim.weightsSnapshot(state, 0);
   assert.equal(own['1m'], 1.0); // enforcer not drowned in her own abyss
@@ -116,14 +125,17 @@ test('A3: 150% economy cap — T4 (150) and T2 (50) are mutually exclusive', () 
   assert.equal(hooks.get(0).tryActivateTier4(state, state.pool.total()).ok, true);
   assert.equal(hooks.get(0).tryActivateTier2(state, 10).ok, false);
   const w = sim.weightsSnapshot(state, 1);
-  assert.equal(w['1m'], 0.20);
+  assert.equal(w['1m'], 0.2);
   assert.equal(w['1p'], 1.0);
 });
 
 test('A4: Saki passive pair affinity (1.35) × Koromo abyss (0.20) = 0.27; flat stays 1.0', () => {
   const { state, hooks } = makeFieldTable({
     seats: 2,
-    roster: [[0, createKoromoHooks], [1, createSakiHooks]],
+    roster: [
+      [0, createKoromoHooks],
+      [1, createSakiHooks],
+    ],
     hands: { 0: TENPAI_HAND, 1: SAKI_PAIR_HAND },
     counts: { '5m': 3, '1z': 2, '5p': 2, '8s': 2 }, // total 9 ≤ 14
     flows: { 0: 150, 1: 0 },
@@ -138,13 +150,16 @@ test('A4: Saki passive pair affinity (1.35) × Koromo abyss (0.20) = 0.27; flat 
   for (const k of Object.keys(w)) {
     assert.ok(Math.abs(w[k] - expect(k)) < 1e-9, `weight ${k} = ${w[k]}`);
   }
-  assert.equal(w['5m'], 1.35 * 0.20); // pair + advancing -> 0.27
+  assert.equal(w['5m'], 1.35 * 0.2); // pair + advancing -> 0.27
 });
 
 test('A4b: out of equilibrium Saki loses affinity but field dampening still applies', () => {
   const { state, hooks } = makeFieldTable({
     seats: 2,
-    roster: [[0, createKoromoHooks], [1, createSakiHooks]],
+    roster: [
+      [0, createKoromoHooks],
+      [1, createSakiHooks],
+    ],
     hands: { 0: TENPAI_HAND, 1: SAKI_PAIR_HAND },
     counts: { '5m': 3, '1p': 2 }, // total 5 ≤ 14
     flows: { 0: 150 },
@@ -152,13 +167,16 @@ test('A4b: out of equilibrium Saki loses affinity but field dampening still appl
   });
   assert.equal(hooks.get(0).tryActivateTier4(state, state.pool.total()).ok, true);
   const w = sim.weightsSnapshot(state, 1);
-  assert.equal(w['5m'], 0.20); // affinity gone (1.0), abyss still applies
+  assert.equal(w['5m'], 0.2); // affinity gone (1.0), abyss still applies
 });
 
 test('A5: Nodoka T3 bridge magnet (15.0) survives abyss on non-tenpai draw at 3.0', () => {
   const { state, hooks } = makeFieldTable({
     seats: 2,
-    roster: [[0, createKoromoHooks], [1, createNodokaHooks]],
+    roster: [
+      [0, createKoromoHooks],
+      [1, createNodokaHooks],
+    ],
     hands: { 0: TENPAI_HAND, 1: SHANTEN2_HAND },
     counts: { '1m': 2, '4m': 2, '1s': 2, '4s': 2, '7s': 2, '1z': 2, '1p': 2 }, // 14 ≤ 14
     flows: { 0: 150, 1: 100 },
@@ -168,14 +186,17 @@ test('A5: Nodoka T3 bridge magnet (15.0) survives abyss on non-tenpai draw at 3.
 
   const w = sim.weightsSnapshot(state, 1);
   const b = getOptimalBridges(SHANTEN2_HAND, state.pool, 2)[0];
-  assert.equal(w[b], 15.0 * 0.20); // self 15.0 × field 0.20
+  assert.equal(w[b], 15.0 * 0.2); // self 15.0 × field 0.20
   if ('1p' in w) assert.equal(w['1p'], 1.0); // flat, not a bridge
 });
 
 test('A6: tenpai immunity — Koromo abyss cannot dampen a finished opponent\u2019s hand', () => {
   const { state, hooks } = makeFieldTable({
     seats: 2,
-    roster: [[0, createKoromoHooks], [1, createSakiHooks]],
+    roster: [
+      [0, createKoromoHooks],
+      [1, createSakiHooks],
+    ],
     hands: { 0: TENPAI_HAND, 1: YUUKI_TP_HAND }, // seat 1 is tenpai (wait 1z)
     counts: { '1z': 2, '6z': 2, '1p': 2 }, // total 6 ≤ 14
     flows: { 0: 150 },
@@ -189,7 +210,10 @@ test('A6: tenpai immunity — Koromo abyss cannot dampen a finished opponent\u20
 test('A7: Nodoka T4 EV Singularity magnet (4.0) holds at 4.0 under abyss (tenpai immunity)', () => {
   const { state, hooks } = makeFieldTable({
     seats: 2,
-    roster: [[0, createKoromoHooks], [1, createNodokaHooks]],
+    roster: [
+      [0, createKoromoHooks],
+      [1, createNodokaHooks],
+    ],
     hands: { 0: TENPAI_HAND, 1: KOROMO_TP_B }, // seat 1 tenpai, wait 6z
     counts: { '6z': 2, '7s': 2, '1p': 2 }, // total 6 ≤ 14
     flows: { 0: 150, 1: 150 },
@@ -207,8 +231,12 @@ test('A7: Nodoka T4 EV Singularity magnet (4.0) holds at 4.0 under abyss (tenpai
 
 test('B1: Hisa Showmanship Slam drains only the lone opponent, gauges stay numeric', () => {
   const { state, hooks } = sim.createTable({
-    seed: 5, nSeats: 2,
-    roster: [[0, createHisaHooks], [1, createYuukiHooks]],
+    seed: 5,
+    nSeats: 2,
+    roster: [
+      [0, createHisaHooks],
+      [1, createYuukiHooks],
+    ],
   });
   sim.scriptHand(state, 0, TENPAI_HAND);
   sim.scriptHand(state, 1, SHANTEN2_HAND);
@@ -230,8 +258,12 @@ test('B1: Hisa Showmanship Slam drains only the lone opponent, gauges stay numer
 
 test('B2: Hisa hell-wait Riichi drains opponents AND banks +30 herself', () => {
   const { state, hooks } = sim.createTable({
-    seed: 6, nSeats: 2,
-    roster: [[0, createHisaHooks], [1, createMakoHooks]],
+    seed: 6,
+    nSeats: 2,
+    roster: [
+      [0, createHisaHooks],
+      [1, createMakoHooks],
+    ],
   });
   sim.scriptHand(state, 0, TENPAI_HAND); // wait 7s
   sim.scriptHand(state, 1, SHANTEN2_HAND);
@@ -255,8 +287,12 @@ test('B2: Hisa hell-wait Riichi drains opponents AND banks +30 herself', () => {
 
 test('B3: flow floor — a slam cannot push an opponent below 0', () => {
   const { state, hooks } = sim.createTable({
-    seed: 7, nSeats: 2,
-    roster: [[0, createHisaHooks], [1, createYuukiHooks]],
+    seed: 7,
+    nSeats: 2,
+    roster: [
+      [0, createHisaHooks],
+      [1, createYuukiHooks],
+    ],
   });
   sim.scriptHand(state, 0, TENPAI_HAND);
   sim.scriptHand(state, 1, SHANTEN2_HAND);
@@ -267,7 +303,14 @@ test('B3: flow floor — a slam cannot push an opponent below 0', () => {
 });
 
 test('B4: flow cap — late-tenpai bonus and discard bonuses clamp at 150', () => {
-  const { state, hooks } = sim.createTable({ seed: 8, nSeats: 2, roster: [[0, createKoromoHooks], [1, createNodokaHooks]] });
+  const { state, hooks } = sim.createTable({
+    seed: 8,
+    nSeats: 2,
+    roster: [
+      [0, createKoromoHooks],
+      [1, createNodokaHooks],
+    ],
+  });
   state.flow.set(0, 140);
   const r = hooks.get(0).onEnterTenpai(state, 10); // wall ≤ 20 -> +25
   assert.equal(r.event.type, 'LATE_TENPAI_BONUS');
@@ -284,14 +327,18 @@ test('B4: flow cap — late-tenpai bonus and discard bonuses clamp at 150', () =
 
 test('C1: Saki T3 dead-wall pins + Koromo slot reservation coexist, conservation intact', () => {
   const { state, hooks } = sim.createTable({
-    seed: 21, nSeats: 4,
-    roster: [[0, createSakiHooks], [1, createKoromoHooks]],
+    seed: 21,
+    nSeats: 4,
+    roster: [
+      [0, createSakiHooks],
+      [1, createKoromoHooks],
+    ],
   });
   sim.scriptHand(state, 0, SAKI_SUMMIT_HAND);
   sim.scriptHand(state, 1, KOROMO_TP_B); // distinct kinds — no pool copy conflicts
   // dead wall: sample 14 tiles, but NEVER the T3 pin kinds (3s / 7p)
   for (let i = 0; i < 14; i++) {
-    state.deadWall.push(state.pool.sample(t => (t === '3s' || t === '7p') ? 0 : 1));
+    state.deadWall.push(state.pool.sample((t) => (t === '3s' || t === '7p' ? 0 : 1)));
   }
 
   // Koromo reserved her haitei anchor engine-side (Slot Reserver primitive)
@@ -317,10 +364,14 @@ test('C1: Saki T3 dead-wall pins + Koromo slot reservation coexist, conservation
 
 test('C2: Saki T2 fallback when the 4th copy sits in another character\u2019s hand', () => {
   const { state, hooks } = sim.createTable({
-    seed: 22, nSeats: 4,
-    roster: [[0, createSakiHooks], [1, createYuukiHooks]],
+    seed: 22,
+    nSeats: 4,
+    roster: [
+      [0, createSakiHooks],
+      [1, createYuukiHooks],
+    ],
   });
-  sim.scriptHand(state, 0, SAKI_SUMMIT_HAND);      // holds 3× 3s
+  sim.scriptHand(state, 0, SAKI_SUMMIT_HAND); // holds 3× 3s
   sim.scriptHand(state, 1, ['3s', '8p', '8p', '8p', '9p', '9p', '9p', '4s', '4s', '4s', '6z', '6z', '6z']); // holds the 4th 3s
   sim.deadWall(state);
   state.flow.set(0, 50);
@@ -348,8 +399,14 @@ test('C3: field stacking — two enforcers compose multiplicatively, order-indep
     const state = { pool, players: [{ hand: [] }, { hand: [] }, { hand: [] }] };
     return d.computeDrawWeights(0, state, {});
   };
-  const a = run([[1, 0.6], [2, 0.8]]);
-  const b = run([[2, 0.8], [1, 0.6]]);
+  const a = run([
+    [1, 0.6],
+    [2, 0.8],
+  ]);
+  const b = run([
+    [2, 0.8],
+    [1, 0.6],
+  ]);
   assert.deepEqual(a, b);
   const k = Object.keys(a)[0];
   assert.equal(a[k], 0.48);
@@ -368,13 +425,26 @@ test('C4: Koromo field skips an un-dealt (empty-hand) draw seat', () => {
 });
 
 test('C5: settlement fan-out — RINSHAN / EV tsumo consume only their owner, tag-gated', () => {
-  const roster = [[0, createSakiHooks], [1, createNodokaHooks], [2, createHisaHooks], [3, createKoromoHooks]];
+  const roster = [
+    [0, createSakiHooks],
+    [1, createNodokaHooks],
+    [2, createHisaHooks],
+    [3, createKoromoHooks],
+  ];
   const { state, hooks } = sim.createTable({ seed: 23, nSeats: 4, roster });
-  for (const [s, hand] of [[0, SAKI_SUMMIT_HAND], [1, SHANTEN2_HAND], [2, TENPAI_C], [3, YUUKI_TP_HAND]]) {
+  for (const [s, hand] of [
+    [0, SAKI_SUMMIT_HAND],
+    [1, SHANTEN2_HAND],
+    [2, TENPAI_C],
+    [3, YUUKI_TP_HAND],
+  ]) {
     sim.scriptHand(state, s, hand);
   }
   sim.deadWall(state);
-  state.flow.set(0, 80); state.flow.set(1, 120); state.flow.set(2, 60); state.flow.set(3, 40);
+  state.flow.set(0, 80);
+  state.flow.set(1, 120);
+  state.flow.set(2, 60);
+  state.flow.set(3, 40);
 
   state.powers.onSettlement({ type: 'tsumo', winner: 0, tag: 'RINSHAN_RESONANCE_TRIGGER' }, state);
   assert.equal(state.flow.get(0), 0, 'Saki spent everything on the rinshan win');
@@ -409,7 +479,7 @@ test('C6: Koromo haitei counterplay — opponent melds steal the abyss anchor', 
 
   hooks.get(0).onOpponentMeld(1);
   hooks.get(0).onOpponentMeld(1);
-  assert.equal(hooks.get(0).onSettlement({ type: 'tsumo', winner: 0 }, state).haiteiWinRate, 0.50);
+  assert.equal(hooks.get(0).onSettlement({ type: 'tsumo', winner: 0 }, state).haiteiWinRate, 0.5);
   hooks.get(0).onOpponentMeld(1); // third call outright steals the tile
   const res = hooks.get(0).onSettlement({ type: 'tsumo', winner: 0 }, state);
   assert.equal(res.haiteiWinRate, 0);
@@ -428,16 +498,21 @@ test('C7: Hisa T4 Hell Dominance mitigates deal-ins (ron-from-her) but not self 
   assert.equal(info.type, 'hell');
   assert.equal(hooks.get(0).tryActivateTier4(state, state.pool.total()).ok, true);
 
-  assert.equal(hooks.get(0).onSettlement({ type: 'ron', from: 0, winner: 1 }, state).scoreMultiplier, HISA.DAMAGE_MITIGATION);
+  assert.equal(
+    hooks.get(0).onSettlement({ type: 'ron', from: 0, winner: 1 }, state).scoreMultiplier,
+    HISA.DAMAGE_MITIGATION
+  );
   assert.deepEqual(hooks.get(0).onSettlement({ type: 'tsumo', winner: 0 }, state), {});
 });
 
 test('C8: shared singleton dispatcher aggregates field auras cross-seat and clears cleanly', () => {
   const d = dispatcher;
-  d.register(0, { applyFieldAura: (drawSeat, w) => {
-    for (const k of Object.keys(w)) w[k] = (w[k] || 1.0) * 0.5;
-    return w;
-  } });
+  d.register(0, {
+    applyFieldAura: (drawSeat, w) => {
+      for (const k of Object.keys(w)) w[k] = (w[k] || 1.0) * 0.5;
+      return w;
+    },
+  });
   d.register(1, { onPowerDraw: () => 2.0 });
   const pool = DynamicPool.full(createRNG(4));
   const state = { pool, players: [{ hand: [] }, { hand: [] }] };
@@ -445,7 +520,8 @@ test('C8: shared singleton dispatcher aggregates field auras cross-seat and clea
   const k = Object.keys(w)[0];
   assert.equal(w[k], 2.0 * 0.5, 'seat-1 self boost × seat-0 field aura');
 
-  d.clear(0); d.clear(1);
+  d.clear(0);
+  d.clear(1);
   const w2 = d.computeDrawWeights(1, state, {});
   assert.equal(w2[k], 1.0, 'cleared dispatcher samples uniformly');
 });
@@ -454,7 +530,12 @@ test('C8: shared singleton dispatcher aggregates field auras cross-seat and clea
 // D. Long horizons
 // =============================================================
 
-const FULL_ROSTER = [[0, createSakiHooks], [1, createKoromoHooks], [2, createNodokaHooks], [3, createYuukiHooks]];
+const FULL_ROSTER = [
+  [0, createSakiHooks],
+  [1, createKoromoHooks],
+  [2, createNodokaHooks],
+  [3, createYuukiHooks],
+];
 
 // Full 4-seat match: random deal, Koromo opens the mire at turn 10, everything
 // else flows through the canonical draw path until the wall is exhausted.
@@ -484,7 +565,14 @@ function simulateMatch(seed) {
       }
     }
   }
-  return { drawLog: events, samples, problems: sim.auditProblems(state), sum: sim.sumTiles(state), gauges: state.flow.gauges.slice(), turns: turn };
+  return {
+    drawLog: events,
+    samples,
+    problems: sim.auditProblems(state),
+    sum: sim.sumTiles(state),
+    gauges: state.flow.gauges.slice(),
+    turns: turn,
+  };
 }
 
 test('D1: 4-seat full-wall horizon — conservation, gauge bounds, live field effects', () => {
@@ -495,9 +583,13 @@ test('D1: 4-seat full-wall horizon — conservation, gauge bounds, live field ef
   for (const g of m.gauges) assert.ok(g >= 0 && g <= 150, `gauge ${g} inside [0,150]`);
 
   // both dampened (<1) and boosted (>1) draws occurred — field + self live
-  let min = Infinity, max = -Infinity;
+  let min = Infinity,
+    max = -Infinity;
   for (const s of m.samples) {
-    for (const v of Object.values(s.w)) { min = Math.min(min, v); max = Math.max(max, v); }
+    for (const v of Object.values(s.w)) {
+      min = Math.min(min, v);
+      max = Math.max(max, v);
+    }
   }
   assert.ok(min < 1.0, `some draw was dampened by a field enforcer (min ${min})`);
   assert.ok(max > 1.0, `some draw was boosted by a trajectory shaper (max ${max})`);
@@ -514,8 +606,12 @@ test('D2: long-horizon determinism — identical seed reproduces the exact match
 
 test('D3: pair-table horizon — Hisa + Mako full life of the wall, conservation + bounded flow', () => {
   const { state, hooks } = sim.createTable({
-    seed: 99, nSeats: 2,
-    roster: [[0, createHisaHooks], [1, createMakoHooks]],
+    seed: 99,
+    nSeats: 2,
+    roster: [
+      [0, createHisaHooks],
+      [1, createMakoHooks],
+    ],
   });
   sim.setup(state, [0, 1]);
 
@@ -540,7 +636,9 @@ function runChain(seed) {
   let carry = null;
   for (let h = 0; h < 3; h++) {
     const { state, hooks } = sim.createTable({
-      seed: seed + h * 1013, nSeats: 4, roster: FULL_ROSTER,
+      seed: seed + h * 1013,
+      nSeats: 4,
+      roster: FULL_ROSTER,
     });
     if (carry) carry.forEach((v, s) => state.flow.set(s, v)); // previous hand's gauges carry
     sim.setup(state, [0, 1, 2, 3]);
@@ -570,7 +668,10 @@ test('E1: 3-hand chain — flow carries across hands, conservation per hand, bou
     for (const g of h.gauges) assert.ok(g >= 0 && g <= 150, `gauge ${g} in [0,150]`);
   }
   // flow genuinely carried from hand 0 into hand 1 (non-trivial starting gauge)
-  assert.ok(hands[1].gauges.some(g => g > 0), 'carried gauges are nonzero');
+  assert.ok(
+    hands[1].gauges.some((g) => g > 0),
+    'carried gauges are nonzero'
+  );
 });
 
 test('E2: chain determinism — identical chain from the same seed', () => {

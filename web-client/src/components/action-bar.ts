@@ -22,9 +22,7 @@ export function renderActionBar(store: GameStore): TemplateResult {
     return html`
       <div class="action-bar action-bar--riichi-mode">
         <span class="action-bar__prompt">Select a highlighted tile to discard for Riichi:</span>
-        <button class="action-bar__btn action-bar__btn--pass" @click=${() => store.cancelRiichiMode()}>
-          CANCEL
-        </button>
+        <button class="action-bar__btn action-bar__btn--pass" @click=${() => store.cancelRiichiMode()}>CANCEL</button>
       </div>
     `;
   }
@@ -33,13 +31,14 @@ export function renderActionBar(store: GameStore): TemplateResult {
     const discardTarget = store.drawnTile || store.hand[store.hand.length - 1];
     return html`
       <div class="action-bar">
-        ${actions.can_tsumo
-          ? html`<button class="action-bar__btn action-bar__btn--win" @click=${() => store.callTsumo()}>TSUMO</button>`
-          : ''}
-        <button
-          class="action-bar__btn action-bar__btn--riichi"
-          @click=${() => store.discard(discardTarget)}
-        >
+        ${
+          actions.can_tsumo
+            ? html`<button class="action-bar__btn action-bar__btn--win" @click=${() => store.callTsumo()}>
+                TSUMO
+              </button>`
+            : ''
+        }
+        <button class="action-bar__btn action-bar__btn--riichi" @click=${() => store.discard(discardTarget)}>
           TSUMOGIRI (Discard)
         </button>
       </div>
@@ -48,24 +47,26 @@ export function renderActionBar(store: GameStore): TemplateResult {
 
   return html`
     <div class="action-bar">
-      ${actions.can_ron
-        ? html`<button class="action-bar__btn action-bar__btn--win" @click=${() => store.callRon()}>RON</button>`
-        : ''}
-      ${actions.can_tsumo
-        ? html`<button class="action-bar__btn action-bar__btn--win" @click=${() => store.callTsumo()}>TSUMO</button>`
-        : ''}
-      ${actions.can_riichi
-        ? html`<button class="action-bar__btn action-bar__btn--riichi" @click=${() => store.enterRiichiMode()}>RIICHI</button>`
-        : ''}
-      ${actions.can_pon
-        ? html`<button class="action-bar__btn" @click=${() => store.callPon()}>PON</button>`
-        : ''}
-      ${actions.can_chi
-        ? html`<button class="action-bar__btn" @click=${() => store.callChi()}>CHI</button>`
-        : ''}
-      ${actions.can_kan
-        ? html`<button class="action-bar__btn" @click=${() => store.callKan()}>KAN</button>`
-        : ''}
+      ${
+        actions.can_ron
+          ? html`<button class="action-bar__btn action-bar__btn--win" @click=${() => store.callRon()}>RON</button>`
+          : ''
+      }
+      ${
+        actions.can_tsumo
+          ? html`<button class="action-bar__btn action-bar__btn--win" @click=${() => store.callTsumo()}>TSUMO</button>`
+          : ''
+      }
+      ${
+        actions.can_riichi
+          ? html`<button class="action-bar__btn action-bar__btn--riichi" @click=${() => store.enterRiichiMode()}>
+              RIICHI
+            </button>`
+          : ''
+      }
+      ${actions.can_pon ? html`<button class="action-bar__btn" @click=${() => store.callPon()}>PON</button>` : ''}
+      ${actions.can_chi ? html`<button class="action-bar__btn" @click=${() => store.callChi()}>CHI</button>` : ''}
+      ${actions.can_kan ? html`<button class="action-bar__btn" @click=${() => store.callKan()}>KAN</button>` : ''}
       <button class="action-bar__btn action-bar__btn--pass" @click=${() => store.passAction()}>PASS</button>
     </div>
   `;

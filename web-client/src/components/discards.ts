@@ -23,26 +23,24 @@ export function renderDiscards(
       ${rows.map(
         (row) => html`
           <div class="discard-pond__row">
-            ${row.map(
-              ({ discard: d, globalIdx }) => {
-                const isLast = Boolean(store && seat !== undefined && store.isTileLastDiscard(seat, globalIdx));
-                return html`
-                  <div class="discard-pond__tile-wrapper ${d.is_riichi ? 'is-riichi' : ''}">
-                    ${renderTile(d.tile, {
-                      show: 'face',
-                      rotated: d.is_riichi,
-                      grayed: d.grayed,
-                      isLastDiscard: isLast,
-                      isHoverMatch: store ? store.isTileHoveredMatch(d.tile) : false,
-                      isDora: store ? store.isTileDora(d.tile) : false,
-                      isAkaDora: store ? store.isTileAkaDora(d.tile) : false,
-                      onMouseEnter: store ? () => store.setHoveredTile(d.tile) : undefined,
-                      onMouseLeave: store ? () => store.setHoveredTile(null) : undefined,
-                    })}
-                  </div>
-                `;
-              }
-            )}
+            ${row.map(({ discard: d, globalIdx }) => {
+              const isLast = Boolean(store && seat !== undefined && store.isTileLastDiscard(seat, globalIdx));
+              return html`
+                <div class="discard-pond__tile-wrapper ${d.is_riichi ? 'is-riichi' : ''}">
+                  ${renderTile(d.tile, {
+                    show: 'face',
+                    rotated: d.is_riichi,
+                    grayed: d.grayed,
+                    isLastDiscard: isLast,
+                    isHoverMatch: store ? store.isTileHoveredMatch(d.tile) : false,
+                    isDora: store ? store.isTileDora(d.tile) : false,
+                    isAkaDora: store ? store.isTileAkaDora(d.tile) : false,
+                    onMouseEnter: store ? () => store.setHoveredTile(d.tile) : undefined,
+                    onMouseLeave: store ? () => store.setHoveredTile(null) : undefined,
+                  })}
+                </div>
+              `;
+            })}
           </div>
         `
       )}

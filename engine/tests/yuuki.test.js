@@ -37,8 +37,8 @@ test('isEastRound / isSouthRound', () => {
 test('East round: speed tiles get 1.30x affinity', () => {
   const s = yuukiState(SIMPLE_HAND, 1, 0, 1);
   const hooks = Y.createYuukiHooks(0);
-  assert.equal(hooks.onPowerDraw('2m', s), 1.30);
-  assert.equal(hooks.onPowerDraw('1z', s), 1.30);
+  assert.equal(hooks.onPowerDraw('2m', s), 1.3);
+  assert.equal(hooks.onPowerDraw('1z', s), 1.3);
   assert.equal(hooks.onPowerDraw('9z', s), 1.0); // honor, not East wind
   assert.equal(hooks.onPowerDraw('1m', s), 1.0); // terminal, not simple
 });

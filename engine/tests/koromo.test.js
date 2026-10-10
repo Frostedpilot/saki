@@ -30,7 +30,7 @@ test('lunarPhase: hands 1–2 => crescent, 3+ => full', () => {
 
 test('lunarFlowMultiplier: crescent 0.75x, full 1.50x', () => {
   assert.equal(K.lunarFlowMultiplier(1), 0.75);
-  assert.equal(K.lunarFlowMultiplier(3), 1.50);
+  assert.equal(K.lunarFlowMultiplier(3), 1.5);
 });
 
 test('flow generation: crescent => 1.125, full => 2.25', () => {
@@ -39,7 +39,7 @@ test('flow generation: crescent => 1.125, full => 2.25', () => {
   const crescentFlow = hooks.onFlowGeneration(s, 1, 1);
   const fullFlow = hooks.onFlowGeneration(s, 1, 3);
   assert.equal(crescentFlow, 1.125); // 1.5 * 0.75
-  assert.equal(fullFlow, 2.25);     // 1.5 * 1.50
+  assert.equal(fullFlow, 2.25); // 1.5 * 1.50
 });
 
 test('T1: chilling gaze — hesitation drain activates', () => {
@@ -85,7 +85,7 @@ test('T2: oceanic mire — opponent draw weight 0.60 on advancing tiles', () => 
   const bridges = getOptimalBridges(SHANTEN1_HAND, s.pool, 4);
   if (bridges.length > 0) {
     const w = hooks.applyFieldAura(1, { [bridges[0]]: 1.0 }, s);
-    assert.equal(w[bridges[0]], 0.60);
+    assert.equal(w[bridges[0]], 0.6);
   }
 });
 
@@ -141,7 +141,7 @@ test('T4: submerged abyss — opponent freeze at -80%', () => {
   const bridges = getOptimalBridges(SHANTEN1_HAND, s.pool, 4);
   if (bridges.length > 0) {
     const w = hooks.applyFieldAura(1, { [bridges[0]]: 1.0 }, s);
-    assert.equal(w[bridges[0]], 0.20);
+    assert.equal(w[bridges[0]], 0.2);
   }
 });
 
@@ -172,7 +172,7 @@ test('T4: counterplay calls reduce win rate by 25% each', () => {
   hooks.onOpponentMeld(1); // 1 call
   hooks.onOpponentMeld(2); // 2 calls
   const r = hooks.onSettlement({ type: 'tsumo', winner: 0 }, s);
-  assert.equal(r.haiteiWinRate, 0.50); // 1 - 2*0.25
+  assert.equal(r.haiteiWinRate, 0.5); // 1 - 2*0.25
   assert.equal(r.counterplayCalls, 2);
 });
 
