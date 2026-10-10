@@ -496,7 +496,7 @@ aka 5 counts as a 5 and never as a terminal. The offline hash for seed 42 is
 **unchanged** — that particular match contains no kyuushu declaration, which is itself
 confirmation the fix only alters hands where the rule was being violated.
 
-### Follow-up: four of the five abortive draws are unreachable in bot play
+### Follow-up: four of the five abortive draws are unreachable in bot play — now CLOSED
 
 While pinning the fix, `main()` was run over **40 seeded matches** and every
 abortive-draw path counted:
@@ -512,23 +512,63 @@ abortive-draw path counted:
 | *(for comparison)* agari-yame | 4 |
 | *(for comparison)* nagashi mangan | 0 |
 
-So the detection *wiring* for four of the five aborts has never been exercised by
+So the detection *wiring* for four of the five aborts had never been exercised by
 anything, including this work. `--demo-abort` covers their **settlement** — and the
 settlement is genuinely shared now — but it bypasses detection entirely by injecting the
 abort directly. The pure predicates (`isSuufonRenda`, `isSuukaikanAbort`) are unit
-tested; what is untested is that `main()` ever *reaches* them under the right
+tested; what was untested is that `main()` ever *reaches* them under the right
 circumstances.
 
-That is a real coverage gap, not a bug: the bot policies simply never produce the
+That was a real coverage gap, not a bug: the bot policies simply never produce the
 situations. Four identical opening wind discards, four kans split between players, all
 four players riichi, and three players tenpai on the same tile are all rare between
-bots. Forcing them would need either a scripted-deal facility or bots that deliberately
-play into them.
+bots. A wider sweep — **600 seeds with `--riichi-always`** — still produced zero of the
+four, so the gap was the rules rather than a narrow search. (Both sweeps are seeded, so
+neither was flaky; `--seed` replaces `Math.random` wholesale at `game.js:113`, which is
+what makes a sweep meaningful at all.)
 
-**What was done instead:** the one abort bots *do* reach — kyuushu on seed 2 — is now
-pinned end to end by a test in `main-orchestration.test.js`, covering detection, the
-no-points-moved settlement, the extra honba and the same-dealer redeal. It is verified to
-fail if the KI-22 tile-count gate is put back.
+**Now closed by `--force-abort=NAME`.** It forces the *detection* to report true while
+leaving every guard before it real, so the accumulator feeding the site, the flag it
+sets and the shared settlement all run for real. This is deliberately a different seam
+from `--demo-abort`:
+
+| | `--demo-abort` | `--force-abort` |
+| --- | --- | --- |
+| Injects at | the settlement | the detection |
+| Guards before it | skipped | still executed |
+| Covers | settlement only | accumulator, flag, detection, settlement |
+
+For suufon-renda specifically the guard is `firstLapDiscards.length === 4`, so the forced
+run still has to collect a genuine uninterrupted first go-around — only the content test
+("were all four the same wind") is overridden. The predicates stay covered by the
+`selftest` cases in `game.js`, so nothing is traded away to make the forced tests pass.
+
+Two of the detections appear at several call sites (suukaikan twice, triple ron five
+times), so each is routed through a single `suukaikanAbort()` / `tripleRonAbort()`
+helper. Otherwise `--force-abort` could be wired into one site and forgotten at another —
+the same "one site of N was tested" trap as the
+[KI-21](#ki-21) regression, caught here by construction instead of by review.
+
+`main-orchestration.test.js` gained six tests: one per rare abort asserting detection,
+point conservation, the pot being carried intact, exactly one honba and the same-dealer
+redeal; one asserting a forced abort never reports a winner or a payee; and one asserting
+none of the four occur naturally over the `SEEDS` set — kept as a test so the rarity claim
+cannot quietly become false, and so that if one ever *does* start happening on its own,
+someone is told to pin it by seed instead of forcing it. Engine 369 → 375.
+
+Verified to bite: making the abort settlement award the pot instead of carrying it fails
+the suucha-riichi test; dropping `--force-abort` from the suufon site fails the suufon
+test.
+
+The generalisation, which now runs in both directions: **if the reason a path is hard to
+test is that it is rare, then reach it by forcing the *earliest* real condition, not by
+injecting the outcome.** Forcing the outcome tests the settlement you already had covered;
+forcing the detection tests the wiring you did not.
+
+The one abort bots *do* reach — kyuushu on seed 2 — remains pinned end to end by a test in
+`main-orchestration.test.js`, covering detection, the no-points-moved settlement, the extra
+honba and the same-dealer redeal. It is verified to fail if the KI-22 tile-count gate is
+put back.
 
 ---
 

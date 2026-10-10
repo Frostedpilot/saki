@@ -18,7 +18,10 @@
 //        [--closed-only=1] [--riichi-always=1] (demo flags: bots never open,
 //        bots always riichi when able; default play unchanged)
 //        [--demo-abort=NAME] fires the abortive-draw settlement once, after
-//        the next clean discard (demo rare rulings on demand)
+//        the next clean discard (demo rare rulings on demand; bypasses detection)
+//        [--force-abort=NAME] forces one abortive draw's DETECTION to report
+//        true, so main()'s own wiring for it runs (suufon-renda | suukaikan |
+//        suucha-riichi | triple-ron)
 // NOTE: --powers here drives this file's inline powerDraw() rig, NOT the roster
 // framework in engine/powers/rosters/. To exercise the real Flow-gauge powers,
 // run the bridge server and play through the web client.
@@ -102,6 +105,26 @@ const RIICHI_ALWAYS = args['riichi-always'] === '1' || args['riichi-always'] ===
 // --demo-abort=NAME fires the shared abortive-draw settlement after the next
 // clean discard (demo rare rulings on demand; trigger conditions unit-tested)
 const DEMO_ABORT = args['demo-abort'] || null;
+// --force-abort=NAME forces one abortive draw's DETECTION to report true, so main()'s
+// own wiring for that ruling is exercised: the guard, the accumulator that feeds it
+// (firstLapDiscards, fourRiichiPending, kansBy, the ron hits), the state it sets and
+// the shared settlement that follows.
+//
+// This is deliberately NOT the same as --demo-abort. That flag injects the abort *after*
+// the detection sites, so it covers the settlement and nothing else -- which is why
+// suufon-renda, suukaikan, suucha-riichi and triple ron were unit-tested as predicates
+// yet never observed to fire from main() at all. Their conditions are real but rare
+// between bots: a 600-seed sweep never produced one. See docs/known-issues.md KI-22.
+//
+// Names: suufon-renda | suukaikan | suucha-riichi | triple-ron
+const FORCE_ABORT = args['force-abort'] || null;
+const forced = (name) => FORCE_ABORT === name;
+
+// The two detections that appear at several call sites, factored so --force-abort
+// cannot be wired into one site and forgotten at another. suufon-renda and
+// suucha-riichi have a single site each and are guarded inline.
+const tripleRonAbort = (hits) => hits.length === 3 || forced('triple-ron');
+const suukaikanAbort = (kansBy) => isSuukaikanAbort(kansBy) || forced('suukaikan');
 const rawSeed = valueOf('seed', '--seed 42');
 if (rawSeed !== undefined) { // deterministic RNG for tests (mulberry32 via engine/rng.js)
   const seed = parseInt(rawSeed, 10);
@@ -403,9 +426,9 @@ async function main() {
       // snapshot waits: later ankans must not change them (else chombo)
       pl.riichiWaits = locked13 ? getWaits({ hand: [...locked13], melds: [] }, P, dead, { dora: [], bakaze, jikaze: 1 }) : [];
       console.log(`  ${names[pl.id]} ${firstClass ? 'DOUBLE RIICHI' : 'RIICHI'}`);
-      if (P.every(p => p.riichi)) {
+      if (P.every(p => p.riichi) || forced('suucha-riichi')) {
         fourRiichiPending = true; // abort after this discard unless someone rons it
-        console.log('  SUUCHA-RIICHI: all four riichi');
+        console.log(`  SUUCHA-RIICHI: all four riichi${forced('suucha-riichi') && !P.every(p => p.riichi) ? ' (FORCED via --force-abort, not actually all four)' : ''}`);
       }
     };
     const isFirstTurn = () => callsMade === 0 && drawsThisKyoku <= 4;
@@ -510,7 +533,7 @@ async function main() {
         if (kanChoice.kind === 'kakan') {
           // CHANKAN check before meld upgrade (furiten applies, multi-ron possible)
           const ckHits = await collectRon(kt, turn, { chankan: true, label: 'CHANKAN', minHan });
-          if (ckHits.length === 3) {
+          if (tripleRonAbort(ckHits)) {
             winner = -2;
             winBy = { type: 'abort', reason: `TRIPLE RON (chankan) on ${kt}` };
             break;
@@ -549,7 +572,7 @@ async function main() {
         console.log(`  new dora=${ctx.dora}`);
         callsMade++; clearAllIppatsu(P);
         kansBy[turn]++;
-        if (isSuukaikanAbort(kansBy)) {
+        if (suukaikanAbort(kansBy)) {
           winner = -2;
           winBy = { type: 'abort', reason: `SUUKAIKAN (four kans: ${kansBy.join('/')})` };
           break;
@@ -638,7 +661,7 @@ async function main() {
 
       // --- ron check: double ron possible, triple ron aborts, furiten enforced ---
       const hits = await collectRon(disc, turn, { houtei: isHoutei, minHan });
-      if (hits.length === 3) {
+      if (tripleRonAbort(hits)) {
         winner = -2;
         winBy = { type: 'abort', reason: `TRIPLE RON on ${disc}` };
         break;
@@ -663,7 +686,10 @@ async function main() {
       }
       if (!suufonDone && firstLapDiscards.length === 4) {
         suufonDone = true;
-        if (isSuufonRenda(firstLapDiscards)) {
+        // Forced: the guard above still has to be satisfied for real, so this reaches
+        // the site through the genuine first-lap accumulator and only overrides the
+        // content test.
+        if (isSuufonRenda(firstLapDiscards) || forced('suufon-renda')) {
           winner = -2;
           winBy = { type: 'abort', reason: `SUUFON-RENDA (${firstLapDiscards.join(' ')})` };
           break;
@@ -702,7 +728,7 @@ async function main() {
             console.log(`  ${names[q]} DAIMINKAN ${disc}`);
             callsMade++; clearAllIppatsu(P);
             kansBy[q]++;
-            if (isSuukaikanAbort(kansBy)) {
+            if (suukaikanAbort(kansBy)) {
               winner = -2;
               winBy = { type: 'abort', reason: `SUUKAIKAN (four kans: ${kansBy.join('/')})` };
               break;
@@ -725,7 +751,7 @@ async function main() {
             }
             const dc = await discardAfterCall(P[q], q, jikazeOf, ask);
             const hitsD = await collectRon(dc, q, { houtei: wallFull.length === 0, minHan });
-            if (hitsD.length === 3) {
+            if (tripleRonAbort(hitsD)) {
               winner = -2;
               winBy = { type: 'abort', reason: `TRIPLE RON on ${dc}` };
               break;
@@ -745,7 +771,7 @@ async function main() {
             callsMade++; clearAllIppatsu(P);
             const dc = await discardAfterCall(P[q], q, jikazeOf, ask, [norm(tiles[0])]); // kuikae: no 4th tile
             const hitsQ = await collectRon(dc, q, { houtei: wallFull.length === 0, minHan });
-            if (hitsQ.length === 3) {
+            if (tripleRonAbort(hitsQ)) {
               winner = -2;
               winBy = { type: 'abort', reason: `TRIPLE RON on ${dc}` };
               break;
@@ -780,7 +806,7 @@ async function main() {
             callsMade++; clearAllIppatsu(P);
             const dc = await discardAfterCall(P[nx], nx, jikazeOf, ask, kuikaeBannedChi(tiles[1], tiles[2]));
             const hitsX = await collectRon(dc, nx, { houtei: wallFull.length === 0, minHan });
-            if (hitsX.length === 3) {
+            if (tripleRonAbort(hitsX)) {
               winner = -2;
               winBy = { type: 'abort', reason: `TRIPLE RON on ${dc}` };
               break;

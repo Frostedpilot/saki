@@ -124,7 +124,17 @@ node engine/game.js        # 4 CPU bots, full hanchan (8 rounds), no powers
 | `--selftest=1` | off | Run 43 deterministic rule checks and exit |
 | `--closed-only=1` | off | Demo: bots never pon/chi |
 | `--riichi-always=1` | off | Demo: bots riichi whenever able (surfaces ippatsu/ura/furiten fast) |
-| `--demo-abort=NAME` | off | Demo: fire one abortive-draw settlement on demand |
+| `--demo-abort=NAME` | off | Demo: fire one abortive-draw **settlement** on demand, after the next clean discard |
+| `--force-abort=NAME` | off | Force one abortive draw's **detection** to report true: `suufon-renda`, `suukaikan`, `suucha-riichi`, `triple-ron` |
+
+`--demo-abort` and `--force-abort` are not interchangeable. `--demo-abort` injects the
+abort *after* the detection sites, so it exercises the shared settlement and nothing
+else. `--force-abort` forces the detection predicate while leaving every guard before it
+real, so the accumulator feeding the site, the flag it sets and the settlement all run
+for real. Four of the five abortive draws are too rare for bot-vs-bot play to produce
+naturally — a 600-seed sweep produced none of them — so without this their wiring was
+unit-tested only as a pure predicate and never observed to fire from `main()`. See
+KI-22.
 
 Both `--flag value` and `--flag=value` work, including negative values
 (`--human -1`). **This was broken until recently**: the parser accepted only the `=`

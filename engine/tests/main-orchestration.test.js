@@ -371,6 +371,127 @@ test('main: a natural kyuushu-kyuuhai abort settles correctly', () => {
   assert.equal(next.honbaAtDeal, abortHand.honbaAtDeal + 1, 'one more honba');
 });
 
+// ------------------------------------------------ the four rare aborts (KI-22)
+//
+// The kyuushu test above is the only abort whose detection bot-vs-bot play reaches on
+// its own. For the other four, `--demo-abort` covers the settlement but injects the
+// abort *after* the detection sites, so their predicates were unit-tested while
+// nothing had ever observed main() reaching them.
+//
+// `--force-abort` closes that: it forces the detection to report true while leaving
+// every guard before it real, so the accumulator that feeds the site, the flag it
+// sets, and the shared settlement all run for real. The predicate itself stays
+// covered by the selftest cases in game.js.
+//
+// This is the "extracting a function does not test it" lesson from the server-side
+// KI-21 regression, applied in advance: the site under test is the one in main().
+
+const RARE_ABORTS = [
+  ['suufon-renda', /SUUFON-RENDA/],
+  ['suukaikan', /SUUKAIKAN/],
+  ['suucha-riichi', /SUUCHA-RIICHI/],
+  ['triple-ron', /TRIPLE RON/],
+];
+
+for (const [name, reasonRe] of RARE_ABORTS) {
+  test(`main: a ${name} abort is detected by main() and settles correctly`, () => {
+    const out = play('--seed', '3', '--kyoku', '4', '--force-abort', name);
+
+    // Detection: main() reached the site and announced it.
+    const hands = parseMatch(out);
+    const aborted = hands.filter((h) => isAbort(h.terminal) && reasonRe.test(h.terminal));
+    assert.ok(
+      aborted.length > 0,
+      `--force-abort=${name} produced no ${name} abort:\n${out}`,
+    );
+
+    for (const h of aborted) {
+      // The pot is never part of a player's score, so the four scores alone do not
+      // total 100 000 once a riichi is on the table. This is the real invariant: the
+      // abort moves nothing, and whatever was already on the table is still there.
+      assert.equal(
+        sum(h.scoresAfter) + h.carryAfter, TOTAL,
+        `${name} on ${h.label} did not conserve points: ${h.scoresAfter} + ${h.carryAfter} != ${TOTAL}`,
+      );
+
+      // Exactly the riichi stakes declared during this hand moved from a player to
+      // the pot, and the pot is carried intact to the redeal — not awarded, not
+      // destroyed. This is what "an abortive draw moves no points" actually means:
+      // a declaration is a legitimate transfer, the abort itself transfers nothing.
+      const declared = h.lines.filter((l) => / (?:DOUBLE )?RIICHI$/.test(l)).length;
+      assert.equal(
+        h.carryAfter, h.carryAtDeal + declared * 1000,
+        `${name} on ${h.label}: pot should be ${h.carryAtDeal} + ${declared} stick(s) = ` +
+        `${h.carryAtDeal + declared * 1000}, got ${h.carryAfter}`,
+      );
+      assert.equal(
+        TOTAL - sum(h.scoresAfter), h.carryAfter,
+        `${name} on ${h.label}: the score shortfall must be exactly the pot`,
+      );
+      // With no riichi declared there is nothing to transfer, so the scores must be
+      // byte-identical — the abort itself is provably inert.
+      if (declared === 0) {
+        assert.equal(
+          h.scoresAfter, h.scoresAtDeal,
+          `${name} on ${h.label} moved points with no riichi declared: ` +
+          `${h.scoresAtDeal} -> ${h.scoresAfter}`,
+        );
+      }
+
+      // Exactly one honba, and the same dealer replays the same round number.
+      assert.equal(h.honbaAfter, h.honbaAtDeal + 1, `${name} on ${h.label}: one more honba`);
+      assert.match(h.lines.join('\n'), /redeal, same dealer/, `${name}: should redeal`);
+
+      const idx = hands.indexOf(h);
+      const next = hands[idx + 1];
+      if (!next) continue; // the redeal loop may have ended the match
+      assert.equal(next.dealer, h.dealer, `${name}: the dealer must repeat`);
+      assert.equal(next.label, h.label, `${name}: the same round number is replayed`);
+      assert.equal(next.honbaAtDeal, h.honbaAfter, `${name}: the honba carries to the redeal`);
+      assert.equal(next.carryAtDeal, h.carryAfter, `${name}: the pot carries to the redeal`);
+    }
+  });
+}
+
+test('main: forcing an abort never pays anybody', () => {
+  // The failure mode that matters most for an abortive draw: treating it as a win.
+  // Guards against a future edit letting the forced path fall through into payments.
+  for (const [name] of RARE_ABORTS) {
+    const out = play('--seed', '3', '--kyoku', '4', '--force-abort', name);
+    for (const line of out.split(/\r?\n/)) {
+      if (!/\*\*\* ABORTIVE DRAW/.test(line)) continue;
+      // An abort banner is followed by a bare `scores:` settlement with no payee lines.
+      assert.doesNotMatch(line, /-> P\d\(/, `${name}: an abort must not pay a player`);
+    }
+    // No win ever co-occurs with the forced abort in the same hand.
+    for (const h of parseMatch(out)) {
+      if (!isAbort(h.terminal)) continue;
+      assert.equal(
+        h.winners, undefined,
+        `${name} on ${h.label} reported winners: ${(h.winners || []).join('/')}`,
+      );
+    }
+  }
+});
+
+test('main: none of the four rare aborts occur naturally in seeded bot play', () => {
+  // Why --force-abort exists at all. This is the measurement from KI-22, kept as a
+  // test so it cannot quietly become wrong: if one of these ever DOES start happening
+  // on its own, the forced tests should be replaced by natural ones pinned by seed.
+  //
+  // A wider sweep (600 seeds, --riichi-always) also produced zero, so the gap is the
+  // rules, not a narrow search. Both sweeps are seeded, so neither is flaky.
+  for (const seed of SEEDS) {
+    const out = play('--seed', String(seed), '--kyoku', '4', '--riichi-always', '1');
+    for (const [, reasonRe] of RARE_ABORTS) {
+      assert.doesNotMatch(
+        out, reasonRe,
+        `seed ${seed}: ${reasonRe.source} now occurs naturally — pin it by seed instead of forcing it`,
+      );
+    }
+  }
+});
+
 test('main: the golden match fingerprint, so a behaviour change cannot pass unnoticed', () => {
   // The determinism test above only proves the engine is repeatable. This pins what it
   // actually produces, so a rules change shows up here instead of being discovered
