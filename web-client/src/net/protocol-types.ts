@@ -50,12 +50,12 @@ export interface TileDrawnEvent {
 }
 
 export interface OtherPlayerDrewEvent {
-  player: number;
+  player: number | string;
   remaining_tiles: number;
 }
 
 export interface TileDiscardedEvent {
-  player: number;
+  player: number | string;
   tile: ProtocolTile;
   is_tsumogiri?: boolean;
   hand_index?: number;
@@ -63,12 +63,12 @@ export interface TileDiscardedEvent {
 
 export interface CallAvailableEvent {
   tile: ProtocolTile;
-  discarder: number;
-  calls: string[]; // e.g. ['Chi', { Pon: ... }, 'Daiminkan', 'Ron'] ('Daiminkan' = open Kan)
+  discarder: number | string;
+  calls: Array<string | { Pon?: { options?: ProtocolTile[][] } } | { Chi?: { options?: ProtocolTile[][] } }>;
 }
 
 export interface PlayerCalledEvent {
-  player: number;
+  player: number | string;
   call_type: string;
   called_tile: ProtocolTile;
   tiles: ProtocolTile[];
@@ -80,7 +80,7 @@ export interface DoraIndicatorsUpdatedEvent {
 }
 
 export interface PlayerRiichiEvent {
-  player: number;
+  player: number | string;
   scores: number[];
   riichi_sticks: number;
 }
@@ -117,7 +117,7 @@ export interface RoundWonEvent {
 export interface RoundDrawEvent {
   scores: number[];
   reason: string;
-  tenpai?: boolean[];
+  tenpai?: Array<number | string | boolean>;
   riichi_sticks?: number;
   declarer?: number | null;
 }
@@ -142,7 +142,7 @@ export interface SuperpowerIndicatorEvent {
 }
 
 export interface PowerActivatedEvent {
-  player: number;
+  player: number | string;
   power: string;
   tier?: number;
   event_type?: string;

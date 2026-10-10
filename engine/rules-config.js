@@ -7,8 +7,10 @@
 // front-end, and `engine/tests/rules-config-parity.test.js` fails if either file
 // reintroduces a literal copy of one of them.
 //
-// Not here: the *orchestration*. The two front-ends still drive a hand differently
-// (a CLI turn loop versus an async phase machine), because they have to. See KI-04
+// Not here: the *turn loops*. The two front-ends still drive a hand differently
+// (a CLI turn loop versus an async phase machine), because they have to. The
+// shared *transition table* (dealer repeat, honba, kyoku, noten schedule, han
+// floor) lives in engine/match-flow.js, which both front-ends call. See KI-04
 // for what is and is not shared.
 const RULES = {
   startScore: 25000,
@@ -36,7 +38,9 @@ const RULES = {
     suufonRenda: false,
     suukaikan: false,
     suuchaRiichi: false,
-    tripleRon: false,
+    // Implemented (finishHand detects 3+ ron claims); the other four have no
+    // server-side detection/settlement. See table.js header + KI-04.
+    tripleRon: true,
   },
 };
 

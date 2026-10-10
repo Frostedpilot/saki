@@ -66,12 +66,18 @@ export function renderTile(tile: ProtocolTile | TileFace, options: RenderTileOpt
   return html`
     <span
       class="${classes.join(' ')}"
+      role=${options.clickable && options.onClick ? 'button' : 'img'}
+      tabindex=${options.clickable && options.onClick ? '0' : '-1'}
+      aria-label="${face}${options.isDora ? ' (Dora)' : ''}${options.isAkaDora ? ' (Red 5)' : ''}"
       @click=${options.onClick || null}
+      @keydown=${options.clickable && options.onClick
+        ? (e: KeyboardEvent) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); options.onClick?.(); } }
+        : null}
       @mouseenter=${options.onMouseEnter || null}
       @mouseleave=${options.onMouseLeave || null}
       title="${face}${options.isDora ? ' (Dora)' : ''}${options.isAkaDora ? ' (Red 5)' : ''}"
     >
-      ${svg`<svg width="100%" height="100%" viewBox="0 0 300 400" aria-label="${face}">
+      ${svg`<svg width="100%" height="100%" viewBox="0 0 300 400" aria-label="${face}" role="presentation">
         <use href="#tile-${face}"/>
       </svg>`}
     </span>

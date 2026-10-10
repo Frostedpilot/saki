@@ -83,7 +83,21 @@ export function renderRoundModal(store: GameStore): TemplateResult {
           ? html`
               <div class="agari-hand">
                 <div class="agari-hand__tiles">
-                  ${res.winningHand.map((t) => renderTile(t, { show: 'face' }))}
+                  ${(() => {
+                    // player_hands[winner] may already include the winning tile
+                    // (ron). Drop exactly one matching copy so ron renders
+                    // 13 + win tile, never 14 + duplicate. Tsumo keeps all.
+                    let skipped = res.isTsumo;
+                    return res.winningHand
+                      .filter((t) => {
+                        if (!skipped && t.index === res.winningTile!.index && t.red_dora === res.winningTile!.red_dora) {
+                          skipped = true;
+                          return false;
+                        }
+                        return true;
+                      })
+                      .map((t) => renderTile(t, { show: 'face' }));
+                  })()}
                   <span class="agari-hand__gap"></span>
                   <span class="agari-hand__win-tile">
                     <span class="agari-hand__win-label">${res.isTsumo ? 'TSUMO' : 'RON'}</span>

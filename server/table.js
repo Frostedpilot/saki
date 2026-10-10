@@ -6,10 +6,10 @@
 // calls, ippatsu, furiten, exhaustive-draw tenpai payments, renchan, honba and
 // riichi sticks.
 //
-// Not implemented in this prototype: abortive draws (kyuushu/nagashi/four-
-// winds/four-riichi/suukaikan/triple-ron), nagashi mangan, agari-yame,
-// enchousen, chombo-as-chombo (ankan-after-riichi is prevented server-side),
-// and disconnection resync (disconnect = CPU substitution).
+// Not implemented in this prototype: abortive draws except triple ron
+// (kyuushu/nagashi/four-winds/four-riichi/suukaikan), nagashi mangan,
+// agari-yame, enchousen, chombo-as-chombo (ankan-after-riichi is prevented
+// server-side), and disconnection resync (disconnect = CPU substitution).
 
 const core = require('../engine/core');
 const { PowerDispatcher } = require('../engine/powers');
@@ -21,6 +21,7 @@ const H = require('../engine/helpers');
 const Y = require('./yaku-map');
 const { ROSTERS } = require('./rosters');
 const { RULES } = require('../engine/rules-config');
+const MF = require('../engine/match-flow');
 
 // A character hook that throws must not break the match, but it must not be
 // silent either: a power that is quietly inert looks identical to a power that
@@ -252,7 +253,12 @@ class Table {
       req.resolve(action);
       return true;
     }
-    this.mailbox.get(seat).push({ action, kinds: new Set([action.type]) });
+    const box = this.mailbox.get(seat);
+    // Bound the queue: a client spamming invalid actions must not grow memory
+    // without limit, and stale Ron/Chi/Pon intents must not linger to be
+    // auto-consumed by a later call window without fresh user intent.
+    if (box.length >= 10) box.shift();
+    box.push({ action, kinds: new Set([action.type]) });
     return false;
   }
 
@@ -284,6 +290,13 @@ class Table {
     } else if (this.phase === PHASE.TURN_ACT || this.phase === PHASE.CALL_DISCARD) {
       if (seat !== this.activeSeat) {
         this.sendError(seat, 'NotInTurn', 'not your turn to act');
+        return;
+      }
+      // Ron/Chi/Pon are only meaningful inside resolveCallWindow, which pulls
+      // from its own request set. Queuing them here lets a stale intent sit in
+      // the mailbox and be auto-consumed by a later call window.
+      if (action.type === 'Ron' || action.type === 'Chi' || action.type === 'Pon') {
+        this.sendError(seat, 'InvalidAction', `${action.type} is only valid in a call window`);
         return;
       }
     }
@@ -493,7 +506,7 @@ try { state.powers.register(s, ROSTERS[power](s, this.persistentPowerState[s]));
         roundNumber: kyoku,
         totalRounds: this.totalRounds,
         honba: this.honba,
-        riichiSticks: ctx.riichiPool,
+        riichiSticks: ctx.riichiPool / 1000,
         threePlayer: false,
         nukiDora: false,
       })));
@@ -557,32 +570,29 @@ try { state.powers.register(s, ROSTERS[power](s, this.persistentPowerState[s]));
    * for the tests that close that seam.
    */
   applyPostSettlementFlow({ outcome, winBy, winner, dealer }) {
-    if (outcome && outcome.aborted) {
-      // Abortive draw (triple ron): the hand is void, so nobody won — the dealer
-      // always repeats and the honba grows. engine/game.js does the same. Do NOT
-      // fall through to the exhaustive branch: that one consults tenpai seats, and an
-      // abortive draw has no tenpai question.
-      this.honba++;
-      this.kyoku--;
-      return true;
+    // Shared transition table (engine/match-flow.js): same dealer/honba/kyoku
+    // decision as the offline game.js loop. Normalizes the table's winBy
+    // shapes (tsumo seat / ron hits[].seat) into winnerSeats first.
+    let win = null;
+    if (winBy !== null && winBy !== undefined) {
+      const winnerSeats = winBy.type === 'tsumo'
+        ? [winner]
+        : (winBy.hits || []).map((h) => h.seat);
+      win = { type: winBy.type, winnerSeats };
     }
-
-    if (winBy !== null) {
-      const dealerWon = winBy.type === 'tsumo'
-        ? winner === dealer
-        : winBy.hits.some((h) => h.seat === dealer);
-      if (dealerWon) { this.honba++; this.kyoku--; return true; }
-      this.honba = 0;
-      return false;
-    }
-
+    const flow = MF.postHandFlow({
+      aborted: Boolean(outcome && outcome.aborted),
+      win,
+      tenpaiSeats: win ? [] : this.tenpaiSeats(),
+      dealer,
+    });
+    if (flow.honba === 'increment') this.honba++;
+    else this.honba = 0;
+    if (flow.kyokuRepeat) this.kyoku--;
     // Exhaustive draw. The riichi carry is NOT touched here: finishHand has already
     // moved ctx.riichiPool onto this.riichiCarry. Re-deriving it would overwrite a
     // real carry with 0 — see the note above.
-    this.honba++;
-    const keepDealer = this.tenpaiSeats().includes(dealer);
-    if (keepDealer) this.kyoku--;
-    return keepDealer;
+    return flow.keepDealer;
   }
 
   isFirstDraw(me) {
@@ -1279,7 +1289,9 @@ try { state.powers.register(s, ROSTERS[power](s, this.persistentPowerState[s]));
       let ronAtt = null;
       const att = H.tryRon(qp, tile, this.shootCtx(q, flags.chankan, flags.houtei), players, ctx.dead, {
         chankan: !!flags.chankan,
-        minHan: 1,
+        // No enchousen server-side: always the base floor. Reads RULES via
+        // match-flow so a floor change cannot drift (game.js uses overtime).
+        minHan: MF.minHan(false),
       });
       if (att.win) ronAtt = att;
 
@@ -1555,16 +1567,39 @@ try { state.powers.register(s, ROSTERS[power](s, this.persistentPowerState[s]));
   async doOpenChi(q, from, tile, chosen) {
     const ctx = this.ctx;
     const qp = ctx.players[q];
+    // Validate the client's chosen pair BEFORE touching the hand. The old code
+    // spliced tiles out one by one and then returned null on failure, leaving
+    // a partially mutated hand.
+    if (!Array.isArray(chosen) || chosen.length !== 2) {
+      this.sendError(q, 'InvalidAction', 'chi requires exactly 2 hand tiles');
+      return null;
+    }
+    const legalOpts = H.chiOptions(qp.hand, tile).map(([a, b]) => {
+      const s = norm(tile)[1];
+      return [`${a}${s}`, `${b}${s}`].map(norm).sort().join(',');
+    });
+    const normChosen = chosen.map((c) => norm(typeof c === 'string' ? c : String(c))).sort().join(',');
+    if (!legalOpts.includes(normChosen)) {
+      this.sendError(q, 'InvalidAction', 'chosen chi tiles do not match any legal option');
+      return null;
+    }
     const tiles = [tile];
     const suit = norm(tile)[1];
+    // Re-resolve indices without mutating until all are found.
+    const indices = [];
     for (const n of chosen) {
       const target = typeof n === 'string' && (n.endsWith('m') || n.endsWith('p') || n.endsWith('s') || n.endsWith('z'))
         ? norm(n)
         : n + suit;
-      const i = qp.hand.findIndex((x) => norm(x) === target);
-      if (i < 0) break;
-      tiles.push(qp.hand.splice(i, 1)[0]);
+      const i = qp.hand.findIndex((x, idx) => !indices.includes(idx) && norm(x) === target);
+      if (i < 0) {
+        this.sendError(q, 'InvalidAction', 'chosen chi tile not in hand');
+        return null;
+      }
+      indices.push(i);
     }
+    // Remove highest indices first so earlier splices don't shift later ones.
+    indices.sort((a, b) => b - a).forEach((i) => tiles.push(qp.hand.splice(i, 1)[0]));
     if (tiles.length !== 3) return null; // shouldn't happen (validated)
     ctx.players[from].discards.pop();
     qp.melds.push({ tiles, open: true, type: 'chi' });
@@ -1708,7 +1743,9 @@ try { state.powers.register(s, ROSTERS[power](s, this.persistentPowerState[s]));
             : [],
           riichiSticks: sticksGain / 1000,
           honba: this.honba,
-          honbaPoints: isTsumo ? 100 * this.honba : 300 * this.honba,
+          // Total honba embedded in this winner's pay (tsumo sums 3 payers,
+          // ron is a single payment). Matches the client's honba*300 fallback.
+          honbaPoints: 300 * this.honba,
           playerHands: this.playerHandsInfo(),
         }));
         console.log(`[bridge] WIN P${w.seat} ${isTsumo ? 'tsumo' : 'ron'} ${w.r.text || ''} han=${w.r.han} fu=${w.r.fu} +${scorePoints}`);
@@ -1719,8 +1756,7 @@ try { state.powers.register(s, ROSTERS[power](s, this.persistentPowerState[s]));
       const tenpai = this.tenpaiSeats();
       const nTen = tenpai.length;
       if (nTen > 0 && nTen < 4) {
-        const give = [0, RULES.notenTotal, RULES.notenTotal / 2, RULES.notenTotal / 3][nTen];
-        const take = [0, RULES.notenTotal / 3, RULES.notenTotal / 2, RULES.notenTotal][nTen];
+        const { give, take } = MF.notenPayments(nTen);
         for (let i = 0; i < 4; i++) this.scores[i] += tenpai.includes(i) ? give : -take;
       }
       // Riichi sticks must not vanish when a hand is drawn, but they are also NOT

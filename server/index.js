@@ -25,7 +25,12 @@ const MIME = {
 
 // ------------------------------------------------------------- static HTTP
 const server = http.createServer((req, res) => {
-  let urlPath = decodeURIComponent(req.url.split('?')[0]);
+  let urlPath;
+  try {
+    urlPath = decodeURIComponent((req.url || '/').split('?')[0]);
+  } catch {
+    res.writeHead(400); res.end('bad request'); return;
+  }
   if (urlPath === '/' || urlPath === '') urlPath = '/index.html';
   const filePath = path.normalize(path.join(PUBLIC, urlPath));
   if (!filePath.startsWith(PUBLIC)) {
@@ -33,7 +38,11 @@ const server = http.createServer((req, res) => {
   }
   fs.readFile(filePath, (err, data) => {
     if (err) {
-      res.writeHead(404); res.end('not found'); return;
+      if (err.code === 'ENOENT' || err.code === 'EISDIR') {
+        res.writeHead(404); res.end('not found'); return;
+      }
+      console.error('[bridge] static read error:', filePath, err.message);
+      res.writeHead(500); res.end('internal error'); return;
     }
     const ext = path.extname(filePath).toLowerCase();
     res.writeHead(200, { 'Content-Type': MIME[ext] || 'application/octet-stream' });
@@ -83,6 +92,15 @@ function route(client, parsed) {
     }
     case 'CreateRoom': {
       if (client.room) { send(ws, P.errorMessage('RoomFull', 'already in a room')); return; }
+      // The table driver is East-only tonpuusen. Reject anything else
+      // explicitly instead of silently dealing a different format.
+      if (parsed.length !== undefined && parsed.length !== null && parsed.length !== 'EastOnly') {
+        send(ws, P.errorMessage('InvalidRules', `unsupported length ${JSON.stringify(parsed.length)} (only EastOnly)`));
+        return;
+      }
+      if (parsed.rules && typeof parsed.rules === 'object' && Object.keys(parsed.rules).length) {
+        console.log(`[bridge] ignoring custom rules ${JSON.stringify(parsed.rules)} (defaults apply)`);
+      }
       let code = genCode();
       while (rooms.has(code)) code = genCode();
       const room = new Room(client, code, { length: parsed.length, rules: parsed.rules });

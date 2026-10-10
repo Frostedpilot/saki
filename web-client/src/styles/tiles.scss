@@ -245,6 +245,11 @@
   border-radius: 4px;
   border: 1px solid rgba(255, 255, 255, 0.08);
 
+  // Kakan (added kan): visually an upgraded pon — accent the added tile.
+  &--kakan {
+    border-color: rgba(255, 215, 0, 0.45);
+  }
+
   &__slot {
     display: flex;
     align-items: flex-end;

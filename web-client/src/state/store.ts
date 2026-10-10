@@ -181,6 +181,7 @@ export class GameStore {
   ];
 
   public kuikaeBannedIndices: number[] = [];
+  public pendingKanIndex = 0;
   public isRiichiMode = false;
   public riichiCandidateIndices: Set<number> = new Set();
   public hoveredTileKind: string | null = null;
@@ -284,6 +285,9 @@ export class GameStore {
    * would be rendered as if the abandoned hand were still live.
    */
   public abandonSession(): void {
+    if (this.toastTimer) { clearTimeout(this.toastTimer); this.toastTimer = null; }
+    if (this.cutinTimer) { clearTimeout(this.cutinTimer); this.cutinTimer = null; }
+    this.toast = null;
     this.screen = 'lobby';
     this.roomCode = '';
     this.yourSeat = 0;
@@ -393,6 +397,9 @@ export class GameStore {
 
   public computeRiichiCandidates(): void {
     this.riichiCandidateIndices.clear();
+    // Riichi requires a closed hand; an open tenpai hand must never get
+    // riichi highlights or enter riichi mode.
+    if ((this.melds[this.yourSeat] || []).length > 0) return;
     const allTiles = [...this.hand, ...(this.drawnTile ? [this.drawnTile] : [])];
     for (let i = 0; i < allTiles.length; i++) {
       const remaining = allTiles.filter((_, idx) => idx !== i);
@@ -555,6 +562,8 @@ export class GameStore {
     PureNineGates: 'Pure Chuuren',
     BlessingOfHeaven: 'Tenhou',
     BlessingOfEarth: 'Chihou',
+    AllTriplets: 'Toitoi',
+    ThreeConcealedTriplets: 'Sanankou',
   };
 
   private static readonly DORA_LABELS: Record<string, string> = {
@@ -661,9 +670,9 @@ export class GameStore {
     this.notify();
   }
 
-  public callKan(tileIndex = 0): void {
+  public callKan(tileIndex?: number): void {
     this.resetCalls();
-    this.socket.send({ Action: { Kan: { tile_index: tileIndex } } });
+    this.socket.send({ Action: { Kan: { tile_index: tileIndex !== undefined ? tileIndex : this.pendingKanIndex } } });
     this.notify();
   }
 
@@ -838,11 +847,16 @@ export class GameStore {
       const allTiles = [...this.hand, td.tile];
       const counts: Record<number, number> = {};
       allTiles.forEach((t) => { counts[t.index] = (counts[t.index] || 0) + 1; });
-      const ankanIndex = Object.keys(counts).find((k) => counts[parseInt(k, 10)] === 4);
+      const ankanKey = Object.keys(counts).find((k) => counts[parseInt(k, 10)] === 4);
       const kakanMatch = this.melds[this.yourSeat].find(
         (m) => (m.callType === 'Pon' || m.callType === 'pon') && allTiles.some((t) => t.index === m.tiles[0]?.index)
       );
-      this.actions.can_kan = Boolean(ankanIndex !== undefined || kakanMatch);
+      this.actions.can_kan = Boolean(ankanKey !== undefined || kakanMatch);
+      // Remember the actual tile index for the KAN action instead of always
+      // sending 0. Prefer the ankan quartet; otherwise use the kakan tile.
+      if (ankanKey !== undefined) this.pendingKanIndex = parseInt(ankanKey, 10);
+      else if (kakanMatch?.tiles[0]) this.pendingKanIndex = kakanMatch.tiles[0].index;
+      else this.pendingKanIndex = td.tile.index;
 
       this.addLog('turn', `You drew ${tileToFace(td.tile)}. Wall remaining: ${td.remaining_tiles}.`);
       if (td.is_furiten) {
@@ -1016,6 +1030,17 @@ export class GameStore {
           calledIndex: calledIdx,
           fromSeat,
         });
+      }
+
+      // Keep the concealed-hand count in sync. TileDiscarded only decrements on
+      // discards, so without this the count drifts high after every call.
+      if (callerSeat !== this.yourSeat) {
+        const ct = String(pc.call_type || '').toLowerCase();
+        const taken = ct === 'chi' || ct === 'pon' ? 2
+          : ct === 'daiminkan' ? 3
+          : ct === 'ankan' || ct === 'closedkan' ? 4
+          : ct === 'kakan' ? 1 : 0;
+        this.opponentTileCounts[callerSeat] = Math.max(0, (this.opponentTileCounts[callerSeat] || 0) - taken);
       }
 
       // Remove the called tile from the discarder's river

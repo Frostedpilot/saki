@@ -87,6 +87,7 @@ saki/
 │   ├── scoring.js           thin wrapper over the `riichi` npm package
 │   ├── rng.js               deterministic seeded RNG (mulberry32)
 │   ├── rules-config.js      rules as data (shared by game.js and table.js)
+│   ├── match-flow.js        shared hand-transition table (dealer/honba/kyoku/noten/han floor)
 │   ├── invariants.js        per-turn tile-conservation checks
 │   ├── replay.js            deterministic action journal + verifier
 │   ├── input.js             human discard-index parsing

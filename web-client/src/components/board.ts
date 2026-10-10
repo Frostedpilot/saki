@@ -31,6 +31,16 @@ export function renderBoard(store: GameStore): TemplateResult {
     return seat === store.dealerSeat;
   };
 
+  // Positions are relative to the viewer: bottom is always your seat.
+  const seatForPos = (pos: 'bottom' | 'right' | 'top' | 'left'): number => {
+    const offset = pos === 'bottom' ? 0 : pos === 'right' ? 1 : pos === 'top' ? 2 : 3;
+    return (store.yourSeat + offset) % 4;
+  };
+  const bottomSeat = seatForPos('bottom');
+  const rightSeat = seatForPos('right');
+  const topSeat = seatForPos('top');
+  const leftSeat = seatForPos('left');
+
   const renderStation = (seat: number, pos: 'bottom' | 'top' | 'left' | 'right'): TemplateResult => {
     const isTurn = store.currentTurn === seat;
     return html`
@@ -102,38 +112,38 @@ export function renderBoard(store: GameStore): TemplateResult {
       <!-- Viewport Wrapper (Centers the board and displays outer HUD) -->
       <div class="board-viewport">
         <!-- Player Stations (Non-intrusive outer HUD) -->
-        ${renderStation(0, 'bottom')}
-        ${renderStation(1, 'right')}
-        ${renderStation(2, 'top')}
-        ${renderStation(3, 'left')}
+        ${renderStation(bottomSeat, 'bottom')}
+        ${renderStation(rightSeat, 'right')}
+        ${renderStation(topSeat, 'top')}
+        ${renderStation(leftSeat, 'left')}
 
         <!-- Symmetric Mahjong Table Surface (5x5 grid) -->
         <main class="board-table">
           <!-- Top Melds (Left corner of top player) -->
           <div class="zone-top-melds">
-            ${renderMelds(store.melds[2], store, 'top')}
+            ${renderMelds(store.melds[topSeat], store, 'top')}
           </div>
 
           <!-- Top Hand (Opponent 2) -->
           <div class="zone-top-hand">
-            ${renderOpponentHand(store.opponentTileCounts[2])}
+            ${renderOpponentHand(store.opponentTileCounts[topSeat])}
           </div>
 
           <!-- Right Melds (Top corner of right player) -->
           <div class="zone-right-melds">
-            ${renderMelds(store.melds[1], store, 'right')}
+            ${renderMelds(store.melds[rightSeat], store, 'right')}
           </div>
 
           <!-- Left Hand (Opponent 3) -->
           <div class="zone-left-hand">
-            ${renderOpponentHand(store.opponentTileCounts[3], true)}
+            ${renderOpponentHand(store.opponentTileCounts[leftSeat], true)}
           </div>
 
           <!-- TOP RIVER (Seat 2 Discards) -->
-          ${renderDiscards(store.discards[2], 'top', store, 2)}
+          ${renderDiscards(store.discards[topSeat], 'top', store, topSeat)}
 
           <!-- LEFT RIVER (Seat 3 Discards) -->
-          ${renderDiscards(store.discards[3], 'left', store, 3)}
+          ${renderDiscards(store.discards[leftSeat], 'left', store, leftSeat)}
 
           <!-- CENTER COMPASS (Scores, Dora, Wall, Honba) -->
           ${renderCenterInfo({
@@ -153,20 +163,20 @@ export function renderBoard(store: GameStore): TemplateResult {
           })}
 
           <!-- RIGHT RIVER (Seat 1 Discards) -->
-          ${renderDiscards(store.discards[1], 'right', store, 1)}
+          ${renderDiscards(store.discards[rightSeat], 'right', store, rightSeat)}
 
           <!-- Right Hand (Opponent 1) -->
           <div class="zone-right-hand">
-            ${renderOpponentHand(store.opponentTileCounts[1], true)}
+            ${renderOpponentHand(store.opponentTileCounts[rightSeat], true)}
           </div>
 
           <!-- Left Melds (Bottom corner of left player) -->
           <div class="zone-left-melds">
-            ${renderMelds(store.melds[3], store, 'left')}
+            ${renderMelds(store.melds[leftSeat], store, 'left')}
           </div>
 
           <!-- BOTTOM RIVER (Your Discards) -->
-          ${renderDiscards(store.discards[0], 'bottom', store, 0)}
+          ${renderDiscards(store.discards[bottomSeat], 'bottom', store, bottomSeat)}
 
           <!-- Bottom Hand & Action Bar (Player 0) -->
           <div class="zone-bottom-hand">
@@ -185,7 +195,7 @@ export function renderBoard(store: GameStore): TemplateResult {
 
           <!-- Bottom Melds (Right corner of your hand) -->
           <div class="zone-bottom-melds">
-            ${renderMelds(store.melds[0], store, 'bottom')}
+            ${renderMelds(store.melds[bottomSeat], store, 'bottom')}
           </div>
         </main>
 
@@ -207,7 +217,7 @@ export function renderBoard(store: GameStore): TemplateResult {
       <!-- Toast alerts (Kuikae and illegal actions) -->
       ${store.toast
         ? html`
-            <div class="game-toast game-toast--${store.toast.type}">
+            <div class="game-toast game-toast--${store.toast.type}" role="status" aria-live="polite">
               <span class="game-toast__icon">${store.toast.type === 'error' ? '⚠️' : '⚡'}</span>
               <span class="game-toast__text">${store.toast.text}</span>
             </div>

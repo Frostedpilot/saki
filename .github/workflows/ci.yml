@@ -51,12 +51,12 @@ jobs:
       # NaN and the match loop silently ran zero hands.
       - name: Verify the offline CLI actually plays a hand
         run: |
-          npm run smoke --silent > /tmp/saki-smoke.txt
-          grep -q 'cut' /tmp/saki-smoke.txt || {
+          SMOKE_OUT="$(npm run smoke --silent)"
+          echo "$SMOKE_OUT" | grep -qE 'FINAL\(raw\)|cut|discard' || {
             echo '::error::engine played no hands — CLI arg parsing regressed'
             exit 1
           }
-          echo "smoke ok: $(wc -l < /tmp/saki-smoke.txt) lines of play"
+          echo "smoke ok: $(echo "$SMOKE_OUT" | wc -l) lines of play"
 
       # Relative links in docs/ are easy to break and impossible to notice.
       # Paths under reference/ are gitignored upstream and are skipped.

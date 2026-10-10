@@ -107,10 +107,7 @@ class Room {
 
   // ------------------------------------------------------------ seat mgmt
   addHuman(client, name) {
-    let seat = this.seats.findIndex((s) => !s && s === null);
-    if (seat < 0) {
-      seat = this.seats.findIndex((s) => s && s.kind === 'empty');
-    }
+    const seat = this.seats.findIndex((s) => s === null);
     if (seat < 0) return -1;
     this.seats[seat] = {
       kind: 'human', name: name || `P${seat + 1}`,
@@ -145,12 +142,20 @@ class Room {
   }
 
   allHumansGone() {
-    return [0, 1, 2, 3].every((s) => !this.seats[s] || this.seats[s].kind !== 'human');
+    return [0, 1, 2, 3].every((s) => {
+      const seat = this.seats[s];
+      if (!seat || seat.kind !== 'human') return true;
+      // Mid-game disconnects keep the seat as human with connected=false
+      // plus a CPU substitute. A room with zero live connections is dead
+      // even though the seat objects still exist.
+      if (this.game && seat.connected === false) return true;
+      return false;
+    });
   }
 
   // ------------------------------------------------------------ lobby msgs
   onSetCpuConfigs(client, cpuConfigs) {
-    if (!this.game && client.seat !== this.hostSeat) {
+    if (client.seat !== this.hostSeat) {
       this.sendError(client.seat, 'NotHost', 'only the host sets CPU configs');
       return;
     }
@@ -159,13 +164,19 @@ class Room {
   }
 
   onSetPowers(client, powerSeats) {
-    if (!this.game && client.seat !== this.hostSeat) {
+    if (client.seat !== this.hostSeat) {
       this.sendError(client.seat, 'NotHost', 'only the host sets character powers');
       return;
     }
     if (Array.isArray(powerSeats) && powerSeats.length === 4) {
       const valid = ['none', 'saki', 'hisa', 'koromo', 'yuuki', 'mako', 'nodoka', 'saki-normal', 'yuu'];
-      this.powerSeats = powerSeats.map((p) => valid.includes(p) ? p : 'none');
+      const dropped = [];
+      this.powerSeats = powerSeats.map((p, i) => {
+        if (valid.includes(p)) return p;
+        dropped.push(`seat ${i}: ${JSON.stringify(p)}`);
+        return 'none';
+      });
+      if (dropped.length) this.sendError(client.seat, 'InvalidPower', `unknown power(s) replaced with none: ${dropped.join(', ')}`);
       if (this.game) this.game.powerSeats = this.powerSeats;
     }
     this.broadcastRoomState();
@@ -184,12 +195,15 @@ class Room {
     }
     if (this.game) return;
     if (this.allHumansGone()) return;
-    // Fill empty seats with CPU (config order: seats 1,2,3).
+    // Fill empty seats with CPU, consuming cpuConfigs in seat order so the
+    // mapping does not depend on which seat the host occupies.
+    const pendingConfigs = [...this.cpuConfigs];
     for (let s = 0; s < 4; s++) {
-      if (!this.seats[s] || this.seats[s].kind === 'empty') {
+      if (!this.seats[s]) {
+        const cfg = pendingConfigs.shift() || {};
         this.seats[s] = {
-          kind: 'cpu', level: (this.cpuConfigs[s - 1] || {}).level || 'Normal',
-          personality: (this.cpuConfigs[s - 1] || {}).personality || 'Balanced',
+          kind: 'cpu', level: cfg.level || 'Normal',
+          personality: cfg.personality || 'Balanced',
         };
       }
     }

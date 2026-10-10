@@ -3,7 +3,7 @@ import { GameStore, PlayerDiscards } from '../state/store';
 import { renderTile } from '../tiles/svg-tiles';
 
 const TILES_PER_ROW = 6;
-const MAX_ROWS = 3;
+const MAX_ROWS = 4;
 
 export function renderDiscards(
   discards: PlayerDiscards[],

@@ -30,9 +30,22 @@ export function renderSakiCard(props: SakiCardProps): TemplateResult {
   const charClass = CHAR_ALIAS[rawId] || rawId;
   const placementClass = `saki-card-wrapper--${props.placement || 'bottom'}`;
   const disabledClass = props.disabled ? 'disabled' : '';
+  const clickable = Boolean(props.onClick && !props.disabled);
+  // saki-normal shares Saki's sprite; disambiguate via title for tooltips/AT.
+  const title = rawId === 'saki-normal' ? 'Saki Miyanaga — Ridge Resonance [Normal]' : rawId;
 
   return html`
-    <div class="saki-card-wrapper ${placementClass}" @click=${props.onClick || null}>
+    <div
+      class="saki-card-wrapper ${placementClass} ${clickable ? 'is-clickable' : ''}"
+      role=${clickable ? 'button' : 'presentation'}
+      tabindex=${clickable ? '0' : '-1'}
+      aria-label=${clickable ? title : null}
+      title=${title}
+      @click=${clickable ? props.onClick : null}
+      @keydown=${clickable
+        ? (e: KeyboardEvent) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); props.onClick?.(); } }
+        : null}
+    >
       <div class="saki-card ${charClass} ${disabledClass}"></div>
       <div class="saki-card-preview ${charClass}"></div>
     </div>

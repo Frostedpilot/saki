@@ -85,11 +85,13 @@ test('botDiscard: riichi locks tsumogiri; full ban falls back safely', () => {
 });
 
 // ---- chiOptions exclusions ----
-test('chiOptions: aka and honors excluded; shapes offered', () => {
-  assert.deepEqual(H.chiOptions(['1m'], '0p'), []);
+test('chiOptions: honors excluded, aka completable; shapes offered', () => {
   assert.deepEqual(H.chiOptions(['1m'], '5z'), []);
   assert.deepEqual(H.chiOptions(['1p', '2p'], '3p'), [[1, 2]]);
   assert.deepEqual(H.chiOptions(['1p', '3p'], '2p'), [[1, 3]]);
+  // Aka discard folds to its five: 3p+4p can chi an aka 0p (=5p).
+  assert.deepEqual(H.chiOptions(['3p', '4p'], '0p'), [[3, 4]]);
+  assert.deepEqual(H.chiOptions(['0p', '1p', '2p'], '3p'), [[1, 2]]);
 });
 
 // ---- tile primitives ----

@@ -15,8 +15,12 @@ import { fileURLToPath } from 'node:url';
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const SKIP_DIRS = new Set(['node_modules', '.git', 'dist', 'reference']);
 
-// Match the target of an inline markdown link: [text](target)
-const LINK_RE = /\]\(\s*([^)\s]+)(?:\s+"[^"]*")?\s*\)/g;
+// Match the target of an inline markdown link: [text](target) with optional
+// 'title' or "title", plus <target> autolinks. [ref] definitions are resolved
+// separately below.
+const LINK_RE = /\]\(\s*(<[^>\s]+>|[^)\s]+)(?:\s+(?:"[^"]*"|'[^']*'))?\s*\)/g;
+const AUTOLINK_RE = /<((?:\.?\.?\/[^>\s]*|#[^>\s]*))>/g;
+const REF_DEF_RE = /^\s*\[[^\]]+\]:\s*(\S+)/gm;
 
 const files = globSync('**/*.md', { cwd: ROOT, posix: false })
   .filter((p) => !p.split(/[\\/]/).some((seg) => SKIP_DIRS.has(seg)));
@@ -28,12 +32,22 @@ for (const rel of files) {
   const abs = join(ROOT, rel);
   const text = readFileSync(abs, 'utf8');
   const dir = dirname(abs);
-  for (const [, target] of text.matchAll(LINK_RE)) {
+  const targets = [
+    ...[...text.matchAll(LINK_RE)].map((m) => m[1]),
+    ...[...text.matchAll(AUTOLINK_RE)].map((m) => m[1]),
+    ...[...text.matchAll(REF_DEF_RE)].map((m) => m[1]),
+  ];
+  for (let target of targets) {
     if (/^(https?:|file:|mailto:|data:)/i.test(target)) continue;
     if (target.startsWith('#')) continue;
+    if (target.startsWith('<') && target.endsWith('>')) target = target.slice(1, -1);
+    // Skip HTML closing tags caught by the autolink pattern (e.g. </a> from
+    // <a id="..."> anchors): a bare /tagname is not a link target.
+    if (/^\/[A-Za-z][A-Za-z0-9]*$/.test(target)) continue;
     if (target.startsWith('reference/')) continue;
-    // Strip an anchor/query before resolving.
-    const clean = target.split('#')[0].split('?')[0];
+    // Strip an anchor/query before resolving; decode %20 etc.
+    let clean = target.split('#')[0].split('?')[0];
+    try { clean = decodeURIComponent(clean); } catch { /* keep raw */ }
     if (clean === '') continue;
     checked++;
     if (!existsSync(join(dir, clean))) {

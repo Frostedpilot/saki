@@ -3,9 +3,9 @@
 // deal/draw/discard sequence through core.js to verify every logged draw
 // was live and conservation holds at every step.
 //
-// Action format: [seat, type, payload]
-//   ['draw', seat, tile] | ['discard', seat, tile] | ['call', seat, {...}]
-// Journal integrity here covers tile flow, not hidden bot intent.
+// NOTE: experimental, tests-only — no production writer calls
+// createJournal/record yet, and 'call'/meld actions are skipped by the
+// verifier (tile flow only, not hidden bot intent).
 const core = require('./core');
 const { assertDeadWall } = require('./invariants');
 
@@ -28,6 +28,12 @@ function fromJSON(str) {
   if (typeof j.initialSeed !== 'number' || !Array.isArray(j.actions)) {
     throw new Error('replay.fromJSON: invalid journal');
   }
+  // A journal without per-kyoku seeds replays via createRNG(undefined),
+  // which is a nondeterministic Math.random wrapper — it "verifies" nothing.
+  // Require the seeds array up front instead of failing deep in verifyJournal.
+  if (!Array.isArray(j.kyokuSeeds)) {
+    throw new Error('replay.fromJSON: missing kyokuSeeds (cannot deterministically verify)');
+  }
   return j;
 }
 
@@ -44,6 +50,7 @@ function verifyKyoku(kyokuSeed, actions) {
   let draws = 0, discards = 0;
   for (const [type, seat, payload] of actions) {
     if (type === 'kyoku') continue;
+    if (type === 'call') continue; // meld/kan bookkeeping: no tile-flow assertion yet
     if (type === 'draw') {
       if (!state.pool.get(payload)) throw new Error(`replay: draw ${payload} not live (seat ${seat})`);
       state.pool.decrement(payload);
@@ -64,6 +71,9 @@ function verifyKyoku(kyokuSeed, actions) {
 }
 
 function verifyJournal(journal) {
+  if (!journal || !Array.isArray(journal.kyokuSeeds) || !Array.isArray(journal.actions)) {
+    throw new Error('replay.verifyJournal: invalid journal (missing kyokuSeeds/actions)');
+  }
   let kyoku = -1;
   let total = { draws: 0, discards: 0 };
   let current = [];

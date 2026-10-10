@@ -42,6 +42,10 @@ const {
   canRiichi, bakazeOf, roundLabel, clearAllIppatsu, ankanKeepsWaits,
   isSuufonRenda, isSuukaikanAbort, isNagashi, applyOkaUma,
 } = require('./helpers');
+// Shared hand-transition table with server/table.js (KI-04): dealer repeat,
+// honba, noten schedule, han floor. The turn loops stay separate (sync CLI vs
+// async WS); only the decisions are shared.
+const MF = require('./match-flow');
 
 const POWERS = ['none', 'saki', 'kuro', 'koromo', 'yuuki', 'hisa'];
 // Accepts both `--flag=value` and `--flag value` (incl. negative values like
@@ -368,7 +372,7 @@ async function main() {
       if (di < 14) { doraInd.push(dead[di]); uraInd.push(dead[ui]); }
     };
     const baseDora = () => doraInd.map(DORA_NEXT);
-    const ctx = { dora: baseDora(), bakaze, jikaze: 1, riichi: false, roundWind: 'E', riichiPool: riichiCarry };
+    const ctx = { dora: baseDora(), bakaze, jikaze: 1, riichi: false, roundWind: bakaze === 1 ? 'E' : 'S', riichiPool: riichiCarry };
     riichiCarry = 0;
     const P = [0, 1, 2, 3].map(i => ({
       id: i, hand: [], melds: [], discards: [], riichi: false, doubleRiichi: false,
@@ -416,12 +420,13 @@ async function main() {
     let turn = dealer, winner = -1, winBy = null, draws = 0;
     let demoAbort = demoAbortOnce; demoAbortOnce = null;
     const allLast = kyoku === KYOKU_N - 1;
-    const minHan = overtime ? 2 : 1; // ryanhan-shibari during enchousen
+    const minHan = MF.minHan(overtime); // ryanhan-shibari during enchousen
     if (overtime) console.log('  ryanhan-shibari: wins need 2+ han');
 
     const declareRiichi = (pl, firstClass, locked13) => {
       pl.riichi = true; pl.doubleRiichi = firstClass;
-      pl.ippatsu = true; // expires on any call or on declarer's next discard
+      pl.ippatsu = true; // expires on any call or on declarer's NEXT discard
+      pl.ippatsuJustDeclared = true; // the declaring discard itself must not clear it
       scores[pl.id] -= RULES.riichiValue; ctx.riichiPool += RULES.riichiValue;
       // snapshot waits: later ankans must not change them (else chombo)
       pl.riichiWaits = locked13 ? getWaits({ hand: [...locked13], melds: [] }, P, dead, { dora: [], bakaze, jikaze: 1 }) : [];
@@ -652,7 +657,10 @@ async function main() {
       }
       const disc = me.hand.splice(di, 1)[0];
       me.discards.push(disc);
-      me.ippatsu = false; // one lap over for declarer
+      // Ippatsu survives the declaring discard and expires on the declarer's
+      // next discard (or on any call via clearAllIppatsu).
+      if (me.ippatsuJustDeclared) me.ippatsuJustDeclared = false;
+      else me.ippatsu = false; // one lap over for declarer
       const isHoutei = wallFull.length === 0;
       if (draws % 8 === 0 || me.riichi) console.log(`  ${names[turn]} discard ${disc} (sh=${shantenOf(me.hand)}) discards:${me.discards.slice(-6).join('')}`);
       else console.log(`  ${names[turn]} cut ${disc} (sh=${shantenOf(me.hand)})`);
@@ -735,6 +743,7 @@ async function main() {
             }
             revealKanDora(); ctx.dora = baseDora();
             console.log(`  new dora=${ctx.dora}`);
+            if (rinshanIdx < 4) {
             const rt = dead[rinshanIdx++];
             P[q].hand.push(rt);
             console.log(`  ${names[q]} rinshan draw ${rt}`);
@@ -749,6 +758,7 @@ async function main() {
               winBy = tsumoWin(P[q], q, trs, true, false);
               break;
             }
+            } else console.log('  no rinshan tiles left');
             const dc = await discardAfterCall(P[q], q, jikazeOf, ask);
             const hitsD = await collectRon(dc, q, { houtei: wallFull.length === 0, minHan });
             if (tripleRonAbort(hitsD)) {
@@ -837,10 +847,15 @@ async function main() {
       return scoreHand(closed, melds, tile, isTsumo, { ...flags, dora });
     }
     function tsumoWin(pl, seat, r0, rinshan, haitei) {
+      // Tenhou/chihou eligibility is a single definition: closed first-draw
+      // win with no calls having been made. The payment must use the same
+      // test as the draw-time eligibility (firstDrawOfKyoku), not a looser
+      // copy that tolerates a meld or a call.
+      const tenhouEligible = pl.discards.length === 0 && pl.melds.length === 0 && callsMade === 0 && drawsThisKyoku <= 4 && !rinshan;
       const r = rescore(pl, pl.hand, pl.melds, null, true, {
         bakaze, jikaze: jikazeOf(seat), riichi: pl.riichi, doubleRiichi: pl.doubleRiichi,
         ippatsu: pl.ippatsu, kanFlag: rinshan, lastFlag: haitei,
-        tenhou: pl.discards.length === 0 && pl.melds.length <= 1 && callsMade <= 1 && drawsThisKyoku <= 4 && !rinshan ? true : false,
+        tenhou: tenhouEligible ? true : false,
       });
       const tag = [rinshan && 'RINSHAN', haitei && 'HAITEI', pl.ippatsu && 'IPPATSU', pl.doubleRiichi && 'W-RIICHI'].filter(Boolean).join(' ');
       return { type: 'tsumo', r, tag };
@@ -892,7 +907,8 @@ async function main() {
       kyoku--; // replay same kyoku number
       keepDealer = true;
     } else if (winner >= 0) {
-      const dealerWon = winBy.type === 'tsumo' ? winner === dealer : winBy.wins.some(w => w.seat === dealer);
+      const winnerSeats = winBy.type === 'tsumo' ? [winner] : winBy.wins.map((w) => w.seat);
+      const dealerWon = MF.dealerWonOnWin(winBy.type, winnerSeats, dealer);
       if (winBy.type === 'tsumo') {
         const r = winBy.r;
         console.log(`\n*** TSUMO ${names[winner]} ${winBy.tag || ''} ${r.text} ${JSON.stringify(r.yaku)} ten=${r.ten} ***`);
@@ -911,8 +927,9 @@ async function main() {
         scores[winBy.wins[0].seat] += ctx.riichiPool; ctx.riichiPool = 0;
       }
       console.log(`scores: ${scores.join('/')}`);
-      if (scores.some(s => s < 0)) {
-        console.log(`TOBI BUST-OUT (${names[scores.findIndex(s => s < 0)]}) - match over`);
+      const bust = MF.bustOutSeat(scores);
+      if (bust >= 0) {
+        console.log(`TOBI BUST-OUT (${names[bust]}) - match over`);
         matchOver = true;
       }
       else if (allLast && dealerWon && scores[dealer] > Math.max(...scores.filter((_, i) => i !== dealer))) {
@@ -952,15 +969,16 @@ async function main() {
         scores[order[0]] += ctx.riichiPool; ctx.riichiPool = 0;
       } else if (nTen > 0 && nTen < 4) {
         // standard: 1 tenpai: +3000/-1000; 2: +1500/-1500; 3: +1000/-3000
-        const give = [0, RULES.notenTotal, RULES.notenTotal / 2, RULES.notenTotal / 3][nTen], take = [0, RULES.notenTotal / 3, RULES.notenTotal / 2, RULES.notenTotal][nTen];
+        const { give, take } = MF.notenPayments(nTen);
         for (let i = 0; i < 4; i++) scores[i] += tenpai[i] ? give : -take;
         console.log(`noten payments (ten ${nTen}: +${give}/-${take})`);
       }
       honba++;
       riichiCarry = ctx.riichiPool;
       console.log(`scores: ${scores.join('/')} (honba ${honba}, carry ${riichiCarry})`);
-      if (scores.some(s => s < 0)) {
-        console.log(`TOBI BUST-OUT (${names[scores.findIndex(s => s < 0)]}) - match over`);
+      const bust2 = MF.bustOutSeat(scores);
+      if (bust2 >= 0) {
+        console.log(`TOBI BUST-OUT (${names[bust2]}) - match over`);
         matchOver = true;
       } else {
         keepDealer = tenpai[dealer]; // dealer repeats when tenpai at exhaustive

@@ -86,7 +86,7 @@ function botWantsCall(afterShantenGain, closedOnly, rand = Math.random) {
 // Chi sequence options pair of ranks (numbers) using two hand tiles.
 function chiOptions(hand, tile) {
   const t = norm(tile);
-  if (t[1] === 'z' || t[0] === '0') return [];
+  if (t[1] === 'z') return [];
   const n = parseInt(t[0], 10), s = t[1];
   const has = (x) => hand.some((h) => norm(h) === x + s);
   const opts = [];

@@ -50,31 +50,41 @@ class PowerDispatcher {
   // Phase 0
   onPreDeal(seat, ctx) {
     const h = this.hooksFor(seat);
-    if (h.onPreDeal) return h.onPreDeal(ctx);
+    if (h.onPreDeal) {
+      try { return h.onPreDeal(ctx); } catch (e) { warnHook('onPreDeal', seat, e); }
+    }
     return null;
   }
   // Phase 1
   onWallSetup(seat, ctx) {
     const h = this.hooksFor(seat);
-    if (h.onWallSetup) return h.onWallSetup(ctx);
+    if (h.onWallSetup) {
+      try { return h.onWallSetup(ctx); } catch (e) { warnHook('onWallSetup', seat, e); }
+    }
     return null;
   }
 
   getTierInfo(seat, state) {
     const h = this.hooksFor(seat);
-    if (typeof h.getTierInfo === 'function') return h.getTierInfo(state);
+    if (typeof h.getTierInfo === 'function') {
+      try { return h.getTierInfo(state); } catch (e) { warnHook('getTierInfo', seat, e); }
+    }
     return [];
   }
 
   onTurnStart(seat, state, opts) {
     const h = this.hooksFor(seat);
-    if (typeof h.onTurnStart === 'function') return h.onTurnStart(state, opts);
+    if (typeof h.onTurnStart === 'function') {
+      try { return h.onTurnStart(state, opts); } catch (e) { warnHook('onTurnStart', seat, e); }
+    }
     return { activated: false, reason: 'no-hook' };
   }
 
   onKanDeclared(seat, state, opts) {
     const h = this.hooksFor(seat);
-    if (typeof h.onKanDeclared === 'function') return h.onKanDeclared(state, opts);
+    if (typeof h.onKanDeclared === 'function') {
+      try { return h.onKanDeclared(state, opts); } catch (e) { warnHook('onKanDeclared', seat, e); }
+    }
     return { activated: false, reason: 'no-hook' };
   }
   // Phase 2: per-tile weight. Must return >= 0. Default 1.0.
@@ -101,28 +111,39 @@ class PowerDispatcher {
   // multiple enforcers compose multiplicatively (order-independent).
   applyAllFieldAuras(drawSeat, weights, state) {
     let w = weights;
-    for (const [, h] of this.registry) {
+    for (const [seat, h] of this.registry) {
       if (typeof h.applyFieldAura === 'function') {
-        const next = h.applyFieldAura(drawSeat, w, state);
-        if (next) w = next;
+        try {
+          const next = h.applyFieldAura(drawSeat, w, state);
+          if (next) w = next;
+        } catch (e) { warnHook('applyFieldAura', seat, e); }
       }
     }
     return w;
   }
   onPostDraw(seat, tile, state) {
     const h = this.hooksFor(seat);
-    if (h.onPostDraw) h.onPostDraw(tile, state);
+    if (h.onPostDraw) {
+      try { h.onPostDraw(tile, state); } catch (e) { warnHook('onPostDraw', seat, e); }
+    }
   }
   // Phase 2b: field aura dampening of opponent weights (default: identity)
+  // NOTE: single-seat wrapper kept for compatibility; the canonical path is
+  // applyAllFieldAuras(drawSeat, weights, state) with the draw-seat first.
   applyFieldAura(seat, weights, state) {
     const h = this.hooksFor(seat);
-    if (h.applyFieldAura) return h.applyFieldAura(weights, state) || weights;
+    if (h.applyFieldAura) {
+      try { return h.applyFieldAura(seat, weights, state) || weights; }
+      catch (e) { warnHook('applyFieldAura', seat, e); }
+    }
     return weights;
   }
   // Phase 2c: turn clock (default 10s)
   getTurnClock(seat, state) {
     const h = this.hooksFor(seat);
-    if (h.getTurnClock) return h.getTurnClock(state);
+    if (h.getTurnClock) {
+      try { return h.getTurnClock(state); } catch (e) { warnHook('getTurnClock', seat, e); }
+    }
     return 10;
   }
   // Phase 3

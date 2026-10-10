@@ -202,13 +202,13 @@ describe('renderDiscards', () => {
       .map((r) => r.querySelectorAll('.discard-pond__tile-wrapper').length)).toEqual([6, 6, 6]);
   });
 
-  test('tiles past 18 overflow into the last row rather than adding a fourth', () => {
-    // A hand cannot normally exceed 18 discards, but the layout must not produce a
-    // stray row that breaks the grid.
+  test('tiles past 18 flow into a fourth row', () => {
+    // Long hands (Preston/chiitoitsu grinds) can exceed 18 discards; the pond
+    // grows to a fourth row instead of piling into the last one.
     const host = mount(renderDiscards(pond(21)));
-    expect(host.querySelectorAll('.discard-pond__row').length).toBe(3);
+    expect(host.querySelectorAll('.discard-pond__row').length).toBe(4);
     expect([...host.querySelectorAll('.discard-pond__row')]
-      .map((r) => r.querySelectorAll('.discard-pond__tile-wrapper').length)).toEqual([6, 6, 9]);
+      .map((r) => r.querySelectorAll('.discard-pond__tile-wrapper').length)).toEqual([6, 6, 6, 3]);
   });
 
   test('a riichi discard is rotated', () => {
@@ -346,17 +346,15 @@ describe('renderSakiCard', () => {
     expect(clicks).toBe(1);
   });
 
-  // Documented as a live question rather than asserted as a bug: every current caller
-  // (board.ts, lobby-view.ts, round-modal.ts) passes neither onClick nor disabled, so
-  // the combination is unreachable today. If a caller ever wires a click handler onto a
-  // disabled card, it will fire — which is what this test would then catch.
-  test('KNOWN GAP: disabled does not currently suppress onClick', () => {
+  // Fixed: disabled now suppresses onClick (guard in renderSakiCard). Every
+  // current caller passes neither prop, so the combination remains
+  // unreachable — but if one ever wires it, the disabled card stays inert.
+  test('disabled suppresses onClick', () => {
     let clicks = 0;
     const host = mount(renderSakiCard({
       character: 'saki', disabled: true, onClick: () => { clicks++; },
     }));
     (host.querySelector('.saki-card-wrapper') as HTMLElement).dispatchEvent(new Event('click'));
-    // Asserted as-is so the behaviour is recorded. Changing it is a deliberate decision.
-    expect(clicks).toBe(1);
+    expect(clicks).toBe(0);
   });
 });

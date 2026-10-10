@@ -1,6 +1,8 @@
 import { defineConfig } from 'vite';
 import path from 'path';
 
+const bridgePort = process.env.PORT || process.env.SAKI_BRIDGE_PORT || '24141';
+
 export default defineConfig({
   resolve: {
     alias: {
@@ -11,7 +13,7 @@ export default defineConfig({
     port: 3000,
     proxy: {
       '/ws': {
-        target: 'ws://127.0.0.1:24141',
+        target: `ws://127.0.0.1:${bridgePort}`,
         ws: true,
         changeOrigin: true,
       },

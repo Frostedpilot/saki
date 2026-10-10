@@ -64,7 +64,7 @@ export function renderActionBar(store: GameStore): TemplateResult {
         ? html`<button class="action-bar__btn" @click=${() => store.callChi()}>CHI</button>`
         : ''}
       ${actions.can_kan
-        ? html`<button class="action-bar__btn" @click=${() => store.callKan(0)}>KAN</button>`
+        ? html`<button class="action-bar__btn" @click=${() => store.callKan()}>KAN</button>`
         : ''}
       <button class="action-bar__btn action-bar__btn--pass" @click=${() => store.passAction()}>PASS</button>
     </div>

@@ -22,7 +22,7 @@ export function renderPlayerHand(props: HandProps): TemplateResult {
     const banned = isBanned(tile);
     const isRiichiMode = Boolean(store?.isRiichiMode);
     const isRiichiCandidate = Boolean(isRiichiMode && store?.riichiCandidateIndices.has(tileIdx));
-    const clickable = props.canDiscard && (inRiichi ? isDrawn : (!isRiichiMode || isRiichiCandidate));
+    const clickable = props.canDiscard && !banned && (inRiichi ? isDrawn : (!isRiichiMode || isRiichiCandidate));
     const grayed = banned || (isRiichiMode && !isRiichiCandidate) || (inRiichi && !isDrawn);
 
     return renderTile(tile, {

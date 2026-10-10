@@ -19,6 +19,9 @@ export function renderLobby(store: GameStore): TemplateResult {
 
   const handleCreateRoom = (e: Event) => {
     e.preventDefault();
+    const nameInput = (document.getElementById('player-name-input') as HTMLInputElement)?.value;
+    const name = (nameInput || '').trim() || 'Player';
+    store.sendHello(name);
     store.createRoom();
   };
 
@@ -53,11 +56,13 @@ export function renderLobby(store: GameStore): TemplateResult {
           ? html`
               <form class="lobby-form" @submit=${handleCreateRoom}>
                 <div class="lobby-form__row">
+                  <label class="lobby-form__label" for="player-name-input">Display name</label>
                   <input
                     id="player-name-input"
                     class="lobby-form__input"
                     type="text"
                     placeholder="Your Name"
+                    aria-label="Display name"
                     value="Player"
                   />
                   <button type="submit" class="lobby-form__btn">Create Room</button>
@@ -66,11 +71,13 @@ export function renderLobby(store: GameStore): TemplateResult {
 
               <form class="lobby-form" @submit=${handleJoinRoom}>
                 <div class="lobby-form__row">
+                  <label class="lobby-form__label" for="join-room-code">Room code</label>
                   <input
                     id="join-room-code"
                     class="lobby-form__input"
                     type="text"
                     placeholder="Enter Room Code (e.g. 7X9AB2)"
+                    aria-label="Room code"
                     maxlength="6"
                   />
                   <button type="submit" class="lobby-form__btn lobby-form__btn--secondary">Join Room</button>
@@ -82,7 +89,10 @@ export function renderLobby(store: GameStore): TemplateResult {
                 <span style="font-size: 1.1rem; color: #ffd700;">Room: <strong>${store.roomCode}</strong></span>
                 <div style="display: flex; align-items: center; gap: 8px;">
                   <span style="font-size: 0.85rem; color: #94a3b8;">Bot Difficulty:</span>
+                  <label class="lobby-form__label" for="cpu-level-select">Bot difficulty</label>
                   <select
+                    id="cpu-level-select"
+                    aria-label="Bot difficulty"
                     style="background: #0f172a; color: #4ecca3; border: 1px solid rgba(255,255,255,0.2); border-radius: 4px; padding: 2px 8px; font-weight: 600; outline: none; cursor: pointer;"
                     .value=${store.cpuLevel}
                     @change=${handleCpuLevelChange}
@@ -110,7 +120,10 @@ export function renderLobby(store: GameStore): TemplateResult {
                           placement: 'bottom',
                         })}
 
+                        <label class="lobby-form__label" for="power-select-${seat}">Seat ${seat} power</label>
                         <select
+                          id="power-select-${seat}"
+                          aria-label="Seat ${seat} power"
                           .value=${store.powerSeats[seat] || 'none'}
                           @change=${(e: any) => handlePowerChange(seat, e.target.value)}
                         >

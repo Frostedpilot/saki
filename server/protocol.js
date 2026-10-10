@@ -26,7 +26,8 @@ function sakiToTile(code) {
 
 // {index:4, red_dora:true} -> "0m"; {index:27,...} -> "1z"
 function tileToSaki(tile) {
-  if (!tile || typeof tile.index !== 'number') return null;
+  if (!tile || typeof tile.index !== 'number' || !Number.isInteger(tile.index)) return null;
+  if (tile.index < 0 || tile.index > 33) return null;
   const { index, red_dora } = tile;
   if (index >= 27) return (index - 27 + 1) + 'z';
   const s = 'mps'[Math.floor(index / 9)];
@@ -266,17 +267,33 @@ function parseAction(payload) {
   if (payload === 'Tsumo') return { ok: true, kind: 'Action', action: { type: 'Tsumo' } };
   if (payload === 'Ron') return { ok: true, kind: 'Action', action: { type: 'Ron' } };
   if (payload === 'Pass') return { ok: true, kind: 'Action', action: { type: 'Pass' } };
-  if (payload === 'Pei') return { ok: true, kind: 'Action', action: { type: 'Pei' } };
+  // Pei (nuki dora) and NineTerminals are not implemented by the table driver.
+  // Reject them explicitly so they never sit in the mailbox as stale intents.
+  if (payload === 'Pei') return { ok: false };
   if (typeof payload !== 'object' || payload === null) return { ok: false };
   const k = Object.keys(payload)[0];
   const p = payload[k] || {};
   switch (k) {
-    case 'Discard': return { ok: true, kind: 'Action', action: { type: 'Discard', tile: p.tile ? tileToSaki(p.tile) : null } };
-    case 'Riichi': return { ok: true, kind: 'Action', action: { type: 'Riichi', tile: p.tile ? tileToSaki(p.tile) : null } };
+    case 'Discard': {
+      if (p.tile === undefined || p.tile === null) return { ok: true, kind: 'Action', action: { type: 'Discard', tile: null } };
+      const t = tileToSaki(p.tile);
+      if (t === null) return { ok: false };
+      return { ok: true, kind: 'Action', action: { type: 'Discard', tile: t } };
+    }
+    case 'Riichi': {
+      if (p.tile === undefined || p.tile === null) return { ok: true, kind: 'Action', action: { type: 'Riichi', tile: null } };
+      const t = tileToSaki(p.tile);
+      if (t === null) return { ok: false };
+      return { ok: true, kind: 'Action', action: { type: 'Riichi', tile: t } };
+    }
     case 'Chi': return { ok: true, kind: 'Action', action: { type: 'Chi', tiles: tilesToSaki(p.tiles) } };
     case 'Pon': return { ok: true, kind: 'Action', action: { type: 'Pon', tiles: tilesToSaki(p.tiles) } };
-    case 'Kan': return { ok: true, kind: 'Action', action: { type: 'Kan', tile_index: p.tile_index ?? 0 } };
-    case 'NineTerminals': return { ok: true, kind: 'Action', action: { type: 'NineTerminals', declare: !!p.declare } };
+    case 'Kan': {
+      const idx = p.tile_index;
+      if (!Number.isInteger(idx) || idx < 0 || idx > 33) return { ok: false };
+      return { ok: true, kind: 'Action', action: { type: 'Kan', tile_index: idx } };
+    }
+    case 'NineTerminals': return { ok: false };
     case 'SelectPowerTier': return { ok: true, kind: 'Action', action: { type: 'SelectPowerTier', tier: typeof p.tier === 'number' ? p.tier : 0 } };
     default: return { ok: false };
   }

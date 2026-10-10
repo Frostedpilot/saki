@@ -107,7 +107,13 @@ export class GameSocket {
   }
 
   private notifyStatus(status: 'connecting' | 'connected' | 'disconnected'): void {
-    this.statusHandlers.forEach((h) => h(status));
+    for (const h of this.statusHandlers) {
+      try {
+        h(status);
+      } catch (e) {
+        console.error('[ws] Status handler threw:', e);
+      }
+    }
   }
 
   private getDefaultUrl(): string {

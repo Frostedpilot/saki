@@ -19,6 +19,12 @@ cleanup() {
 trap cleanup INT TERM EXIT
 
 echo "Both servers are running!"
-echo "Bridge: http://127.0.0.1:24141  Client: http://localhost:3000"
+echo "Bridge: http://127.0.0.1:${PORT:-24141}  Client: http://localhost:3000"
 echo "Press Ctrl+C to stop both."
-wait
+# -n: return when the FIRST child exits (e.g. bridge crash), so a dead
+# bridge doesn't leave `wait` blocking forever on the surviving client.
+wait -n
+status=$?
+cleanup
+trap - INT TERM EXIT
+exit $status

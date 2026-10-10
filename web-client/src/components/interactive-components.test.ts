@@ -158,22 +158,15 @@ describe('renderPlayerHand', () => {
     expect(discarded.length).toBe(0);
   });
 
-  test('a banned tile still gets the clickable class, which contradicts being grayed', () => {
-    // KNOWN INCONSISTENCY, not a functional bug. Clicking a banned tile is routed
-    // correctly (to onBannedClick, never to onDiscard — asserted above), and it is
-    // grayed. But `clickable` is computed without regard for `banned`, and the stylesheet
-    // gives --clickable a pointer cursor plus a hover lift and glow. So the tile reads
-    // "unavailable" and "come click me" at the same time.
-    //
-    // Both readings are defensible: excluding banned tiles from clickable removes the
-    // affordance for finding out *why*, while keeping it gives a grayed tile a hover
-    // animation that implies it can be picked up. Asserted as-is rather than changed,
-    // because picking a side is a UX decision, not a bug fix.
+  test('a banned tile is grayed and not clickable', () => {
+    // Fixed: `clickable` now excludes banned tiles, so a kuikae-banned tile no
+    // longer gets pointer-cursor + hover lift while grayed. Clicking still
+    // routes to onBannedClick (asserted above) so the *why* affordance remains.
     const host = mount(renderPlayerHand(handProps({
       tiles: tiles(0, 1, 2), canDiscard: true, bannedIndices: [1],
     })));
     expect(grayed(host).length).toBe(1);
-    expect(clickable(host).length, 'as implemented: the banned tile is still clickable').toBe(3);
+    expect(clickable(host).length).toBe(2);
   });
 
   test('every copy of a banned kind is banned, not just one position', () => {
@@ -365,11 +358,12 @@ describe('renderActionBar', () => {
     expect(store.calls).toEqual(['callPon', 'callChi']);
   });
 
-  test('KAN passes tile index 0, which the store resolves', () => {
+  test('KAN defers tile resolution to the store (pendingKanIndex)', () => {
     const store = fakeStore();
     store.actions.can_kan = true;
     btn(mount(renderActionBar(store)), 'KAN')!.dispatchEvent(new Event('click'));
-    expect(store.calls).toEqual(['callKan:0']);
+    // Action-bar passes no hardcoded index; the store resolves pendingKanIndex.
+    expect(store.calls).toEqual(['callKan:undefined']);
   });
 
   test('RIICHI enters riichi mode rather than declaring directly', () => {

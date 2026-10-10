@@ -81,8 +81,12 @@ test('each shared constant is actually referenced, not merely imported', () => {
   // Catches the failure mode this file exists for: an import that is never used, or
   // a config entry nobody reads. `rules-config.js` was dead for its entire life and
   // only a human noticed.
-  const gameUses = ['startScore', 'riichiValue', 'honbaTsumo', 'honbaRon', 'notenTotal'];
-  const tableUses = ['startScore', 'riichiValue', 'honbaTsumo', 'honbaRon', 'notenTotal'];
+  // notenTotal/minHan may be consumed via engine/match-flow.js (notenPayments,
+  // minHan), which itself reads RULES — that indirection is the KI-04 sharing,
+  // not dead config. So those two accept either a direct RULES.* use or the
+  // match-flow call.
+  const gameUses = ['startScore', 'riichiValue', 'honbaTsumo', 'honbaRon'];
+  const tableUses = ['startScore', 'riichiValue', 'honbaTsumo', 'honbaRon'];
   for (const key of gameUses) {
     assert.match(GAME_JS, new RegExp(`RULES\\.${key}\\b`),
       `engine/game.js should use RULES.${key}`);
@@ -90,6 +94,11 @@ test('each shared constant is actually referenced, not merely imported', () => {
   for (const key of tableUses) {
     assert.match(TABLE_JS, new RegExp(`RULES\\.${key}\\b`),
       `server/table.js should use RULES.${key}`);
+  }
+  for (const [name, src] of [['engine/game.js', GAME_JS], ['server/table.js', TABLE_JS]]) {
+    const direct = new RegExp('RULES\\.notenTotal\\b').test(src);
+    const viaFlow = /notenPayments|match-flow/.test(src);
+    assert.ok(direct || viaFlow, `${name} should consume notenTotal directly or via match-flow`);
   }
 });
 
