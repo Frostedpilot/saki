@@ -24,8 +24,10 @@ const RULES = {
   maxKan: 4,
   rinshanSlots: 4,
   deadWallLength: 14,
-  // Abortive draws. game.js enables all five; server/room.js enables none
-  // (see room.js header). Flip a flag only together with its handler.
+  // Abortive draws. game.js enables all five; the server implements all five
+  // too (kyuushu has a documented human limitation: no deal-time prompt, so
+  // human 9-kind hands auto play on — see table.js checkKyuushu).
+  // Flip a flag only together with its handler.
   aborts: {
     kyuushuKyuuhai: true,
     suufonRenda: true,
@@ -34,12 +36,10 @@ const RULES = {
     tripleRon: true,
   },
   serverAborts: {
-    kyuushuKyuuhai: false,
-    suufonRenda: false,
-    suukaikan: false,
-    suuchaRiichi: false,
-    // Implemented (finishHand detects 3+ ron claims); the other four have no
-    // server-side detection/settlement. See table.js header + KI-04.
+    kyuushuKyuuhai: true,
+    suufonRenda: true,
+    suukaikan: true,
+    suuchaRiichi: true,
     tripleRon: true,
   },
 };

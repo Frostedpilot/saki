@@ -564,6 +564,7 @@ export class GameStore {
     BlessingOfEarth: 'Chihou',
     AllTriplets: 'Toitoi',
     ThreeConcealedTriplets: 'Sanankou',
+    NagashiMangan: 'Nagashi Mangan',
   };
 
   private static readonly DORA_LABELS: Record<string, string> = {

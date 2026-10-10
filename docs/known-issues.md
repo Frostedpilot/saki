@@ -362,6 +362,47 @@ once per hook, and `resetHookWarnings()` is exported for tests.
 
 ---
 
+## <a id="ki-25"></a>KI-25 ✅ FIXED — the server implemented one of five abortive draws, no nagashi, no agari-yame
+
+The KI-04 rule divergence in its starkest form: `engine/game.js` implemented
+all five abortive draws, nagashi mangan, agari-yame/enchousen and chombo
+settlement, while `server/table.js` implemented only triple ron. Four aborts
+were unreachable, nagashi hands paid as noten draws, and all-last always ended
+exactly on time.
+
+**Fixed** — the server now implements all five aborts plus nagashi mangan,
+agari-yame/enchousen (with overtime ryanhan-shibari via the shared
+`MF.minHan`), and the shared transition table from the KI-04 follow-up:
+
+- `checkKyuushu` (deal time, turn order, CPU 0.8 declare rate mirroring
+  `game.js`), `checkLapAbort` (suucha-riichi pending flag + suufon-renda first-lap
+  accumulator, fired on fully-unclaimed discards so ron keeps precedence),
+  suukaikan via the shared `H.isSuukaikanAbort` at both kan sites, and chankan
+  triple-ron.
+- One `abortHand(reason)` settlement for all six paths (void hand, sticks
+  carry, dealer repeats + honba).
+- Nagashi mangan in `finishHand` (turn-order mangan tsumo payments, sticks to
+  the first seat, one `RoundWon` each, `nagashiSeats` threaded through dealer
+  rotation).
+- `checkMatchEnd` (agari-yame on a leading dealer win at all-last, enchousen
+  while the dealer repeats, `run()` extended past `totalRounds` in overtime).
+
+**Tests:** `server/test/aborts.test.js` (18 tests) drives every path headless —
+the rare paths are unreachable in bot play, which is exactly the coverage gap
+that hid KI-22. `RULES.serverAborts` is now all-true.
+
+**Three deliberate limitations, documented at the call site rather than silent:**
+
+1. Human 9-kind hands auto play on — no deal-time prompt channel on the wire.
+2. A *claimed* 4th first-lap discard never aborts (`game.js` aborts first);
+   only fully-quiet discards are checked.
+3. Agari-yame auto-ends for humans too — no renchan prompt on the wire.
+
+Chombo-as-penalty stays prevention-only on both sides, and oka/uma display
+stays offline-only (the wire carries raw scores).
+
+---
+
 ## <a id="ki-24"></a>KI-24 ✅ FIXED — `docs/development.md` was overwritten with the whole known-issues register
 
 Not found by inspection: found by noticing that a documentation edit reported success

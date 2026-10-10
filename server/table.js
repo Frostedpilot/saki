@@ -6,10 +6,12 @@
 // calls, ippatsu, furiten, exhaustive-draw tenpai payments, renchan, honba and
 // riichi sticks.
 //
-// Not implemented in this prototype: abortive draws except triple ron
-// (kyuushu/nagashi/four-winds/four-riichi/suukaikan), nagashi mangan,
-// agari-yame, enchousen, chombo-as-chombo (ankan-after-riichi is prevented
-// server-side), and disconnection resync (disconnect = CPU substitution).
+// Not implemented in this prototype: chombo-as-penalty (ankan-after-riichi is
+// prevented server-side instead), disconnection resync (disconnect = CPU
+// substitution), and the human kyuushu prompt (human 9-kind hands auto play
+// on; CPU seats declare at the standard rate). Everything else in the offline
+// game.js loop — all five abortive draws, nagashi mangan, agari-yame and
+// enchousen — is implemented here.
 
 const core = require('../engine/core');
 const { PowerDispatcher } = require('../engine/powers');
@@ -87,6 +89,7 @@ class Table {
     this.kyoku = 0;
     this.totalRounds = TOTAL_ROUNDS;
     this.matchOver = false;
+    this.overtime = false; // enchousen: extra hands past all-last while the dealer repeats
     this.substituted = [false, false, false, false];
     this.decide = createRNG(this.seed ^ 0x6D2B79F5);
     this.requests = new Map();   // seat -> {kinds:Set, resolve}
@@ -363,6 +366,12 @@ class Table {
     return !!(r && r.isAgari && (r.yakuman > 0 || r.han >= 1));
   }
 
+  // Enchousen han floor (ryanhan-shibari): during overtime a win needs 2+ han.
+  // Identical to isAWin when not in overtime, so wiring it everywhere is safe.
+  winMeetsFloor(r) {
+    return !!(r && (r.yakuman > 0 || r.han >= MF.minHan(this.overtime)));
+  }
+
   shootCtx(q, chankan, houtei) {
     const qp = this.ctx.players[q];
     return {
@@ -403,7 +412,7 @@ class Table {
     const code = this.room.code;
     console.log(`[bridge] ${code}: match start (seed=${this.seed} powers=${[0, 1, 2, 3].map((s) => this.powerOf(s)).join(',')})`);
     let handsPlayed = 0;
-    while (!this.matchOver && this.kyoku < this.totalRounds) {
+    while (!this.matchOver && (this.kyoku < this.totalRounds || this.overtime)) {
       if (++handsPlayed > 200) { console.error('[bridge] safety: too many hands'); break; }
       await this.playOneHand();
     }
@@ -477,6 +486,9 @@ try { state.powers.register(s, ROSTERS[power](s, this.persistentPowerState[s]));
       callsMade: 0,
       drawsThisKyoku: 0,
       kansBy: [0, 0, 0, 0],
+      firstLapDiscards: [], // suufon-renda: first discard of each seat while no call made
+      suufonDone: false,
+      fourRiichiPending: false, // set on the 4th riichi; abort after its discard goes unclaimed
       riichiPool: this.riichiCarry,
       poolTotal: () => state.pool.total(),
       baseDora: () => ctx.doraInd.map(DORA_NEXT),
@@ -516,16 +528,25 @@ try { state.powers.register(s, ROSTERS[power](s, this.persistentPowerState[s]));
 
     let winner = -1;
     let winBy = null;
-    let turn = dealer;
-    let guard = 0;
-    while (ctx.poolTotal() > 0) {
-      if (++guard > 400) { console.error('[bridge] turn safety stop'); break; }
-      const out = await this.playTurn(turn);
-      if (out.end) { winner = out.winner; winBy = out.winBy; break; }
-      turn = out.next;
-    }
+    let outcome;
+    const playedKyoku = kyoku;
+    const kyuushuSeat = this.checkKyuushu();
+    if (kyuushuSeat >= 0) {
+      outcome = await this.abortHand('KyuushuKyuuhai', { declarer: kyuushuSeat });
+    } else {
+      let turn = dealer;
+      let guard = 0;
+      while (ctx.poolTotal() > 0) {
+        if (++guard > 400) { console.error('[bridge] turn safety stop'); break; }
+        const out = await this.playTurn(turn);
+        if (out.end) { winner = out.winner; winBy = out.winBy; break; }
+        turn = out.next;
+      }
 
-    const outcome = await this.finishHand(winner, winBy);
+      outcome = (winBy && winBy.type === 'abort')
+        ? await this.abortHand(winBy.reason, {})
+        : await this.finishHand(winner, winBy);
+    }
 
     // Carry flow over to the next hand (Spec §6). Settlement hooks
     // (e.g. Saki rinshan burn) and tier consumes already mutated
@@ -541,11 +562,127 @@ try { state.powers.register(s, ROSTERS[power](s, this.persistentPowerState[s]));
       return;
     }
 
-    const keepDealer = this.applyPostSettlementFlow({ outcome, winBy, winner, dealer });
+    // Nagashi settles as wins but finishHand's winBy is null on that path, so
+    // normalize here for the rotation + match-end decisions below.
+    let flowWinBy = winBy;
+    let flowWinner = winner;
+    const nagSeats = outcome.nagashiSeats || [];
+    if (nagSeats.length) {
+      flowWinBy = { type: 'nagashi', hits: nagSeats.map((seat) => ({ seat })) };
+      flowWinner = nagSeats[0];
+    }
+    const keepDealer = this.applyPostSettlementFlow({ outcome, winBy: flowWinBy, winner: flowWinner, dealer });
     if (!keepDealer) this.dealer = (this.dealer + 1) % 4;
     this.kyoku++;
 
+    if (!outcome.aborted) {
+      const wSeats = flowWinBy && flowWinBy.type === 'tsumo' ? [flowWinner]
+        : flowWinBy && flowWinBy.hits ? flowWinBy.hits.map((h) => h.seat)
+        : [];
+      this.checkMatchEnd({
+        keepDealer,
+        dealerWon: wSeats.includes(dealer),
+        dealer,
+        allLast: !this.overtime && playedKyoku === this.totalRounds - 1,
+      });
+    }
+
     await this.waitForReady();
+  }
+
+  // Kyuushu-kyuuhai: a dealt 14-tile hand holding 9+ DISTINCT kinds of
+  // terminals/honours may abort the deal. Seats are asked in turn order from
+  // the dealer; CPU seats declare at the standard 0.8 rate (mirrors
+  // engine/game.js). Human seats auto play on — there is no deal-time prompt
+  // channel on the wire, so this is a documented limitation, not a silent
+  // rule change. Returns the declaring seat or -1.
+  checkKyuushu() {
+    const ctx = this.ctx;
+    for (let k = 0; k < 4; k++) {
+      const s = (ctx.dealer + k) % 4;
+      if (H.distinctYaochuu(ctx.players[s].hand) >= 9) {
+        if (this.isCpuSeat(s)) {
+          if (this.decide.next() < 0.8) {
+            console.log(`[bridge] P${s} declares KYUUSHU-KYUUHAI - abortive draw`);
+            return s;
+          }
+          console.log(`[bridge] P${s} holds 9+ distinct terminals/honours but plays on`);
+        } else {
+          console.log(`[bridge] P${s} holds 9+ distinct terminals/honours (human auto plays on: no deal prompt)`);
+        }
+      }
+    }
+    return -1;
+  }
+
+  // Shared abortive-draw settlement: void hand, no payments, sticks carry,
+  // dealer repeats with +1 honba. Triple ron delegates here; so do the four
+  // newly-wired aborts (kyuushu/suufon/suucha/suukaikan) via playOneHand.
+  async abortHand(reason, { declarer = null } = {}) {
+    const ctx = this.ctx;
+    this.riichiCarry = ctx.riichiPool;
+    ctx.riichiPool = 0;
+    this.broadcast(P.evRoundDraw({
+      scores: [...this.scores],
+      reason,
+      tenpai: [],
+      riichiSticks: this.riichiCarry / 1000,
+      playerHands: this.playerHandsInfo(),
+      declarer,
+    }));
+    console.log(`[bridge] ABORTIVE ${reason} - hand void, no payments`);
+    return { aborted: true };
+  }
+
+  // First-lap abort check, called when a discard goes fully unclaimed (no ron,
+  // no pon/chi/kan). Suucha-riichi (all four riichi) aborts on that discard;
+  // suufon-renda aborts when the accumulated first discards are one wind four
+  // times. Returns the reason or null. Ron precedence is structural: ron wins
+  // return before this is ever consulted.
+  //
+  // Deliberate simplification vs engine/game.js: game.js checks before the
+  // pon/chi loop, so a callable 4th first-lap discard still aborts there. Here
+  // a claimed call returns first and no abort fires — matching the "no calls"
+  // letter of the rule at negligible divergence (the situation is unobserved
+  // in bot play).
+  checkLapAbort() {
+    const ctx = this.ctx;
+    if (ctx.fourRiichiPending) {
+      ctx.fourRiichiPending = false;
+      return 'SuuchaRiichi';
+    }
+    // Defensive: older headless scaffolds (and any future partial ctx) may not
+    // carry the first-lap accumulator. Missing means "no information", never abort.
+    const firstLap = Array.isArray(ctx.firstLapDiscards) ? ctx.firstLapDiscards : [];
+    if (!ctx.suufonDone && firstLap.length === 4) {
+      ctx.suufonDone = true;
+      if (H.isSuufonRenda(firstLap)) return 'SuufonRenda';
+    }
+    return null;
+  }
+
+  // Match-end gate for all-last and enchousen. Agari-yame: a dealer who won
+  // the all-last hand while strictly leading ends the match immediately
+  // (humans auto-end; there is no renchan prompt on the wire). Otherwise a
+  // kept deal at all-last opens enchousen; overtime hands continue while the
+  // dealer repeats and the match ends on the first rotation.
+  checkMatchEnd({ keepDealer, dealerWon, dealer, allLast }) {
+    if (allLast) {
+      if (dealerWon && MF.dealerLeads(this.scores, dealer)) {
+        console.log('[bridge] AGARI-YAME: leading dealer ends the match');
+        this.matchOver = true;
+        return;
+      }
+      if (keepDealer && !this.overtime) {
+        this.overtime = true;
+        console.log('[bridge] ENCHOUSEN (overtime): dealer continues past all-last');
+      }
+      return;
+    }
+    if (this.overtime && !keepDealer) {
+      console.log('[bridge] ENCHOUSEN over: dealer failed to repeat - match over');
+      this.matchOver = true;
+    }
   }
 
   /**
@@ -644,7 +781,8 @@ try { state.powers.register(s, ROSTERS[power](s, this.persistentPowerState[s]));
 
     const firstDraw = this.isFirstDraw(me);
     const tsumoFlagsThis = { tsumo: true, kan: false, last: isLastDraw, tenhou: firstDraw };
-    const wantTsumo = this.isAWin(this.scoreFor(seat, drawn, tsumoFlagsThis));
+    const tsumoScore = this.scoreFor(seat, drawn, tsumoFlagsThis);
+    const wantTsumo = this.isAWin(tsumoScore) && this.winMeetsFloor(tsumoScore);
 
     // ---- emit draw events ----
     this.room.sendTo(seat, P.event(P.evTileDrawn({
@@ -717,7 +855,8 @@ try { state.powers.register(s, ROSTERS[power](s, this.persistentPowerState[s]));
 
     // ---- dispatch ----
     if (action.type === 'Tsumo') {
-      if (this.isAWin(this.scoreFor(seat, me.lastDrawn, tsumoFlagsThis))) {
+      const claim = this.scoreFor(seat, me.lastDrawn, tsumoFlagsThis);
+      if (this.isAWin(claim) && this.winMeetsFloor(claim)) {
         return { end: true, winner: seat, winBy: {
           type: 'tsumo', seat, winTile: me.lastDrawn,
           rinshan: false, haitei: isLastDraw, first: firstDraw,
@@ -772,6 +911,12 @@ try { state.powers.register(s, ROSTERS[power](s, this.persistentPowerState[s]));
     me.ippatsu = true;
     this.scores[seat] -= RULES.riichiValue;
     ctx.riichiPool += RULES.riichiValue;
+    if (ctx.players.every((p) => p.riichi)) {
+      // Suucha-riichi: all four declared. The abort fires after this discard
+      // goes unclaimed (checked on the quiet path out of resolveCallWindow).
+      ctx.fourRiichiPending = true;
+      console.log('[bridge] SUUCHA-RIICHI pending: all four riichi');
+    }
     this.broadcast(P.evPlayerRiichi({
       player: P.seatWind(seat, ctx.dealer),
       scores: [...this.scores],
@@ -823,6 +968,11 @@ try { state.powers.register(s, ROSTERS[power](s, this.persistentPowerState[s]));
     }
     me.lastDrawn = null;
     me.discards.push(removed);
+    // Suufon-renda accumulator: first discard of each seat while no call has
+    // been made yet. Mirrors engine/game.js firstLapDiscards.
+    if (ctx.callsMade === 0 && me.discards.length === 1 && !ctx.suufonDone) {
+      ctx.firstLapDiscards.push(removed);
+    }
     if (ctx.state.flow && typeof ctx.state.flow.onLegalDiscard === 'function') {
       ctx.state.flow.onLegalDiscard(seat);
     }
@@ -893,7 +1043,8 @@ try { state.powers.register(s, ROSTERS[power](s, this.persistentPowerState[s]));
     const me = this.ctx.players[seat];
     const { wantTsumo, firstDraw, isLastDraw } = opts;
     if (a.type === 'Tsumo') {
-      if (!this.isAWin(this.scoreFor(seat, me.lastDrawn, { tsumo: true, kan: false, last: isLastDraw, tenhou: firstDraw }))) {
+      const claim = this.scoreFor(seat, me.lastDrawn, { tsumo: true, kan: false, last: isLastDraw, tenhou: firstDraw });
+      if (!this.isAWin(claim) || !this.winMeetsFloor(claim)) {
         return { ok: false, reason: 'tsumo not available' };
       }
       return { ok: true, action: a };
@@ -986,6 +1137,9 @@ try { state.powers.register(s, ROSTERS[power](s, this.persistentPowerState[s]));
 
     if (kan.kind === 'kakan') {
       const hits = await this.collectRon(tile, seat, { chankan: true, label: 'CHANKAN' });
+      if (hits.length >= 3) {
+        return { end: true, winner: -1, winBy: { type: 'abort', reason: 'TripleRon' } };
+      }
       if (hits.length) {
         return { end: true, winner: hits[0].seat, winBy: { type: 'ron', from: seat, hits, tile, flags: { chankan: true } } };
       }
@@ -1019,6 +1173,12 @@ try { state.powers.register(s, ROSTERS[power](s, this.persistentPowerState[s]));
     ctx.callsMade++;
     H.clearAllIppatsu(ctx.players);
     ctx.kansBy[seat]++;
+    // Suukaikan: four kans split across seats aborts the hand (a solo quad
+    // plays on). Mirrors engine/game.js via the shared H.isSuukaikanAbort.
+    if (H.isSuukaikanAbort(ctx.kansBy)) {
+      console.log(`[bridge] SUUKAIKAN (four kans: ${ctx.kansBy.join('/')}) - abortive draw`);
+      return { end: true, winner: -1, winBy: { type: 'abort', reason: 'Suukaikan' } };
+    }
 
     if (ctx.state.powers && typeof ctx.state.powers.broadcastPlayerKan === 'function') {
       ctx.state.powers.broadcastPlayerKan(seat, ctx.state);
@@ -1033,7 +1193,7 @@ try { state.powers.register(s, ROSTERS[power](s, this.persistentPowerState[s]));
     me.lastDrawn = rt;
 
     const trs = this.scoreFor(seat, rt, { tsumo: true, kan: true, last: false, tenhou: false });
-    const wantTsumo = this.isAWin(trs);
+    const wantTsumo = this.isAWin(trs) && this.winMeetsFloor(trs);
 
     // Emit Rinshan draw events
     this.room.sendTo(seat, P.event(P.evTileDrawn({
@@ -1237,7 +1397,7 @@ try { state.powers.register(s, ROSTERS[power](s, this.persistentPowerState[s]));
         const a = await this.request(seat, new Set(['Discard', 'Riichi', 'Tsumo', 'Pass']));
         if (a.type === 'Tsumo') {
           const r = this.scoreFor(seat, me.lastDrawn, { tsumo: true, kan: true, last: false, tenhou: false });
-          if (!this.isAWin(r)) { this.sendError(seat, 'InvalidAction', 'tsumo not available'); continue; }
+          if (!this.isAWin(r) || !this.winMeetsFloor(r)) { this.sendError(seat, 'InvalidAction', 'tsumo not available'); continue; }
           const result = { type: 'tsumo', winner: seat, tag: 'RINSHAN' };
           this.settlePowerHook(result);
           return { end: true, winner: seat, winBy: { type: 'tsumo', seat, winTile: me.lastDrawn, rinshan: true, haitei: false, first: false } };
@@ -1289,9 +1449,9 @@ try { state.powers.register(s, ROSTERS[power](s, this.persistentPowerState[s]));
       let ronAtt = null;
       const att = H.tryRon(qp, tile, this.shootCtx(q, flags.chankan, flags.houtei), players, ctx.dead, {
         chankan: !!flags.chankan,
-        // No enchousen server-side: always the base floor. Reads RULES via
-        // match-flow so a floor change cannot drift (game.js uses overtime).
-        minHan: MF.minHan(false),
+        // No enchousen gate until overtime opens; then ryanhan-shibari.
+        // Reads RULES via match-flow so the floor cannot drift (game.js overtime).
+        minHan: MF.minHan(this.overtime),
       });
       if (att.win) ronAtt = att;
 
@@ -1328,6 +1488,10 @@ try { state.powers.register(s, ROSTERS[power](s, this.persistentPowerState[s]));
 
     if (candidateMap.size === 0) {
       this.phase = PHASE.TURN_ACT;
+      // Fully unclaimed discard: the only place suucha-riichi and suufon-renda
+      // can fire (ron/pon/chi claims return above with their own outcomes).
+      const lapAbort = this.checkLapAbort();
+      if (lapAbort) return { end: true, winner: -1, winBy: { type: 'abort', reason: lapAbort } };
       return null;
     }
 
@@ -1464,6 +1628,9 @@ try { state.powers.register(s, ROSTERS[power](s, this.persistentPowerState[s]));
     }
 
     this.phase = PHASE.TURN_ACT;
+    // Everyone passed: same quiet-discard case as the empty window above.
+    const lapAbort = this.checkLapAbort();
+    if (lapAbort) return { end: true, winner: -1, winBy: { type: 'abort', reason: lapAbort } };
     return null;
   }
 
@@ -1516,6 +1683,10 @@ try { state.powers.register(s, ROSTERS[power](s, this.persistentPowerState[s]));
 
     if (kind === 'daiminkan') {
       ctx.kansBy[q]++;
+      if (H.isSuukaikanAbort(ctx.kansBy)) {
+        console.log(`[bridge] SUUKAIKAN (four kans: ${ctx.kansBy.join('/')}) - abortive draw`);
+        return { end: true, winner: -1, winBy: { type: 'abort', reason: 'Suukaikan' } };
+      }
       ctx.revealKanDora();
       if (ctx.state.powers && typeof ctx.state.powers.broadcastPlayerKan === 'function') {
         ctx.state.powers.broadcastPlayerKan(q, ctx.state);
@@ -1528,7 +1699,7 @@ try { state.powers.register(s, ROSTERS[power](s, this.persistentPowerState[s]));
         qp.hand.push(rt);
         qp.lastDrawn = rt;
         const trs = this.scoreFor(q, rt, { tsumo: true, kan: true, last: false, tenhou: false });
-        const wantTsumo = this.isAWin(trs);
+        const wantTsumo = this.isAWin(trs) && this.winMeetsFloor(trs);
 
         this.room.sendTo(q, P.event(P.evTileDrawn({
           tile: P.sakiToTile(rt),
@@ -1666,26 +1837,12 @@ try { state.powers.register(s, ROSTERS[power](s, this.persistentPowerState[s]));
 
       // Triple ron (三家和 / sanchahou) is an ABORTIVE draw, not a three-way win:
       // the hand is void, nobody is paid, the dealer repeats and a honba is added.
-      // Before this, three simultaneous claims were each paid in full by the
-      // discarder — see docs/known-issues.md KI-20.
-      //
-      // Two claimants is a legal double ron and is paid normally, which is why this
-      // is `>= 3` and not `> 1`. engine/game.js has always aborted here; the two
-      // front-ends disagreed (KI-04).
+      // Two claimants is a legal double ron and is paid normally, which is why
+      // this is `>= 3` and not `> 1`. See docs/known-issues.md KI-20.
       if (!isTsumo && wins.length >= 3) {
-        this.riichiCarry = ctx.riichiPool;
-        ctx.riichiPool = 0;
-        this.broadcast(P.evRoundDraw({
-          scores: [...this.scores],
-          reason: 'TripleRon',
-          tenpai: [],
-          riichiSticks: this.riichiCarry / 1000,
-          playerHands: this.playerHandsInfo(),
-          declarer: null,
-        }));
         console.log(`[bridge] ABORTIVE triple ron on ${winBy.tile} from P${winBy.from} ` +
           `(seats ${wins.map((w) => 'P' + w.seat).join('/')}) - hand void, no payments`);
-        return { aborted: true };
+        return this.abortHand('TripleRon', {});
       }
 
       // Apply all payments first so every RoundWon shares the same final scores.
@@ -1752,7 +1909,60 @@ try { state.powers.register(s, ROSTERS[power](s, this.persistentPowerState[s]));
         this.settlePowerHook({ type: isTsumo ? 'tsumo' : 'ron', winner: w.seat, tag: winBy.rinshan ? 'RINSHAN' : '' });
       }
     } else {
-      // Exhaustive draw.
+      // Exhaustive draw. Nagashi mangan replaces the noten exchange: every
+      // fully-closed seat whose discards are all terminals/honours wins a
+      // mangan tsumo, paid in turn order from the dealer (mirrors game.js).
+      const nagashi = [0, 1, 2, 3].filter((s) => H.isNagashi(players[s]));
+      if (nagashi.length) {
+        const order = [0, 1, 2, 3].map((k) => (dealer + k) % 4).filter((s) => nagashi.includes(s));
+        const pays = new Map();
+        for (const w of order) {
+          let pay = 0;
+          if (w === dealer) {
+            for (let i = 0; i < 4; i++) {
+              if (i === w) continue;
+              const p0 = 4000 + RULES.honbaTsumo * this.honba;
+              this.scores[i] -= p0;
+              pay += p0;
+            }
+          } else {
+            for (let i = 0; i < 4; i++) {
+              if (i === w) continue;
+              const p0 = (i === dealer ? 4000 : 2000) + RULES.honbaTsumo * this.honba;
+              this.scores[i] -= p0;
+              pay += p0;
+            }
+          }
+          this.scores[w] += pay;
+          pays.set(w, pay);
+        }
+        const sticksGain = ctx.riichiPool;
+        this.scores[order[0]] += sticksGain;
+        ctx.riichiPool = 0;
+        for (const w of order) {
+          const scorePoints = pays.get(w) + (w === order[0] ? sticksGain : 0);
+          this.broadcast(P.evRoundWon({
+            winner: P.seatWind(w, dealer),
+            loser: null,
+            winning_tile: null,
+            scores: [...this.scores],
+            yakuList: [[{ Yaku: 'NagashiMangan' }, 5]],
+            han: 5,
+            fu: 30,
+            scorePoints,
+            rank: 'Mangan',
+            hasOpened: false,
+            uradoraIndicators: [],
+            riichiSticks: sticksGain / 1000,
+            honba: this.honba,
+            honbaPoints: 300 * this.honba,
+            playerHands: this.playerHandsInfo(),
+          }));
+          console.log(`[bridge] NAGASHI MANGAN P${w} +${scorePoints}`);
+          this.settlePowerHook({ type: 'tsumo', winner: w, tag: 'NAGASHI' });
+        }
+        return { aborted: false, nagashiSeats: order };
+      }
       const tenpai = this.tenpaiSeats();
       const nTen = tenpai.length;
       if (nTen > 0 && nTen < 4) {

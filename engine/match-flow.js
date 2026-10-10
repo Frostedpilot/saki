@@ -78,4 +78,11 @@ function bustOutSeat(scores) {
   return scores.findIndex((s) => s < 0);
 }
 
-module.exports = { dealerWonOnWin, postHandFlow, notenPayments, minHan, bustOutSeat };
+// Agari-yame gate: the dealer ends the match only when strictly leading
+// (sole top score). Ties play on.
+function dealerLeads(scores, dealer) {
+  const d = scores[dealer];
+  return scores.every((s, i) => i === dealer || d > s);
+}
+
+module.exports = { dealerWonOnWin, postHandFlow, notenPayments, minHan, bustOutSeat, dealerLeads };

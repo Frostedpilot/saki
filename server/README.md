@@ -92,16 +92,20 @@ event-type tag (e.g. `RINSHAN_RESONANCE_TRIGGER`, `CHILLING_GAZE`,
 
 ## Excluded features
 
-Abortive draws (all five: kyuushu-kyuuhai, suufon-renda, suucha-riichi,
-suukaikan, triple ron — gated off via `RULES.serverAborts`), nagashi mangan,
-chankan only on kakan, pao/sekinin, 3-player, reconnection/resync, turn timers,
-oka/uma (raw scores in GameOver).
+Chombo-as-penalty (illegal post-riichi kan is refused instead), pao/sekinin,
+3-player, reconnection/resync, turn timers, oka/uma (raw scores in GameOver),
+and the human kyuushu prompt (human 9-kind hands auto play on; CPU seats
+declare at the standard rate). All five abortive draws, nagashi mangan,
+agari-yame and enchousen (with overtime ryanhan-shibari) are implemented —
+see `table.js` (`checkKyuushu`, `checkLapAbort`, `abortHand`, `checkMatchEnd`).
 
 > **Reconnection caveat.** The client *attempts* to reconnect every 2 s
 > (`web-client/src/net/socket.ts`), but the server has no session resume — a new
 > `Hello` mints a fresh anonymous session, so the reconnected client holds a
 > stale `GameStore` and every action returns `InvalidAction`. Reload the page.
-> The offline engine (`engine/game.js`) implements all five aborts and oka/uma.
+> The offline engine (`engine/game.js`) implements all five aborts and oka/uma,
+> as does the server now — the remaining front-end gap is oka/uma display
+> (server sends raw scores) and chombo settlement.
 
 ## Environment variables
 
