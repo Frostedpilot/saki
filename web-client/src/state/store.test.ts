@@ -339,6 +339,74 @@ describe('reconnection', () => {
   });
 });
 
+// ------------------------------------------- riichi auto-tsumogiri
+
+const tileDrawn = (over: Record<string, any> = {}) => ({
+  Event: {
+    TileDrawn: {
+      tile: { index: 20 },
+      remaining_tiles: 60,
+      can_tsumo: false,
+      can_riichi: false,
+      is_furiten: false,
+      ...over,
+    },
+  },
+});
+
+describe('riichi auto-tsumogiri', () => {
+  test('a dead draw in riichi is discarded without a click', () => {
+    const { store, socket } = makeStore();
+    socket.emit(gameStarted());
+    store.riichiDeclared[store.yourSeat] = true;
+    socket.emit(tileDrawn());
+    expect(socket.sentRaw).toEqual([{ Action: { Discard: { tile: { index: 20 } } } }]);
+    expect(store.actions.can_discard).toBe(false);
+    expect(store.logs.some((e) => /auto-discarded/i.test(e.message))).toBe(true);
+  });
+
+  test('a tsumo-available draw in riichi still waits for the player', () => {
+    const { store, socket } = makeStore();
+    socket.emit(gameStarted());
+    store.riichiDeclared[store.yourSeat] = true;
+    socket.emit(tileDrawn({ can_tsumo: true }));
+    expect(socket.sentRaw).toEqual([]);
+    expect(store.actions.can_tsumo).toBe(true);
+  });
+
+  test('an ankan quartet in riichi still waits for the player', () => {
+    const { store, socket } = makeStore();
+    socket.emit(gameStarted());
+    store.riichiDeclared[store.yourSeat] = true;
+    // Three 5s in hand plus a drawn 5: a possible ankan, so no fast path.
+    store.hand = [{ index: 5 }, { index: 5 }, { index: 5 }, { index: 1 }, { index: 2 }] as any;
+    socket.emit(tileDrawn({ tile: { index: 5 } }));
+    expect(socket.sentRaw).toEqual([]);
+    expect(store.actions.can_discard).toBe(true);
+    expect(store.actions.can_kan).toBe(true);
+  });
+
+  test('a kakan match in riichi offers no kan and still auto-discards', () => {
+    const { store, socket } = makeStore();
+    socket.emit(gameStarted());
+    store.riichiDeclared[store.yourSeat] = true;
+    // Pon of 5s plus the fourth 5 drawn: kakan, never legal in riichi.
+    store.melds[store.yourSeat] = [{ callType: 'Pon', tiles: [{ index: 5 }, { index: 5 }, { index: 5 }] }] as any;
+    store.hand = [{ index: 1 }, { index: 2 }] as any;
+    socket.emit(tileDrawn({ tile: { index: 5 } }));
+    expect(store.actions.can_kan).toBe(false);
+    expect(socket.sentRaw).toEqual([{ Action: { Discard: { tile: { index: 5 } } } }]);
+  });
+
+  test('a dead draw outside riichi still waits for the player', () => {
+    const { store, socket } = makeStore();
+    socket.emit(gameStarted());
+    socket.emit(tileDrawn());
+    expect(socket.sentRaw).toEqual([]);
+    expect(store.actions.can_discard).toBe(true);
+  });
+});
+
 // --------------------------------------------------------------- GameOver
 
 describe('GameOver', () => {

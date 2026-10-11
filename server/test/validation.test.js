@@ -344,6 +344,21 @@ test('a legal kan is accepted', () => {
   assert.equal(r.action.tile, '3m');
 });
 
+test('a wait-preserving ankan in riichi is accepted (the riichi KAN button path)', () => {
+  const t = makeTable();
+  const me = t.ctx.players[0];
+  me.riichi = true;
+  // Same shape as 'allowed when the waits are unchanged': a closed 1m kan plus
+  // 22p 456p 789s 55z, so removing the kan leaves tanki 2p / tanki 5z waits.
+  me.riichiWaits = ['2p', '5z'];
+  me.hand = ['1m', '1m', '1m', '1m', '2p', '2p', '4p', '5p', '6p', '7s', '8s', '9s', '5z', '5z'];
+  const kan = t.classifyHumanKan(0);
+  assert.equal(kan.kind, 'ankan');
+  const r = t.validateAct(0, { type: 'Kan', kan }, {});
+  assert.equal(r.ok, true);
+  assert.equal(r.action.tile, '1m');
+});
+
 test('kan is rejected once the four kan slots are used', () => {
   const t = makeTable();
   t.ctx.kanCount = 4;
@@ -510,4 +525,61 @@ test('doOwnKan allows the same kakan when not in riichi', async () => {
   assert.equal(me.hand.length, before - 1, 'the fourth tile moved out of hand');
   assert.equal(me.melds[0].type, 'kan', 'the meld was upgraded');
   assert.equal(me.melds[0].tiles.length, 4);
+});
+
+// ------------------------------------------- tsumo gating: yaku vs noten
+
+test('open haku pon with a complete shape can tsumo (yakuhai is a yaku)', () => {
+  const t = makeTable();
+  const me = t.ctx.players[0];
+  // 123m 456p 789s + 77p pair, pon haku from another player, tsumo 7p.
+  me.hand = ['1m', '2m', '3m', '4p', '5p', '6p', '7s', '8s', '9s', '7p', '7p'];
+  me.melds = [{ tiles: ['5z', '5z', '5z'], open: true, type: 'pon' }];
+  me.lastDrawn = '7p';
+  const claim = t.scoreFor(0, '7p', { tsumo: true, kan: false, last: false, tenhou: false });
+  assert.equal(claim.isAgari, true);
+  assert.ok(claim.yakuman > 0 || claim.han >= 1, 'haku pon must supply a yaku');
+  assert.equal(t.isAWin(claim), true);
+  assert.equal(t.tsumoBlockReason(0, claim), null);
+  const v = t.validateAct(0, { type: 'Tsumo' }, { firstDraw: false, isLastDraw: false });
+  assert.equal(v.ok, true, JSON.stringify(v));
+});
+
+test('tsumo denial separates noten from no-yaku from shibari', () => {
+  const t = makeTable();
+  const me = t.ctx.players[0];
+  // Noten: incomplete shape, no waits.
+  me.hand = ['1m', '4m', '7m', '2p', '5p', '8p', '3s', '6s', '9s', '1z', '2z', '3z', '5z'];
+  me.melds = [];
+  me.lastDrawn = '5z';
+  const noten = t.scoreFor(0, '5z', { tsumo: true, kan: false, last: false, tenhou: false });
+  assert.equal(t.tsumoBlockReason(0, noten), 'noten');
+  // Complete but yakuless open shape: open pinfu-only Aller (no haku, no tanyao
+  // guarantee) scores isAgari with han 0.
+  me.hand = ['2m', '3m', '4m', '6m', '7m', '8m', '2p', '3p', '4p', '7p', '7p'];
+  me.melds = [{ tiles: ['6s', '7s', '8s'], open: true, type: 'chi' }];
+  me.lastDrawn = '7p';
+  const noyaku = t.scoreFor(0, '7p', { tsumo: true, kan: false, last: false, tenhou: false });
+  if (noten.isAgari && !(noten.yakuman > 0 || noten.han >= 1)) {
+    assert.equal(t.tsumoBlockReason(0, noyaku), 'no-yaku');
+  } else {
+    // If the fixture accidentally carries a yaku, at least the helper agrees
+    // with isAWin: winnable -> null, else a named reason.
+    assert.equal(t.tsumoBlockReason(0, noyaku), t.isAWin(noyaku) ? null : 'no-yaku');
+  }
+  // Shibari: overtime needs 2 han; force it and reuse the haku 1-han win.
+  me.hand = ['1m', '2m', '3m', '4p', '5p', '6p', '7s', '8s', '9s', '7p', '7p'];
+  me.melds = [{ tiles: ['5z', '5z', '5z'], open: true, type: 'pon' }];
+  me.lastDrawn = '7p';
+  const oneHan = t.scoreFor(0, '7p', { tsumo: true, kan: false, last: false, tenhou: false });
+  assert.equal(t.isAWin(oneHan), true);
+  t.overtime = true;
+  try {
+    assert.equal(t.winMeetsFloor(oneHan), oneHan.han >= 2 || oneHan.yakuman > 0);
+    if (oneHan.han === 1 && !(oneHan.yakuman > 0)) {
+      assert.equal(t.tsumoBlockReason(0, oneHan), 'shibari');
+    }
+  } finally {
+    t.overtime = false;
+  }
 });

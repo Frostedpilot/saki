@@ -110,6 +110,7 @@ function evGameStarted(opts) {
 }
 
 function evTileDrawn(opts) {
+  const reason = opts.canTsumoReason !== undefined ? opts.canTsumoReason : opts.can_tsumo_reason;
   return {
     TileDrawn: {
       tile: opts.tile,
@@ -117,6 +118,7 @@ function evTileDrawn(opts) {
       can_tsumo: !!(opts.canTsumo !== undefined ? opts.canTsumo : opts.can_tsumo),
       can_riichi: !!(opts.canRiichi !== undefined ? opts.canRiichi : opts.can_riichi),
       is_furiten: !!(opts.isFuriten !== undefined ? opts.isFuriten : opts.is_furiten),
+      ...(reason ? { can_tsumo_reason: reason } : {}),
     },
   };
 }

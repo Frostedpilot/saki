@@ -866,7 +866,10 @@ export class GameStore {
       const kakanMatch = this.melds[this.yourSeat].find(
         (m) => (m.callType === 'Pon' || m.callType === 'pon') && allTiles.some((t) => t.index === m.tiles[0]?.index)
       );
-      this.actions.can_kan = Boolean(ankanKey !== undefined || kakanMatch);
+      // Kakan (pon upgrade) is never legal in riichi (chombo), so in riichi only
+      // a closed ankan quartet may offer Kan. The server still validates waits.
+      const inRiichiDraw = this.riichiDeclared[this.yourSeat];
+      this.actions.can_kan = Boolean(ankanKey !== undefined || (!inRiichiDraw && kakanMatch));
       // Remember the actual tile index for the KAN action instead of always
       // sending 0. Prefer the ankan quartet; otherwise use the kakan tile.
       if (ankanKey !== undefined) this.pendingKanIndex = parseInt(ankanKey, 10);
@@ -883,9 +886,24 @@ export class GameStore {
       }
       if (td.can_tsumo) {
         this.addLog('win', `Tsumo Available on ${tileToFace(td.tile)}!`);
+      } else if (td.can_tsumo_reason === 'no-yaku') {
+        this.addLog('rule', `No tsumo: hand complete but no yaku on ${tileToFace(td.tile)}.`);
+      } else if (td.can_tsumo_reason === 'shibari') {
+        this.addLog('rule', `No tsumo: ryanhan-shibari needs 2+ han on ${tileToFace(td.tile)}.`);
       }
       if (td.can_riichi) {
         this.addLog('call', 'Riichi Available! Closed hand is in Tenpai.');
+      }
+
+      // Riichi tsumogiri fast path: in riichi the drawn tile is the only legal
+      // discard, so when there is nothing to decide (no tsumo, no ankan quartet
+      // to consider) discard it immediately instead of waiting for a manual
+      // TSUMOGIRI click. Kakan is never legal in riichi, so it must not block
+      // the fast path.
+      if (this.riichiDeclared[this.yourSeat] && !td.can_tsumo && ankanKey === undefined) {
+        this.addLog('turn', `Riichi tsumogiri: auto-discarded ${tileToFace(td.tile)}.`);
+        this.discard(td.tile);
+        return;
       }
 
       this.notify();

@@ -45,6 +45,7 @@ export interface TileDrawnEvent {
   tile: ProtocolTile;
   remaining_tiles: number;
   can_tsumo: boolean;
+  can_tsumo_reason?: string | null;
   can_riichi: boolean;
   is_furiten: boolean;
 }

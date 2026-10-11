@@ -57,18 +57,25 @@ function isLive(pool, kind) {
   return false;
 }
 
-// Closed 13/14-tile-equivalent of an open hand (melds materialized into the
+// Closed 13-tile-equivalent of an open hand (melds materialized into the
 // analysis hand) so the concealed syanten/hairi libs can score it. Used only
 // for directional shanten work; exact wins are verified via scoreHand instead.
+// A kan meld holds 4 tiles but counts as one set (3-tile equivalent): pushing
+// all 4 yields a 14-tile analysis hand for which hairi() returns no waits,
+// so the advance branch would find nothing and the rinshan would go in
+// random. At onKanDeclared time (post-meld, pre-rinshan) the equivalent is
+// always 13 tiles waiting for one more.
 function reconstructAnalysisHand(state, seat) {
   const p = state.players[seat];
   const hand = (p && p.hand) || [];
   const melds = (p && p.melds) || [];
   const tiles = [...hand];
   for (const m of melds) {
-    if (Array.isArray(m.tiles)) tiles.push(...m.tiles.slice(0, 4).map(norm));
+    if (!Array.isArray(m.tiles)) continue;
+    const isKan = /kan/i.test(m.type || '');
+    tiles.push(...m.tiles.slice(0, isKan ? 3 : m.tiles.length).map(norm));
   }
-  return tiles.slice(0, 14);
+  return tiles.slice(0, 13);
 }
 
 function defaultCtx(state, seat) {

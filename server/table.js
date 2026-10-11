@@ -402,6 +402,19 @@ class Table {
     return !!(r && (r.yakuman > 0 || r.han >= MF.minHan(this.overtime)));
   }
 
+  // Why a tsumo is NOT available, for logs and client hints. Does not change
+  // legality: wantTsumo stays isAWin && winMeetsFloor. Separates the two
+  // things players conflate as "yaku/noten": shape-incomplete (noten) vs
+  // complete-but-yakuless (no-yaku) vs overtime floor (shibari).
+  // Returns 'noten' | 'no-yaku' | 'shibari' | null (null = winnable).
+  tsumoBlockReason(seat, r) {
+    if (!r || !r.isAgari) return 'noten';
+    if (!(r.yakuman > 0 || r.han >= 1)) return 'no-yaku';
+    if (!this.winMeetsFloor(r)) return 'shibari';
+    void seat;
+    return null;
+  }
+
   shootCtx(q, chankan, houtei) {
     const qp = this.ctx.players[q];
     return {
@@ -848,6 +861,19 @@ class Table {
     const tsumoFlagsThis = { tsumo: true, kan: false, last: isLastDraw, tenhou: firstDraw };
     const tsumoScore = this.scoreFor(seat, drawn, tsumoFlagsThis);
     const wantTsumo = this.isAWin(tsumoScore) && this.winMeetsFloor(tsumoScore);
+    const tsumoReason = wantTsumo ? null : this.tsumoBlockReason(seat, tsumoScore);
+    if (!wantTsumo && tsumoReason && tsumoReason !== 'noten') {
+      // Only noisy when the shape is complete but unwinable: that is the
+      // "I have yaku but cannot tsumo" / "I am tenpai but cannot win" confusion.
+      // Log full context so a report (e.g. open haku pon) is reproducible.
+      try {
+        console.log(
+          `[bridge] P${seat} tsumo blocked (${tsumoReason}): hand=${JSON.stringify(me.hand)} melds=${JSON.stringify(me.melds)} drawn=${drawn} score=${JSON.stringify({ isAgari: tsumoScore && tsumoScore.isAgari, han: tsumoScore && tsumoScore.han, yakuman: tsumoScore && tsumoScore.yakuman, yaku: tsumoScore && tsumoScore.yaku })}`
+        );
+      } catch (e) {
+        warnOnce('tsumo-block-log', e);
+      }
+    }
 
     // ---- emit draw events ----
     this.room.sendTo(
@@ -857,6 +883,7 @@ class Table {
           tile: P.sakiToTile(drawn),
           remaining: ctx.poolTotal(),
           canTsumo: wantTsumo,
+          canTsumoReason: tsumoReason,
           canRiichi: this.canRiichiNow(me),
           isFuriten: this.furitenNow(me),
         })
@@ -1156,7 +1183,8 @@ class Table {
     if (a.type === 'Tsumo') {
       const claim = this.scoreFor(seat, me.lastDrawn, { tsumo: true, kan: false, last: isLastDraw, tenhou: firstDraw });
       if (!this.isAWin(claim) || !this.winMeetsFloor(claim)) {
-        return { ok: false, reason: 'tsumo not available' };
+        const why = this.tsumoBlockReason(seat, claim);
+        return { ok: false, reason: why === 'no-yaku' ? 'tsumo not available (complete but no yaku)' : why === 'shibari' ? 'tsumo not available (ryanhan-shibari: needs 2+ han)' : why === 'noten' ? 'tsumo not available (hand not complete)' : 'tsumo not available' };
       }
       return { ok: true, action: a };
     }
@@ -1317,6 +1345,7 @@ class Table {
 
     const trs = this.scoreFor(seat, rt, { tsumo: true, kan: true, last: false, tenhou: false });
     const wantTsumo = this.isAWin(trs) && this.winMeetsFloor(trs);
+    const tsumoReason = wantTsumo ? null : this.tsumoBlockReason(seat, trs);
 
     // Emit Rinshan draw events
     this.room.sendTo(
@@ -1326,6 +1355,7 @@ class Table {
           tile: P.sakiToTile(rt),
           remaining: ctx.poolTotal(),
           canTsumo: wantTsumo,
+          canTsumoReason: tsumoReason,
           canRiichi: false,
           isFuriten: this.furitenNow(me),
         })
@@ -1454,6 +1484,17 @@ class Table {
     const ctx = this.ctx;
     const state = ctx.state;
     const type = state.powers ? state.powers.powerTypeOf(seat) : 'flow';
+    // Power hooks score with state.bakaze/state.doraIndicators/p.wind, but the
+    // bridge keeps those on ctx (ctx.bakaze/ctx.doraInd/dealer). Sync them so
+    // winningWaits sees the real round wind, seat wind and dora (matters for
+    // the overtime ryanhan floor, and avoids wind-yakuhai skew).
+    try {
+      state.bakaze = ctx.bakaze;
+      state.doraIndicators = [...ctx.doraInd];
+      if (state.players && state.players[seat]) state.players[seat].wind = P.jikazeOf(seat, ctx.dealer);
+    } catch (e) {
+      warnOnce('kan-ctx-sync', e);
+    }
 
     // Normal-type powers need no arming and spend nothing: the hook evaluates
     // its own condition and pins the on-deck replacement slot when it fires.
@@ -1555,7 +1596,8 @@ class Table {
         if (a.type === 'Tsumo') {
           const r = this.scoreFor(seat, me.lastDrawn, { tsumo: true, kan: true, last: false, tenhou: false });
           if (!this.isAWin(r) || !this.winMeetsFloor(r)) {
-            this.sendError(seat, 'InvalidAction', 'tsumo not available');
+            const why = this.tsumoBlockReason(seat, r);
+            this.sendError(seat, 'InvalidAction', why === 'no-yaku' ? 'tsumo not available (complete but no yaku)' : why === 'shibari' ? 'tsumo not available (ryanhan-shibari: needs 2+ han)' : why === 'noten' ? 'tsumo not available (hand not complete)' : 'tsumo not available');
             continue;
           }
           const result = { type: 'tsumo', winner: seat, tag: 'RINSHAN' };
@@ -1883,6 +1925,7 @@ class Table {
         qp.lastDrawn = rt;
         const trs = this.scoreFor(q, rt, { tsumo: true, kan: true, last: false, tenhou: false });
         const wantTsumo = this.isAWin(trs) && this.winMeetsFloor(trs);
+        const tsumoReason = wantTsumo ? null : this.tsumoBlockReason(q, trs);
 
         this.room.sendTo(
           q,
@@ -1891,6 +1934,7 @@ class Table {
               tile: P.sakiToTile(rt),
               remaining: ctx.poolTotal(),
               canTsumo: wantTsumo,
+              canTsumoReason: tsumoReason,
               canRiichi: false,
               isFuriten: this.furitenNow(qp),
             })

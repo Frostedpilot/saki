@@ -235,15 +235,20 @@ function winningWaitsExact(state, seat) {
 }
 
 // Live tiles that reduce shanten (deterministic: strongest gain, then kind).
+// Kan melds count as one set (3-tile equivalent): pushing all 4 builds a
+// 14-tile analysis hand for which hairi() returns no waits (see saki-normal).
+// At onKanDeclared time the equivalent is always 13 tiles waiting for one more.
 function advancingTilesExact(state, seat) {
   const p = state.players[seat] || {};
   const hand = p.hand || [];
   const melds = p.melds || [];
   const tiles = [...hand];
   for (const m of melds) {
-    if (Array.isArray(m.tiles)) tiles.push(...m.tiles.slice(0, 4).map(norm));
+    if (!Array.isArray(m.tiles)) continue;
+    const isKan = /kan/i.test(m.type || '');
+    tiles.push(...m.tiles.slice(0, isKan ? 3 : m.tiles.length).map(norm));
   }
-  const analysis = tiles.slice(0, 14);
+  const analysis = tiles.slice(0, 13);
   let before;
   try {
     before = shantenOf(analysis);

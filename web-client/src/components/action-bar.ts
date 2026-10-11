@@ -38,6 +38,7 @@ export function renderActionBar(store: GameStore): TemplateResult {
               </button>`
             : ''
         }
+        ${actions.can_kan ? html`<button class="action-bar__btn" @click=${() => store.callKan()}>KAN</button>` : ''}
         <button class="action-bar__btn action-bar__btn--riichi" @click=${() => store.discard(discardTarget)}>
           TSUMOGIRI (Discard)
         </button>

@@ -558,6 +558,30 @@ describe('renderActionBar', () => {
     expect(btn(host, 'TSUMOGIRI')).toBeTruthy();
   });
 
+  test('KAN is offered in riichi when a closed ankan is available', () => {
+    const store = fakeStore();
+    store.riichiDeclared = [true, false, false, false];
+    store.actions.can_discard = true;
+    store.actions.can_kan = true;
+    store.drawnTile = tile(7);
+    const host = mount(renderActionBar(store));
+    expect(btn(host, 'KAN')).toBeTruthy();
+    expect(btn(host, 'TSUMOGIRI')).toBeTruthy();
+    btn(host, 'KAN')!.dispatchEvent(new Event('click'));
+    expect(store.calls).toEqual(['callKan:undefined']);
+  });
+
+  test('KAN is hidden in riichi when no ankan is available', () => {
+    const store = fakeStore();
+    store.riichiDeclared = [true, false, false, false];
+    store.actions.can_discard = true;
+    store.actions.can_kan = false;
+    store.drawnTile = tile(7);
+    const host = mount(renderActionBar(store));
+    expect(btn(host, 'KAN')).toBeNull();
+    expect(btn(host, 'TSUMOGIRI')).toBeTruthy();
+  });
+
   test('a player who is not in riichi does not see TSUMOGIRI', () => {
     const store = fakeStore();
     store.yourSeat = 0;
