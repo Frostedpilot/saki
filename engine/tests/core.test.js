@@ -14,6 +14,63 @@ test('Phase 0/1: fresh state has 136, dead wall 14, hands 13 each', () => {
   assert.equal(s.pool.total(), 70); // 136 - 14 - 52
 });
 
+test('Phase 0/1 lifecycle: onPreDeal and onWallSetup fire around the wall setup', () => {
+  const s = createMatchState({ seed: 5 });
+  s.powers = new PowerDispatcher();
+  const seen = [];
+  s.powers.register(0, {
+    onPreDeal(ctx) {
+      seen.push(['pre', ctx.deadWall, s.deadWall.length, s.players[0].hand.length]);
+    },
+    onWallSetup(ctx) {
+      seen.push(['wall', ctx.deadWall === s.deadWall, s.deadWall.length, s.players[0].hand.length]);
+    },
+  });
+  setupDeadWall(s);
+  // Phase 0: no wall yet, no hands. Phase 1: a 14-slot wall, still no hands.
+  assert.deepEqual(seen, [
+    ['pre', null, 0, 0],
+    ['wall', true, 14, 0],
+  ]);
+  dealHands(s);
+  assert.equal(s.players[0].hand.length, 13);
+});
+
+test('Phase 0/1 lifecycle: hooks are dispatched for every seat, not just seat 0', () => {
+  const s = createMatchState({ seed: 6 });
+  s.powers = new PowerDispatcher();
+  const preSeats = [];
+  const wallSeats = [];
+  for (let seat = 0; seat < 4; seat++) {
+    s.powers.register(seat, {
+      onPreDeal() {
+        preSeats.push(seat);
+      },
+      onWallSetup() {
+        wallSeats.push(seat);
+      },
+    });
+  }
+  setupDeadWall(s);
+  assert.deepEqual(preSeats, [0, 1, 2, 3]);
+  assert.deepEqual(wallSeats, [0, 1, 2, 3]);
+});
+
+test('Phase 0/1 lifecycle: a throwing hook is warned and ignored, the wall still builds', () => {
+  const s = createMatchState({ seed: 7 });
+  s.powers = new PowerDispatcher();
+  s.powers.register(0, {
+    onPreDeal() {
+      throw new Error('boom');
+    },
+    onWallSetup() {
+      throw new Error('boom');
+    },
+  });
+  assert.doesNotThrow(() => setupDeadWall(s));
+  assert.equal(s.deadWall.length, 14);
+});
+
 test('Phase 2: draw step grows hand by 1 and shrinks pool by 1', () => {
   const s = createMatchState({ seed: 2 });
   setupDeadWall(s);

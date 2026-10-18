@@ -1489,19 +1489,39 @@ full-match run, so CI checks the server path too. Pinned by
 double-counted with `deadFrom = 0` and conserved with `deadFrom = 1`). Verified clean over
 15 unpowered and 10 powered full hanchans plus 7 bridge-match seeds.
 
+## <a id="a-17"></a>A-17 🟠 FIXED — the documented lifecycle hooks ran nowhere
+
+`engine/powers/index.js` dispatches `onPreDeal` / `onWallSetup`, `engine/tests/powers.test.js`
+covered them, and [`conventions.md`](conventions.md) documents them as pre-hand phases 0 and
+1 — but neither `engine/game.js` nor `server/table.js` ever called them, and no shipped
+roster implements them. A power author following the docs would have written a hook that
+never ran.
+
+Fixed in `core.setupDeadWall`, which is the single place the bridge server and the test
+harness build a kyoku: `onPreDeal(ctx)` fires before the wall exists, `onWallSetup(ctx)`
+after the 14-slot wanpai is allocated and before hands are dealt. Both are dispatched for
+every seat and wrapped by the dispatcher's throw guard, so a failing hook warns once and
+does not stop the deal. Pinned by three cases in `engine/tests/core.test.js` (ordering,
+all-seats, and a throwing hook).
+
+## <a id="a-18"></a>A-18 🟡 FIXED — `getTurnClock` / `TurnTimer` were dead end-to-end
+
+The dispatcher exposes `getTurnClock(seat, state)` (default 10 s), `server/protocol.js` has
+`turnTimer(seconds)`, and `web-client/src/net/protocol-types.ts` types `TurnTimer` — but the
+server never sent it and the client had no handler. There was no turn clock anywhere, so the
+hook's contract was unenforced and the event unreachable.
+
+Fixed: `Table.playTurn` sends `P.turnTimer(clock)` to the acting human when the turn opens,
+where `clock` is `Table.turnClockFor(seat)` — the hook value, sanitised to a positive integer
+with a 10 s fallback. The client arms a countdown, renders it in the turn pill
+(`${store.turnClockRemaining}s`), and **tsumogiris at zero**; a call window is left alone,
+because auto-passing could decline a win. Enforcement is client-side (advisory): there is no
+server timeout, so a client that ignores the timer simply keeps its turn. Pinned by
+`turn clock` in `web-client/src/state/store.test.ts`, `turnClockFor` in
+`server/test/validation.test.js`, and the E2E's `TurnTimer` count.
+
 ### Reported but not fixed (deliberate)
 
-- **`onPreDeal` / `onWallSetup` are declared and unit-tested on the dispatcher, but never
-  invoked.** `engine/powers/index.js` dispatches both, `engine/tests/powers.test.js`
-  covers them, and [`conventions.md`](conventions.md) documents them as lifecycle phases
-  0 and 1 — yet neither `engine/game.js` nor `server/table.js` calls them, and no shipped
-  roster implements them. A power author following the docs would write a hook that never
-  runs. Treat them as reserved until wired.
-- **`getTurnClock` / `TurnTimer` are dead end-to-end.** The dispatcher exposes
-  `getTurnClock(seat, state)` (default 10s), `server/protocol.js` has `turnTimer(seconds)`,
-  and `web-client/src/net/protocol-types.ts` types `TurnTimer` — but the server never
-  sends it and the client has no handler. There is no turn timeout anywhere, so the hook's
-  contract is unenforced and the event is unreachable.
 - **`replay.verifyKyouku` skips `call` actions.** The verifier asserts draw-liveness and
   conservation for draws and discards but `continue`s past `call`, so a journal with a
   bogus meld still "verifies". The module is experimental with no production writer
@@ -1545,6 +1565,7 @@ Docs are consistent and CI is green. These are the remaining **code** items:
 | 25 | ~~2026-10 audit Phase 0–1: malformed-frame crash, hook bricking, abort fall-through, CPU chi, furiten, `onTurnEnd`, kakan tag, kan-dora seeding, aka double-count, format gate~~ | ✅ done | Part C |
 | 26 | ~~2026-10 audit Phase 2: client ankan river-pop + call-log crash, `engine` manifest~~ | ✅ done | Part C (A-13–A-15) |
 | 27 | ~~2026-10 audit Phase 3: wanpai-aware tile-conservation invariant in the offline loop + opt-in server check~~ | ✅ done | Part C (A-16) |
+| 28 | ~~2026-10 audit Phase 4: dispatch `onPreDeal`/`onWallSetup`; `getTurnClock` → `TurnTimer` → client countdown + auto-tsumogiri~~ | ✅ done | Part C (A-17, A-18) |
 
 Item **23** is now *partly* done — the shared constants live in one place with a parity
 test — but merging the two orchestration loops is still open. **21** was its prerequisite

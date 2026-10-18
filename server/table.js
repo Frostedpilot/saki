@@ -871,6 +871,18 @@ class Table {
     if (problems.length) throw new Error(`tile conservation broke ${where}: ${problems.join('; ')}`);
   }
 
+  // The character turn-clock hook (getTurnClock, conventions.md phase 2c). The
+  // dispatcher supplies a 10s default; sanitise here so a hook that returns junk
+  // can never starve or freeze a human's turn.
+  turnClockFor(seat) {
+    let seconds = 10;
+    const powers = this.ctx.state && this.ctx.state.powers;
+    if (powers && typeof powers.getTurnClock === 'function') {
+      seconds = powers.getTurnClock(seat, this.ctx.state);
+    }
+    return Number.isFinite(seconds) && seconds > 0 ? Math.floor(seconds) : 10;
+  }
+
   tenpaiSeats() {
     const c = this.ctx;
     return [0, 1, 2, 3].filter(
@@ -973,6 +985,10 @@ class Table {
     // ---- decide action ----
     let action;
     if (!me.isCpu) {
+      // Character turn clock (getTurnClock, phase 2c): the client renders and
+      // enforces this locally; the server sends it once per turn, before the
+      // action request opens.
+      this.room.sendTo(seat, P.turnTimer(this.turnClockFor(seat)));
       // Human: wait for Discard / Riichi / Tsumo / Kan (client-computed hints).
       for (;;) {
         const a = await this.request(seat, new Set(['Discard', 'Riichi', 'Tsumo', 'Kan', 'Pass']));

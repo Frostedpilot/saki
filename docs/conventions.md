@@ -247,10 +247,11 @@ module.exports = { create<Name>Hooks };
 | `onPostDraw(tile, state)` | after draw | ignored |
 | `onSettlement(result, state)` | 4 — hand over | ignored |
 
-> **Not yet dispatched.** `onPreDeal`, `onWallSetup` and `getTurnClock` are declared on
-> the dispatcher and unit-tested, but nothing in the engine or server calls them, and no
-> shipped roster implements them. Do not build a power on phases 0, 1 or 2c until they are
-> wired; see [known-issues A-13 onward](known-issues.md#a-13).
+> **Where these fire.** `onPreDeal` and `onWallSetup` are dispatched by `core.setupDeadWall`
+> — the single kyoku-setup path shared by the bridge server and the test harness — and
+> `getTurnClock` by `Table.playTurn` when a human's turn opens. See
+> [known-issues A-17/A-18](known-issues.md#a-17). No shipped roster implements the two
+> pre-hand hooks yet, so today they are extension points rather than working powers.
 
 Declare `meta: { type: 'normal' }` for a **normal-type** passive: the FlowManager pins
 the seat at 0, all gauge ops become no-ops, and the client renders a `PASSIVE` pill

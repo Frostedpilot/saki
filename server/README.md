@@ -93,11 +93,16 @@ event-type tag (e.g. `RINSHAN_RESONANCE_TRIGGER`, `CHILLING_GAZE`,
 ## Excluded features
 
 Chombo-as-penalty (illegal post-riichi kan is refused instead), pao/sekinin,
-3-player, reconnection/resync, turn timers, oka/uma (raw scores in GameOver),
+3-player, reconnection/resync, oka/uma (raw scores in GameOver),
 and the human kyuushu prompt (human 9-kind hands auto play on; CPU seats
 declare at the standard rate). All five abortive draws, nagashi mangan,
 agari-yame and enchousen (with overtime ryanhan-shibari) are implemented —
 see `table.js` (`checkKyuushu`, `checkLapAbort`, `abortHand`, `checkMatchEnd`).
+
+> **Turn clock is advisory.** The acting human gets a `TurnTimer`
+> (`getTurnClock`, default 10 s) and the client counts it down and tsumogiris at
+> zero, but there is no server-side timeout — a client that ignores the timer
+> keeps its turn, so the hook cannot stall or enforce a seat.
 
 > **Reconnection caveat.** The client *attempts* to reconnect every 2 s
 > (`web-client/src/net/socket.ts`), but the server has no session resume — a new

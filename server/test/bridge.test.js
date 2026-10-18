@@ -110,6 +110,7 @@ class MockClient {
       CallAvailable: 0,
       PlayerCalled: 0,
       PlayerRiichi: 0,
+      TurnTimer: 0,
     };
     this.sent = false; // did we just reply to a TileDrawn?
     this.opened = new Promise((res, rej) => {
@@ -135,6 +136,7 @@ class MockClient {
       return;
     }
     this.sent = false;
+    if (m.TurnTimer) this.counts.TurnTimer++; // top-level, not wrapped in Event
     const ev = m.Event;
     if (ev) {
       for (const key of Object.keys(this.counts)) if (ev[key]) this.counts[key]++;
@@ -360,6 +362,7 @@ test('full bridge match (1 human + 3 CPU) completes with GameOver', { timeout: 9
     assert.ok(client.counts.TileDrawn >= 1, 'our draw events arrived');
     assert.ok(client.counts.OtherPlayerDrew >= 1, 'CPU draw events arrived');
     assert.ok(client.counts.TileDiscarded >= 1, 'discards arrived');
+    assert.ok(client.counts.TurnTimer >= 1, 'the human turn clock (getTurnClock -> TurnTimer) reached the client');
     assert.ok(gameOverMsg.final_scores.length === 4);
     for (const s of gameOverMsg.final_scores) assert.ok(Number.isFinite(s));
 

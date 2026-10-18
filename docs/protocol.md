@@ -245,11 +245,12 @@ blocks on `Action`.
 ## 7. Server capabilities
 
 The server plays **East-only tonpuusen, 1 human + 3 CPU** and deliberately omits
-abortive draws, nagashi mangan, pao, sanma, reconnection, and oka/uma. See
-`server/README.md` §"Excluded features" and the rules table in the root README.
+pao, sanma, reconnection, and oka/uma. See `server/README.md` §"Excluded features"
+and the rules table in the root README.
 
-`TurnTimer` is emitted by the server type surface but there is **no turn timer
-implemented** — the field exists for upstream compatibility.
+`TurnTimer` is sent to the acting human when a turn opens, carrying that seat's
+character clock (`getTurnClock`, default 10 s). The client counts it down and
+tsumogiris at zero; there is no server-side timeout, so enforcement is advisory.
 
 ---
 

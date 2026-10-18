@@ -64,7 +64,13 @@ export function renderBoard(store: GameStore): TemplateResult {
             isTurn
               ? html`
                   <span class="player-station__turn-pill">
-                    ${seat === store.yourSeat ? '🎯 YOUR TURN' : '⚡ THINKING...'}
+                    ${
+                      seat === store.yourSeat
+                        ? store.turnClockRemaining > 0
+                          ? html`🎯 YOUR TURN · ${store.turnClockRemaining}s`
+                          : '🎯 YOUR TURN'
+                        : '⚡ THINKING...'
+                    }
                   </span>
                 `
               : ''

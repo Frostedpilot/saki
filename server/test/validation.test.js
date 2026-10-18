@@ -617,3 +617,20 @@ test('doOpenChi accepts a CPU claim that carries bare ranks, not codes', async (
   assert.equal(qp.melds[0].type, 'chi');
   assert.equal(qp.melds[0].tiles.length, 3);
 });
+
+// ---------------------------------------------------------------- turn clock
+
+test('turnClockFor defaults to 10s and sanitises getTurnClock', () => {
+  const t = makeTable();
+  // The stub dispatcher has no getTurnClock: the documented default applies.
+  assert.equal(t.turnClockFor(0), 10);
+  const powers = t.ctx.state.powers;
+  powers.getTurnClock = () => 6;
+  assert.equal(t.turnClockFor(0), 6);
+  powers.getTurnClock = () => 4.9;
+  assert.equal(t.turnClockFor(0), 4, 'floors fractional seconds');
+  for (const junk of [0, -3, NaN, Infinity, 'slow', null, undefined]) {
+    powers.getTurnClock = () => junk;
+    assert.equal(t.turnClockFor(0), 10, `junk ${String(junk)} falls back to 10`);
+  }
+});

@@ -26,14 +26,31 @@ function createMatchState({ seed = 1, nSeats = 4 } = {}) {
   };
 }
 
-// Phase 1: allocate 14-tile wanpai from the live pool (uniform sample).
+// Phase 0+1 lifecycle dispatch. `setupDeadWall` is the single place both the
+// bridge server and the test harness build a kyoku, so the two documented
+// pre-hand hooks fire here instead of nowhere (they were declared on the
+// dispatcher, unit-tested, and documented as phases 0/1 — but never invoked):
+//   onPreDeal(ctx)   — before the wall exists (phase 0)
+//   onWallSetup(ctx) — wanpai allocated, hands not yet dealt (phase 1)
+// The dispatcher guards each hook, so a throw warns once and does not stop the deal.
+function dispatchLifecycle(state, hook, ctx) {
+  const powers = state.powers;
+  if (!powers || typeof powers[hook] !== 'function') return;
+  const seats = state.players ? state.players.length : 0;
+  for (let s = 0; s < seats; s++) powers[hook](s, ctx);
+}
+
+// Phase 0+1: allocate the 14-tile wanpai from the live pool, firing the
+// pre-deal and wall-setup hooks around it.
 function setupDeadWall(state) {
+  dispatchLifecycle(state, 'onPreDeal', { state, deadWall: null });
   state.deadWall = [];
   for (let i = 0; i < 14; i++) {
     const t = state.pool.sample();
     if (t === null) throw new Error('core.setupDeadWall: pool exhausted');
     state.deadWall.push(t);
   }
+  dispatchLifecycle(state, 'onWallSetup', { state, deadWall: state.deadWall });
   return state.deadWall;
 }
 

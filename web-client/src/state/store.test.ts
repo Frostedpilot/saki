@@ -9,7 +9,7 @@
 // `onMessage` / `onStatus` and the outbound methods, so a fake that records the
 // handlers is enough and keeps these tests about the store, not the transport.
 
-import { describe, test, expect, beforeEach, vi } from 'vitest';
+import { describe, test, expect, beforeEach, afterEach, vi } from 'vitest';
 import { GameStore } from './store';
 
 // ---------------------------------------------------------------- fake socket
@@ -404,6 +404,64 @@ describe('riichi auto-tsumogiri', () => {
     socket.emit(tileDrawn());
     expect(socket.sentRaw).toEqual([]);
     expect(store.actions.can_discard).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------- turn clock
+//
+// The server sends `TurnTimer` (from the getTurnClock hook) when a human's turn
+// opens. The client counts down and tsumogiris at zero — but only on its own
+// turn: a call window is left alone, because auto-passing could decline a win.
+
+describe('turn clock', () => {
+  beforeEach(() => vi.useFakeTimers());
+  afterEach(() => vi.useRealTimers());
+
+  test('a timer arms a countdown and auto-discards at zero', () => {
+    const { store, socket } = makeStore();
+    socket.emit(gameStarted());
+    socket.emit(tileDrawn()); // your turn: can_discard, drawn { index: 20 }
+    socket.emit({ TurnTimer: { seconds: 3 } });
+    expect(store.turnClockSeconds).toBe(3);
+    expect(store.turnClockRemaining).toBe(3);
+
+    vi.advanceTimersByTime(2000);
+    expect(store.turnClockRemaining).toBe(1);
+    expect(socket.sentRaw).toEqual([]);
+
+    vi.advanceTimersByTime(1000);
+    expect(store.turnClockRemaining).toBe(0);
+    expect(socket.sentRaw).toEqual([{ Action: { Discard: { tile: { index: 20 } } } }]);
+    expect(store.logs.some((e) => /turn clock expired/i.test(e.message))).toBe(true);
+  });
+
+  test('a timer during an opponent turn does not auto-discard', () => {
+    const { store, socket } = makeStore();
+    socket.emit(gameStarted());
+    socket.emit({ TurnTimer: { seconds: 2 } });
+    vi.advanceTimersByTime(5000);
+    expect(socket.sentRaw).toEqual([]);
+  });
+
+  test('discarding before zero cancels the countdown', () => {
+    const { store, socket } = makeStore();
+    socket.emit(gameStarted());
+    socket.emit(tileDrawn());
+    socket.emit({ TurnTimer: { seconds: 5 } });
+    store.discard({ index: 5 });
+    expect(store.turnClockRemaining).toBe(0);
+    vi.advanceTimersByTime(10000);
+    expect(socket.sentRaw).toEqual([{ Action: { Discard: { tile: { index: 5 } } } }]);
+  });
+
+  test('nonsense seconds arm nothing', () => {
+    const { store, socket } = makeStore();
+    socket.emit(gameStarted());
+    socket.emit(tileDrawn());
+    socket.emit({ TurnTimer: { seconds: 0 } });
+    expect(store.turnClockRemaining).toBe(0);
+    vi.advanceTimersByTime(5000);
+    expect(socket.sentRaw).toEqual([]);
   });
 });
 

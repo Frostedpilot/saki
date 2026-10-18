@@ -188,6 +188,45 @@ export class GameStore {
   public lastDiscard: { seat: number; index: number } | null = null;
   public hoveredDiscardWaitHint: Array<{ face: string; count: number }> | null = null;
 
+  // Character turn clock (server `TurnTimer` from the getTurnClock hook, phase
+  // 2c). Advisory and enforced locally: on expiry during your own turn we
+  // tsumogiri. A call window is left alone — auto-passing could decline a win.
+  public turnClockSeconds = 0;
+  public turnClockRemaining = 0;
+  private turnClockTimer: number | null = null;
+
+  private stopTurnClock(): void {
+    if (this.turnClockTimer !== null) {
+      clearInterval(this.turnClockTimer);
+      this.turnClockTimer = null;
+    }
+    this.turnClockSeconds = 0;
+    this.turnClockRemaining = 0;
+  }
+
+  private startTurnClock(seconds: number): void {
+    this.stopTurnClock();
+    if (!Number.isFinite(seconds) || seconds <= 0) return;
+    this.turnClockSeconds = Math.floor(seconds);
+    this.turnClockRemaining = this.turnClockSeconds;
+    this.turnClockTimer = window.setInterval(() => {
+      this.turnClockRemaining = Math.max(0, this.turnClockRemaining - 1);
+      if (this.turnClockRemaining === 0) {
+        this.stopTurnClock();
+        this.onTurnClockExpired();
+      }
+      this.notify();
+    }, 1000);
+  }
+
+  private onTurnClockExpired(): void {
+    if (!this.actions.can_discard) return; // opponent's turn, or a call window
+    const tile = this.drawnTile ?? this.hand[this.hand.length - 1] ?? null;
+    if (!tile) return;
+    this.addLog('turn', `Turn clock expired — auto-discarded ${tileToFace(tile)}.`);
+    this.discard(tile);
+  }
+
   public toast: ToastMessage | null = null;
   private toastTimer: number | null = null;
 
@@ -293,6 +332,7 @@ export class GameStore {
       clearTimeout(this.cutinTimer);
       this.cutinTimer = null;
     }
+    this.stopTurnClock();
     this.toast = null;
     this.screen = 'lobby';
     this.roomCode = '';
@@ -435,6 +475,7 @@ export class GameStore {
     this.isRiichiMode = false;
     this.riichiCandidateIndices.clear();
     this.hoveredDiscardWaitHint = null;
+    this.stopTurnClock();
   }
 
   public discard(tile: ProtocolTile): void {
@@ -793,6 +834,11 @@ export class GameStore {
         });
       }
       this.notify();
+      return;
+    }
+
+    if ('TurnTimer' in msg) {
+      this.startTurnClock(msg.TurnTimer.seconds);
       return;
     }
 
