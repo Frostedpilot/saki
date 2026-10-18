@@ -407,3 +407,149 @@ test('replay: logged core draws verify; tampered draw throws', () => {
   bad.actions.push(['draw', 0, '9x']); // unknown tile: never live
   assert.throws(() => replay.verifyJournal(bad), /not live/);
 });
+
+// Find a seed whose pool still holds `need` copies of some kind after the deal,
+// so call tests are not pinned to a brittle hand. Deterministic and cheap.
+function seedWithTile(need) {
+  for (let seed = 1; seed < 1000; seed++) {
+    const s = core.createMatchState({ seed });
+    core.setupDeadWall(s);
+    core.dealHands(s);
+    const t = Object.keys(s.pool.counts).find((k) => s.pool.counts[k] >= need);
+    if (t) return { seed, t };
+  }
+  throw new Error(`no seed with ${need} live copies of a kind`);
+}
+
+function blankJournal(seed) {
+  const j = replay.createJournal(seed);
+  replay.startKyoku(j, seed);
+  return j;
+}
+
+test('replay: a pon is reconstructed from the river and the hand', () => {
+  const { seed, t } = seedWithTile(3);
+  const j = blankJournal(seed);
+  replay.record(j, 1, 'draw', t);
+  replay.record(j, 1, 'discard', t); // river of seat 1 is now [t]
+  replay.record(j, 0, 'draw', t);
+  replay.record(j, 0, 'draw', t); // seat 0 holds two more copies
+  replay.record(j, 0, 'call', { kind: 'pon', tiles: [t, t, t], from: 1, called: t });
+  const r = replay.verifyJournal(j);
+  assert.equal(r.calls, 1);
+  assert.equal(r.draws, 3);
+  assert.equal(r.discards, 1);
+});
+
+test('replay: a chi is reconstructed from a run', () => {
+  const seed = 20240617;
+  const s = core.createMatchState({ seed });
+  core.setupDeadWall(s);
+  core.dealHands(s);
+  let run = null;
+  for (const su of ['m', 'p', 's']) {
+    for (let n = 1; n <= 7 && !run; n++) {
+      const a = `${n}${su}`,
+        b = `${n + 1}${su}`,
+        c = `${n + 2}${su}`;
+      if (s.pool.counts[a] >= 1 && s.pool.counts[b] >= 1 && s.pool.counts[c] >= 1) run = [a, b, c];
+    }
+    if (run) break;
+  }
+  assert.ok(run, 'this seed must still hold a live run');
+  const [a, b, c] = run;
+  const j = blankJournal(seed);
+  replay.record(j, 1, 'draw', b);
+  replay.record(j, 1, 'discard', b);
+  replay.record(j, 0, 'draw', a);
+  replay.record(j, 0, 'draw', c);
+  replay.record(j, 0, 'call', { kind: 'chi', tiles: [a, b, c], from: 1, called: b });
+  assert.equal(replay.verifyJournal(j).calls, 1);
+});
+
+test('replay: an ankan draws all four from hand', () => {
+  const { seed, t } = seedWithTile(4);
+  const j = blankJournal(seed);
+  for (let i = 0; i < 4; i++) replay.record(j, 0, 'draw', t);
+  replay.record(j, 0, 'call', { kind: 'ankan', tiles: [t, t, t, t] });
+  const r = replay.verifyJournal(j);
+  assert.equal(r.calls, 1);
+  assert.equal(r.draws, 4);
+});
+
+test('replay: a kakan upgrades an existing pon', () => {
+  const { seed, t } = seedWithTile(4);
+  const j = blankJournal(seed);
+  replay.record(j, 1, 'draw', t);
+  replay.record(j, 1, 'discard', t);
+  replay.record(j, 0, 'draw', t);
+  replay.record(j, 0, 'draw', t);
+  replay.record(j, 0, 'call', { kind: 'pon', tiles: [t, t, t], from: 1, called: t });
+  replay.record(j, 0, 'draw', t);
+  replay.record(j, 0, 'call', { kind: 'kakan', tiles: [t, t, t, t] });
+  const r = replay.verifyJournal(j);
+  assert.equal(r.calls, 2);
+  assert.equal(r.draws, 4);
+});
+
+test('replay: a daiminkan plus a rinshan replacement draw', () => {
+  const { seed, t } = seedWithTile(4);
+  const s = core.createMatchState({ seed });
+  core.setupDeadWall(s);
+  core.dealHands(s);
+  const replacement = s.deadWall[0]; // a wanpai tile: not in the live pool
+  const j = blankJournal(seed);
+  replay.record(j, 1, 'draw', t);
+  replay.record(j, 1, 'discard', t);
+  for (let i = 0; i < 3; i++) replay.record(j, 0, 'draw', t);
+  replay.record(j, 0, 'call', { kind: 'daiminkan', tiles: [t, t, t, t], from: 1, called: t });
+  replay.record(j, 0, 'rinshan', replacement);
+  const r = replay.verifyJournal(j);
+  assert.equal(r.calls, 1);
+  assert.equal(r.draws, 5); // seat 1's draw + 3 for the kan + the rinshan
+});
+
+test('replay: a call that could not have happened throws', () => {
+  const { seed, t } = seedWithTile(4);
+
+  // The called tile is not the discarder's last discard (seat 2 has not discarded).
+  {
+    const j = blankJournal(seed);
+    replay.record(j, 1, 'draw', t);
+    replay.record(j, 1, 'discard', t);
+    replay.record(j, 0, 'draw', t);
+    replay.record(j, 0, 'draw', t);
+    replay.record(j, 0, 'call', { kind: 'pon', tiles: [t, t, t], from: 2, called: t });
+    assert.throws(() => replay.verifyJournal(j), /last discard/);
+  }
+  // A meld tile that was never in hand.
+  {
+    const j = blankJournal(seed);
+    replay.record(j, 0, 'call', { kind: 'ankan', tiles: [t, t, t, t] });
+    assert.throws(() => replay.verifyJournal(j), /not in hand/);
+  }
+  // A kakan with no pon to promote.
+  {
+    const j = blankJournal(seed);
+    replay.record(j, 0, 'draw', t);
+    replay.record(j, 0, 'call', { kind: 'kakan', tiles: [t, t, t, t] });
+    assert.throws(() => replay.verifyJournal(j), /no pon meld/);
+  }
+  // A rinshan tile that is not in the wanpai (here: a live-pool tile).
+  {
+    const j = blankJournal(seed);
+    replay.record(j, 0, 'rinshan', t);
+    assert.throws(() => replay.verifyJournal(j), /not in the dead wall/);
+  }
+  // An unknown kind and a malformed payload.
+  {
+    const j = blankJournal(seed);
+    replay.record(j, 0, 'call', { kind: 'nope', tiles: [t, t, t] });
+    assert.throws(() => replay.verifyJournal(j), /unknown call kind/);
+  }
+  {
+    const j = blankJournal(seed);
+    replay.record(j, 0, 'call', { kind: 'pon' });
+    assert.throws(() => replay.verifyJournal(j), /malformed call/);
+  }
+});

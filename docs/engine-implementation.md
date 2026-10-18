@@ -350,11 +350,11 @@ these are enabled in `RULES.aborts` and disabled in `RULES.serverAborts`
   `--closed-only=1`, `--riichi-always=1`, `--demo-abort=NAME`.
   Parsed by the `args` block near the top of `game.js`; the accepted
   `--powers` keys are the `POWERS` array.
-- `node game.js --selftest=1` runs `selftest()` — 43 deterministic checks
+- `node game.js --selftest=1` runs `selftest()` — 48 deterministic checks
   covering ippatsu, chankan, rinshan, haitei/houtei, double riichi, ura/kan
   dora, waits/furiten, double/triple ron eligibility, kyuushu counts, all abort
   helpers, riichi gate, nagashi, kuikae bans, ankan wait preservation, oka/uma.
-  It prints `SELFTEST PASS (43 checks)`.
+  It prints `SELFTEST PASS (48 checks)`.
 - `node cli.js eval/play/demo` is a smaller single-player sandbox with the same
   tile/shanten/scoring hacks.
 - `npm test` runs `tests/*.test.js` (conservation, determinism, slots, flow)

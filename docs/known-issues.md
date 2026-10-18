@@ -239,8 +239,8 @@ reachable only via `server/table.js` and the engine unit tests.
 
 - **CI: ✅ fixed.** `.github/workflows/ci.yml` runs on push and PR: `npm ci`, ESLint +
   Prettier `format:check`, engine tests, server E2E, client type-check + build, a CLI smoke
-  check, and the markdown link checker. The 385 tests plus the 48-check selftest now run
-  automatically.
+  check, and the markdown link checker. The full test suite (engine, server, dev scripts,
+  client) plus the 48-check selftest now run automatically.
 - **Markdown link checking: ✅ added.** `scripts/check-links.mjs` (`npm run links`)
   verifies every relative link in every `.md` resolves. It caught real breakage during
   this work and is cheap to run locally.
@@ -1520,13 +1520,32 @@ server timeout, so a client that ignores the timer simply keeps its turn. Pinned
 `turn clock` in `web-client/src/state/store.test.ts`, `turnClockFor` in
 `server/test/validation.test.js`, and the E2E's `TurnTimer` count.
 
-### Reported but not fixed (deliberate)
+## <a id="a-19"></a>A-19 ⚪ FIXED — `replay.js` verified draws and discards but skipped calls
 
-- **`replay.verifyKyouku` skips `call` actions.** The verifier asserts draw-liveness and
-  conservation for draws and discards but `continue`s past `call`, so a journal with a
-  bogus meld still "verifies". The module is experimental with no production writer
-  (`createJournal`/`record` are called only from tests), so this is deferred rather than
-  wrong in a shipped path.
+`verifyKyoku` asserted draw-liveness and conservation for `draw`/`discard` and then
+`continue`d past `call`, so a journal containing a bogus meld still "verified" — and the
+conservation partition never included meld tiles.
+
+Fixed: `replay.js` now reconstructs calls. `applyCall` requires a pon/chi/daiminkan to
+consume the discarder's **last** river tile (rejected otherwise) with the remaining meld
+tiles present in hand; an ankan takes all four from hand; a kakan promotes an existing pon.
+The partition now folds in meld tiles, and a `rinshan` action type models a replacement draw
+from the wanpai so kan journals verify. The journal grammar is documented in the file header.
+Pinned by six cases in `engine/tests/rules.test.js` (pon, chi, ankan, kakan, daiminkan +
+rinshan, and the rejection set).
+
+## <a id="a-20"></a>A-20 ⚪ FIXED — the link checker was the one source file with no test
+
+`scripts/check-links.mjs` decides whether CI's `links` step is green, so a regression in its
+regexes or skip rules would let dead links through unnoticed. It was the only source file the
+"which file has no test?" sweep still returned.
+
+Fixed: the scan is extracted into an exported `checkLinks(root)` (the CLI keeps its
+print-and-exit behavior and only runs when invoked directly), and
+`scripts/check-links.test.mjs` drives it against fixture trees — dead vs live links, the
+skip list, parent-relative resolution, anchor stripping, duplicate titles — plus one test
+that runs it against this repository for real. Wired in as `npm run test:scripts` (root
+`test` and CI).
 
 ---
 
@@ -1566,6 +1585,7 @@ Docs are consistent and CI is green. These are the remaining **code** items:
 | 26 | ~~2026-10 audit Phase 2: client ankan river-pop + call-log crash, `engine` manifest~~ | ✅ done | Part C (A-13–A-15) |
 | 27 | ~~2026-10 audit Phase 3: wanpai-aware tile-conservation invariant in the offline loop + opt-in server check~~ | ✅ done | Part C (A-16) |
 | 28 | ~~2026-10 audit Phase 4: dispatch `onPreDeal`/`onWallSetup`; `getTurnClock` → `TurnTimer` → client countdown + auto-tsumogiri~~ | ✅ done | Part C (A-17, A-18) |
+| 29 | ~~2026-10 audit Phase 5: verify `call`s in `replay.js`; test `scripts/check-links.mjs` (the last untested source file)~~ | ✅ done | Part C (A-19, A-20) |
 
 Item **23** is now *partly* done — the shared constants live in one place with a parity
 test — but merging the two orchestration loops is still open. **21** was its prerequisite

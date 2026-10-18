@@ -6,11 +6,12 @@
 // present if you cloned the upstream engine yourself) are skipped.
 //
 // Usage: node scripts/check-links.mjs
-// Exits non-zero and prints each dead link.
+// Exits non-zero and prints each dead link. `checkLinks(root)` is exported so
+// the scan itself can be tested against fixtures (scripts/check-links.test.mjs).
 
 import { readFileSync, existsSync, globSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const SKIP_DIRS = new Set(['node_modules', '.git', 'dist', 'reference']);
@@ -22,83 +23,96 @@ const LINK_RE = /\]\(\s*(<[^>\s]+>|[^)\s]+)(?:\s+(?:"[^"]*"|'[^']*'))?\s*\)/g;
 const AUTOLINK_RE = /<((?:\.?\.?\/[^>\s]*|#[^>\s]*))>/g;
 const REF_DEF_RE = /^\s*\[[^\]]+\]:\s*(\S+)/gm;
 
-const files = globSync('**/*.md', { cwd: ROOT, posix: false }).filter(
-  (p) => !p.split(/[\\/]/).some((seg) => SKIP_DIRS.has(seg))
-);
+// Scan every markdown file under `root`. Returns the dead links and duplicate
+// top-level titles; printing and the exit code are the CLI's job (`main`).
+export function checkLinks(root = ROOT) {
+  const files = globSync('**/*.md', { cwd: root, posix: false }).filter(
+    (p) => !p.split(/[\\/]/).some((seg) => SKIP_DIRS.has(seg))
+  );
 
-const dead = [];
-let checked = 0;
+  const dead = [];
+  let checked = 0;
 
-for (const rel of files) {
-  const abs = join(ROOT, rel);
-  const text = readFileSync(abs, 'utf8');
-  const dir = dirname(abs);
-  const targets = [
-    ...[...text.matchAll(LINK_RE)].map((m) => m[1]),
-    ...[...text.matchAll(AUTOLINK_RE)].map((m) => m[1]),
-    ...[...text.matchAll(REF_DEF_RE)].map((m) => m[1]),
-  ];
-  for (let target of targets) {
-    if (/^(https?:|file:|mailto:|data:)/i.test(target)) continue;
-    if (target.startsWith('#')) continue;
-    if (target.startsWith('<') && target.endsWith('>')) target = target.slice(1, -1);
-    // Skip HTML closing tags caught by the autolink pattern (e.g. </a> from
-    // <a id="..."> anchors): a bare /tagname is not a link target.
-    if (/^\/[A-Za-z][A-Za-z0-9]*$/.test(target)) continue;
-    if (target.startsWith('reference/')) continue;
-    // Strip an anchor/query before resolving; decode %20 etc.
-    let clean = target.split('#')[0].split('?')[0];
-    try {
-      clean = decodeURIComponent(clean);
-    } catch {
-      /* keep raw */
-    }
-    if (clean === '') continue;
-    checked++;
-    if (!existsSync(join(dir, clean))) {
-      dead.push({ file: rel.split(/[\\/]/).join('/'), target });
+  for (const rel of files) {
+    const abs = join(root, rel);
+    const text = readFileSync(abs, 'utf8');
+    const dir = dirname(abs);
+    const targets = [
+      ...[...text.matchAll(LINK_RE)].map((m) => m[1]),
+      ...[...text.matchAll(AUTOLINK_RE)].map((m) => m[1]),
+      ...[...text.matchAll(REF_DEF_RE)].map((m) => m[1]),
+    ];
+    for (let target of targets) {
+      if (/^(https?:|file:|mailto:|data:)/i.test(target)) continue;
+      if (target.startsWith('#')) continue;
+      if (target.startsWith('<') && target.endsWith('>')) target = target.slice(1, -1);
+      // Skip HTML closing tags caught by the autolink pattern (e.g. </a> from
+      // <a id="..."> anchors): a bare /tagname is not a link target.
+      if (/^\/[A-Za-z][A-Za-z0-9]*$/.test(target)) continue;
+      if (target.startsWith('reference/')) continue;
+      // Strip an anchor/query before resolving; decode %20 etc.
+      let clean = target.split('#')[0].split('?')[0];
+      try {
+        clean = decodeURIComponent(clean);
+      } catch {
+        /* keep raw */
+      }
+      if (clean === '') continue;
+      checked++;
+      if (!existsSync(join(dir, clean))) {
+        dead.push({ file: rel.split(/[\\/]/).join('/'), target });
+      }
     }
   }
+
+  // Duplicate top-level titles. Two docs claiming the same H1 is almost always one file
+  // having been overwritten with another's content, and it is invisible to a link check:
+  // the links all still resolve, they just resolve to the wrong document. This caught a
+  // real case — docs/development.md had been clobbered with the whole of
+  // docs/known-issues.md, title and all, and every link into development.md still "worked".
+  const titles = new Map();
+  const dupes = [];
+  for (const rel of files) {
+    const text = readFileSync(join(root, rel), 'utf8');
+    const m = text.match(/^#\s+(.+)$/m);
+    if (!m) continue;
+    const title = m[1].trim();
+    const relPath = rel.split(/[\\/]/).join('/');
+    if (titles.has(title)) {
+      dupes.push({ title, a: titles.get(title), b: relPath });
+    } else {
+      titles.set(title, relPath);
+    }
+  }
+
+  return { checked, files, dead, dupes, titles };
 }
 
-// Duplicate top-level titles. Two docs claiming the same H1 is almost always one file
-// having been overwritten with another's content, and it is invisible to a link check:
-// the links all still resolve, they just resolve to the wrong document. This caught a
-// real case — docs/development.md had been clobbered with the whole of
-// docs/known-issues.md, title and all, and every link into development.md still "worked".
-const titles = new Map();
-const dupes = [];
-for (const rel of files) {
-  const text = readFileSync(join(ROOT, rel), 'utf8');
-  const m = text.match(/^#\s+(.+)$/m);
-  if (!m) continue;
-  const title = m[1].trim();
-  const relPath = rel.split(/[\\/]/).join('/');
-  if (titles.has(title)) {
-    dupes.push({ title, a: titles.get(title), b: relPath });
-  } else {
-    titles.set(title, relPath);
-  }
-}
+function main() {
+  const { checked, files, dead, dupes, titles } = checkLinks();
 
-if (dead.length || dupes.length) {
-  if (dead.length) {
-    console.error(`\n${dead.length} dead relative markdown link(s):\n`);
-    for (const { file, target } of dead) console.error(`  ${file} -> ${target}`);
-    console.error('');
-  }
-  if (dupes.length) {
-    console.error(`${dupes.length} duplicate markdown title(s):\n`);
-    for (const { title, a, b } of dupes) {
-      console.error(`  "${title}" is claimed by both ${a} and ${b}`);
+  if (dead.length || dupes.length) {
+    if (dead.length) {
+      console.error(`\n${dead.length} dead relative markdown link(s):\n`);
+      for (const { file, target } of dead) console.error(`  ${file} -> ${target}`);
+      console.error('');
     }
-    console.error(
-      '\nOne document has probably been overwritten with another. ' + 'Check `git log --follow` on the newer one.'
-    );
-    console.error('');
+    if (dupes.length) {
+      console.error(`${dupes.length} duplicate markdown title(s):\n`);
+      for (const { title, a, b } of dupes) {
+        console.error(`  "${title}" is claimed by both ${a} and ${b}`);
+      }
+      console.error(
+        '\nOne document has probably been overwritten with another. ' + 'Check `git log --follow` on the newer one.'
+      );
+      console.error('');
+    }
+    process.exit(1);
   }
-  process.exit(1);
+
+  console.log(`OK: ${checked} relative markdown links across ${files.length} files resolve.`);
+  console.log(`    ${titles.size} distinct document titles, no duplicates.`);
 }
 
-console.log(`OK: ${checked} relative markdown links across ${files.length} files resolve.`);
-console.log(`    ${titles.size} distinct document titles, no duplicates.`);
+// Run only when invoked directly (not when imported by the test).
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) main();

@@ -144,10 +144,11 @@ CI runs on every push and PR (`.github/workflows/ci.yml`). Everything runs local
 via Node's built-in test runner.
 
 ```bash
-npm test              # everything CI runs (~2 min)
-npm run test:engine   # 385 tests + 48 rule checks
-npm run test:server   # 127 server tests
-npm run test:client   # 237 client tests + tsc type-check
+npm test              # everything CI runs
+npm run test:engine   # 400 tests + 48 rule checks
+npm run test:server   # 128 server tests
+npm run test:scripts  # 6 dev-script tests
+npm run test:client   # 244 client tests + tsc type-check
 npm run links         # markdown link check
 npm run smoke         # one short deterministic hand
 ```

@@ -37,15 +37,20 @@ jobs:
       - name: Lint and formatting
         run: npm run lint --silent && npm run format:check --silent
 
-      # 310 unit tests + 43 in-engine rule checks. The glob form is required:
-      # a bare directory argument is rejected by Node 22.
+      # 400 engine unit tests + 48 in-engine rule checks. The glob form is
+      # required: a bare directory argument is rejected by Node 22.
       - name: Engine tests
         run: npm run test:engine
 
-      # 3 headless end-to-end tests: spawns the bridge, drives a full match
-      # over a real WebSocket, asserts through GameOver.
+      # 128 server tests, including a headless end-to-end match: it spawns the
+      # bridge, drives a full game over a real WebSocket, asserts through GameOver.
       - name: Server end-to-end tests
         run: npm run test:server
+
+      # The dev scripts need tests too — check-links.mjs is what decides whether
+      # the "links" step below passes.
+      - name: Dev-script tests
+        run: npm run test:scripts
 
       # Client: vitest unit tests (tile logic, rendering, store) plus the `tsc`
       # and production-build gate.
