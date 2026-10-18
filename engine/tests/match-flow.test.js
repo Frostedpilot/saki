@@ -185,3 +185,14 @@ test('winPayments: a settled hand is always zero-sum', () => {
     );
   }
 });
+
+// The abortive-draw switch. Defaulting to enabled is the property that makes
+// wiring it behaviour-neutral: a key that is absent or misspelled cannot turn a
+// rule off, only an explicit `false` can.
+test('abortEnabled: enabled unless the flag is explicitly false', () => {
+  const flags = { tripleRon: true, suukaikan: false };
+  assert.equal(F.abortEnabled(flags, 'tripleRon'), true);
+  assert.equal(F.abortEnabled(flags, 'suukaikan'), false);
+  assert.equal(F.abortEnabled(flags, 'suufonRenda'), true, 'a missing key defaults on');
+  assert.equal(F.abortEnabled(undefined, 'anything'), true, 'no flag set defaults on');
+});

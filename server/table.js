@@ -686,6 +686,7 @@ class Table {
   // rule change. Returns the declaring seat or -1.
   checkKyuushu() {
     const ctx = this.ctx;
+    if (!MF.abortEnabled(RULES.serverAborts, 'kyuushuKyuuhai')) return -1;
     for (let k = 0; k < 4; k++) {
       const s = (ctx.dealer + k) % 4;
       if (H.distinctYaochuu(ctx.players[s].hand) >= 9) {
@@ -739,14 +740,16 @@ class Table {
     const ctx = this.ctx;
     if (ctx.fourRiichiPending) {
       ctx.fourRiichiPending = false;
-      return 'SuuchaRiichi';
+      if (MF.abortEnabled(RULES.serverAborts, 'suuchaRiichi')) return 'SuuchaRiichi';
     }
     // Defensive: older headless scaffolds (and any future partial ctx) may not
     // carry the first-lap accumulator. Missing means "no information", never abort.
     const firstLap = Array.isArray(ctx.firstLapDiscards) ? ctx.firstLapDiscards : [];
     if (!ctx.suufonDone && firstLap.length === 4) {
       ctx.suufonDone = true;
-      if (H.isSuufonRenda(firstLap)) return 'SuufonRenda';
+      if (MF.abortEnabled(RULES.serverAborts, 'suufonRenda') && H.isSuufonRenda(firstLap)) {
+        return 'SuufonRenda';
+      }
     }
     return null;
   }
@@ -1352,7 +1355,7 @@ class Table {
 
     if (kan.kind === 'kakan') {
       const hits = await this.collectRon(tile, seat, { chankan: true, label: 'CHANKAN' });
-      if (hits.length >= 3) {
+      if (MF.abortEnabled(RULES.serverAborts, 'tripleRon') && hits.length >= 3) {
         return { end: true, winner: -1, winBy: { type: 'abort', reason: 'TripleRon' } };
       }
       if (hits.length) {
@@ -1399,7 +1402,7 @@ class Table {
     // plays on). Mirrors engine/game.js via the shared H.isSuukaikanAbort.
     // Checked BEFORE the kan-dora flip so an aborting 4th kan does not reveal
     // a dora and then discard the hand.
-    if (H.isSuukaikanAbort(ctx.kansBy)) {
+    if (MF.abortEnabled(RULES.serverAborts, 'suukaikan') && H.isSuukaikanAbort(ctx.kansBy)) {
       console.log(`[bridge] SUUKAIKAN (four kans: ${ctx.kansBy.join('/')}) - abortive draw`);
       return { end: true, winner: -1, winBy: { type: 'abort', reason: 'Suukaikan' } };
     }
@@ -2007,7 +2010,7 @@ class Table {
 
     if (kind === 'daiminkan') {
       ctx.kansBy[q]++;
-      if (H.isSuukaikanAbort(ctx.kansBy)) {
+      if (MF.abortEnabled(RULES.serverAborts, 'suukaikan') && H.isSuukaikanAbort(ctx.kansBy)) {
         console.log(`[bridge] SUUKAIKAN (four kans: ${ctx.kansBy.join('/')}) - abortive draw`);
         return { end: true, winner: -1, winBy: { type: 'abort', reason: 'Suukaikan' } };
       }
@@ -2217,7 +2220,7 @@ class Table {
       // the hand is void, nobody is paid, the dealer repeats and a honba is added.
       // Two claimants is a legal double ron and is paid normally, which is why
       // this is `>= 3` and not `> 1`. See docs/known-issues.md KI-20.
-      if (!isTsumo && wins.length >= 3) {
+      if (!isTsumo && wins.length >= 3 && MF.abortEnabled(RULES.serverAborts, 'tripleRon')) {
         console.log(
           `[bridge] ABORTIVE triple ron on ${winBy.tile} from P${winBy.from} ` +
             `(seats ${wins.map((w) => 'P' + w.seat).join('/')}) - hand void, no payments`

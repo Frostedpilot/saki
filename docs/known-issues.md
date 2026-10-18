@@ -125,11 +125,11 @@ The same rules are implemented twice, and the two copies disagree:
 
 **Still open.** A rule fixed in `game.js` is not automatically fixed in `table.js`. This
 has already happened: the permanent-riichi-furiten bug existed on both sides and needed
-two fixes plus a regression suite. The divergence is at least *declared* in
-`engine/rules-config.js` (`RULES.aborts` vs `RULES.serverAborts`) — but nothing reads
-those two objects. The server now *has* all five abort handlers (see [KI-25](#ki-25)), so
-the flags are no longer blocked on missing code; the handlers are simply unconditional,
-and flipping a flag would do nothing. They document intent; they do not enforce it.
+two fixes plus a regression suite. The divergence is declared in
+`engine/rules-config.js` (`RULES.aborts` vs `RULES.serverAborts`), and both front-ends now
+read their set through `engine/match-flow.js` `abortEnabled` — so flipping one of those
+flags is the single switch for that abort. Both sets enable all five, so the switch is
+behaviour-neutral today; it exists so the two sides *can* differ without forking a loop.
 
 **Reduced, not closed.** The *shared rule functions* are no longer duplicated —
 `engine/helpers.js` is now the single definition for waits, furiten, bot decisions,
@@ -172,10 +172,9 @@ like one task and is not:
   have different control architectures because one is a CLI and the other is a server.
   Merging them means rewriting both, not extracting a shared function — which is why
   item 23 was scoped at 2–3 days.
-- **Abortive draws.** Both front-ends now implement all five (see [KI-25](#ki-25));
-  `Table`'s kyuushu path keeps one documented limitation (no deal-time prompt, so a human
-  9-kind hand auto-plays on). What is still unshared is the *switch*: `RULES.aborts` /
-  `RULES.serverAborts` gate nothing.
+- **Abortive draws.** Both front-ends implement all five (see [KI-25](#ki-25)) and gate
+  them through the shared `match-flow.js abortEnabled` switch; `Table`'s kyuushu path keeps
+  one documented limitation (no deal-time prompt, so a human 9-kind hand auto-plays on).
 - **Score arithmetic.** No longer duplicated: `match-flow.js winPayments` settles a
   tsumo/ron on both sides, and `manganPayment`/`nagashiPayments` cover the nagashi payout
   and the game.js-only chombo penalty. What the turn loops still own is *when* to settle,
@@ -400,7 +399,7 @@ agari-yame/enchousen (with overtime ryanhan-shibari via the shared
 - `checkMatchEnd` (agari-yame on a leading dealer win at all-last, enchousen
   while the dealer repeats, `run()` extended past `totalRounds` in overtime).
 
-**Tests:** `server/test/aborts.test.js` (18 tests) drives every path headless —
+**Tests:** `server/test/aborts.test.js` (19 tests) drives every path headless —
 the rare paths are unreachable in bot play, which is exactly the coverage gap
 that hid KI-22. `RULES.serverAborts` is now all-true.
 
@@ -1596,6 +1595,7 @@ Docs are consistent and CI is green. These are the remaining **code** items:
 | 30 | ~~KI-04 increment: share the mangan payment (nagashi payout + chombo) in `match-flow.js`; reconcile the KI-04/oka-uma text~~ | ✅ done | KI-04 |
 | 31 | ~~2026-10 repo hygiene: forward-only Git LFS tracking for the two large binaries (CI checkout `lfs: true`); close KI-12 as a decided "no LICENSE"~~ | ✅ done | KI-08, KI-12 |
 | 32 | ~~KI-04 increment: share the win-settlement arithmetic (`winPayments`) in `match-flow.js`~~ | ✅ done | KI-04 |
+| 33 | ~~KI-04: make the abort switches live (`match-flow.js abortEnabled`), so `RULES.aborts` / `RULES.serverAborts` gate the five detections on both front-ends~~ | ✅ done | KI-04 |
 
 Item **23** is now *partly* done — the shared constants live in one place with a parity
 test — but merging the two orchestration loops is still open. **21** was its prerequisite

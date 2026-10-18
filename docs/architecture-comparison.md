@@ -59,7 +59,7 @@ Status tags: **[FIXED]** landed — see §5. **[OPEN]** still true.
 2. **Black-box scoring.** *Partly fixed.* String-built input to `riichi` + `syanten`
    with `^` ranges. Correct until the lib changes — mitigated by exact version pins and
    `engine/tests/rules.test.js` (27 tests). Still thin: no exhaustive yaku/fu corpus,
-   and `game.js` `selftest()` is 43 ad-hoc checks rather than a fixture suite.
+   and `game.js` `selftest()` is 48 ad-hoc checks rather than a fixture suite.
 3. **Furiten bug class.** **[FIXED]** This was a live bug: `me.tempFuriten=false` ran
    on every own draw, so a riichi passer could ron again later in the round. Guarded
    with `if (!me.riichi && !me.doubleRiichi)`, via `engine/helpers.js`
@@ -67,9 +67,10 @@ Status tags: **[FIXED]** landed — see §5. **[OPEN]** still true.
    `engine/tests/furiten-riichi.test.js` (5 tests). Reference behaviour is in
    `furiten.majs`.
 4. **Documented gaps.** **[OPEN]** No open-riichi, no pao (see the `game.js` header);
-   the server drops all five aborts (`RULES.serverAborts`); `--seed` still backs
-   `Math.random` via `createRNG` rather than threading an `RNG` through the offline
-   turn loop, so offline and online determinism are separate mechanisms.
+   the offline turn loop does not thread an `RNG` through `--seed` (it backs
+   `Math.random` via `createRNG`), so offline and online determinism are separate
+   mechanisms. Both front-ends now implement and gate all five abortive draws
+   (`RULES.aborts` / `RULES.serverAborts` via `MF.abortEnabled`).
 5. **No replay log.** *Partly fixed.* `engine/replay.js` implements the journal and
    verifier, but matches are not persisted — nothing writes a journal to disk, so real
    disputes are still not reproducible. Reference has log/supervision
@@ -106,7 +107,10 @@ It is less reliable as a runtime for us (new stack, own matcher bugs to own).
 ### Phase 4: Match Loop & Architecture Unification
 - **Align Server & Offline Turn Loop**: ⚠️ partly done
   - The shared **numeric** rule values (start score, riichi stake, honba, noten schedule) now come from `engine/rules-config.js` and are read by both front-ends, with `engine/tests/rules-config-parity.test.js` failing if either reintroduces a literal copy.
-  - Abortive draws are **not** gated behind that config, despite `RULES.aborts` / `RULES.serverAborts` existing — nothing reads those two objects, because the server has no abort handlers to switch on. The flags document intent only. See KI-04.
+  - Abortive draws are gated behind that config: both front-ends read `RULES.aborts` /
+    `RULES.serverAborts` through `engine/match-flow.js abortEnabled`, and all five abort
+    handlers now exist on both sides. Both sets enable all five, so the switch is
+    behaviour-neutral today. See KI-04.
   - Still open: `Table.playTurn` and the `engine/game.js` turn dispatch are separate state machines.
 - **Per-Turn Invariant Assertions**: ✅ done — `engine/invariants.js` (conservation via `DynamicPool.audit`, dead wall length, hand size, zero-sum scores).
 
@@ -135,7 +139,7 @@ It is less reliable as a runtime for us (new stack, own matcher bugs to own).
   *(Server and offline turn loops are still separate state machines.)*
 - Phase 5: `engine/replay.js` (journal + `verifyJournal` via `core.js`);
   covered in `rules.test.js` incl. tamper rejection. *(No persistence to disk.)*
-- Full suite: `node --test tests/*.test.js` **411 pass / 0 fail** + `game.js --selftest`
-  **48 checks**; server `npm test` **128 pass / 0 fail**; dev scripts `npm run test:scripts`
+- Full suite: `node --test tests/*.test.js` **413 pass / 0 fail** + `game.js --selftest`
+  **48 checks**; server `npm test` **129 pass / 0 fail**; dev scripts `npm run test:scripts`
   **6 pass**. (Use the glob form — a bare
   directory argument is rejected by Node 22; see `docs/development.md` §5.)

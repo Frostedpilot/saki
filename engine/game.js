@@ -155,8 +155,10 @@ const forced = (name) => FORCE_ABORT === name;
 // The two detections that appear at several call sites, factored so --force-abort
 // cannot be wired into one site and forgotten at another. suufon-renda and
 // suucha-riichi have a single site each and are guarded inline.
-const tripleRonAbort = (hits) => hits.length === 3 || forced('triple-ron');
-const suukaikanAbort = (kansBy) => isSuukaikanAbort(kansBy) || forced('suukaikan');
+const tripleRonAbort = (hits) =>
+  MF.abortEnabled(RULES.aborts, 'tripleRon') && (hits.length === 3 || forced('triple-ron'));
+const suukaikanAbort = (kansBy) =>
+  MF.abortEnabled(RULES.aborts, 'suukaikan') && (isSuukaikanAbort(kansBy) || forced('suukaikan'));
 const rawSeed = flagValue('seed', '--seed 42');
 if (rawSeed !== undefined) {
   // deterministic RNG for tests (mulberry32 via engine/rng.js)
@@ -556,7 +558,9 @@ async function main() {
     // docs/known-issues.md KI-22.
     // declarer chooses: abortive draw (same dealer replay, honba+1) or play on.
     let kyuushuAbort = false;
-    for (let k = 0; k < 4 && !kyuushuAbort; k++) {
+    // Gated by RULES.aborts.kyuushuKyuuhai: when off, the loop never runs and the
+    // deal simply plays on (the same shape as a declarer who chooses to play on).
+    for (let k = 0; k < 4 && !kyuushuAbort && MF.abortEnabled(RULES.aborts, 'kyuushuKyuuhai'); k++) {
       const q = (dealer + k) % 4;
       const terms = distinctYaochuu(P[q].hand);
       if (terms >= 9) {
@@ -608,7 +612,7 @@ async function main() {
         ? getWaits({ hand: [...locked13], melds: [] }, P, dead, { dora: [], bakaze, jikaze: 1 })
         : [];
       console.log(`  ${names[pl.id]} ${firstClass ? 'DOUBLE RIICHI' : 'RIICHI'}`);
-      if (P.every((p) => p.riichi) || forced('suucha-riichi')) {
+      if (MF.abortEnabled(RULES.aborts, 'suuchaRiichi') && (P.every((p) => p.riichi) || forced('suucha-riichi'))) {
         fourRiichiPending = true; // abort after this discard unless someone rons it
         console.log(
           `  SUUCHA-RIICHI: all four riichi${forced('suucha-riichi') && !P.every((p) => p.riichi) ? ' (FORCED via --force-abort, not actually all four)' : ''}`
@@ -964,7 +968,10 @@ async function main() {
         // Forced: the guard above still has to be satisfied for real, so this reaches
         // the site through the genuine first-lap accumulator and only overrides the
         // content test.
-        if (isSuufonRenda(firstLapDiscards) || forced('suufon-renda')) {
+        if (
+          MF.abortEnabled(RULES.aborts, 'suufonRenda') &&
+          (isSuufonRenda(firstLapDiscards) || forced('suufon-renda'))
+        ) {
           winner = -2;
           winBy = { type: 'abort', reason: `SUUFON-RENDA (${firstLapDiscards.join(' ')})` };
           break;

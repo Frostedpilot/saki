@@ -299,11 +299,12 @@ suukaikan check, rinshan draw `dead[rinshanIdx++]`, rinshan tsumo check with
 - Tenhou/chihou: the `firstDrawOfKyoku` flag flows into the `tenhou` ctx;
   `tsumoWin` re-derives it strictly.
 
-### 7.2 Abortive draws (offline engine only; the server disables all five)
+### 7.2 Abortive draws
 
-Checked only when the discard produces no ron (wins take precedence). All of
-these are enabled in `RULES.aborts` and disabled in `RULES.serverAborts`
-(`engine/rules-config.js`).
+Checked only when the discard produces no ron (wins take precedence). All five are
+implemented on both front-ends; each side gates its detections through
+`engine/match-flow.js abortEnabled` against its own set — `RULES.aborts` (offline) or
+`RULES.serverAborts` (server) in `engine/rules-config.js` — and both sets enable all five.
 
 - Kyuushu-kyuuhai: 9+ terminals/honors in the deal; declarer chooses abort
   (honba+1, same dealer replay) or play on; bots keep kokushi-shaped 9-distinct

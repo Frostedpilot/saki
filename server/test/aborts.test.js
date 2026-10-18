@@ -134,6 +134,40 @@ test('suufon-renda: incomplete accumulator plays on', () => {
   assert.equal(t.ctx.suufonDone, false);
 });
 
+// --------------------------------------------------------------- the switch
+
+// The abort flags were dead config for the whole life of rules-config.js (KI-04).
+// This drives the switch for real: with a flag off, the detection is reached but no
+// abort is declared. (The suukaikan/triple-ron gates sit inline in the kan/ron paths,
+// not in a method, so they are pinned by the source scan in rules-config-parity.test.js
+// plus the default-enabled property of `abortEnabled`.)
+test('serverAborts gates the detections: an explicit false suppresses the abort', () => {
+  const { RULES } = require('../../engine/rules-config');
+  const saved = { ...RULES.serverAborts };
+  try {
+    const k = makeTable();
+    k.decide = { next: () => 0.1 };
+    k.ctx.players[2].hand = KYUUSHU_HAND.slice();
+    for (const s of [0, 1, 3]) k.ctx.players[s].hand = PLAIN_HAND.slice();
+    assert.equal(k.checkKyuushu(), 2, 'baseline: kyuushu enabled');
+    RULES.serverAborts.kyuushuKyuuhai = false;
+    assert.equal(k.checkKyuushu(), -1, 'disabled: no kyuushu');
+
+    RULES.serverAborts.suuchaRiichi = false;
+    const s = makeTable();
+    s.ctx.fourRiichiPending = true;
+    assert.equal(s.checkLapAbort(), null, 'disabled: no suucha-riichi');
+    assert.equal(s.ctx.fourRiichiPending, false, 'the one-shot flag is still consumed');
+
+    RULES.serverAborts.suufonRenda = false;
+    const f = makeTable();
+    f.ctx.firstLapDiscards = ['1z', '1z', '1z', '1z'];
+    assert.equal(f.checkLapAbort(), null, 'disabled: no suufon-renda');
+  } finally {
+    Object.assign(RULES.serverAborts, saved);
+  }
+});
+
 // ---------------------------------------------------------------- settlement
 
 test('abortHand: void hand, sticks carry, dealer repeats with +1 honba', async () => {

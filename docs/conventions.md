@@ -115,7 +115,7 @@ ignore). Write hooks that assume nothing about state shape.
 | Driver | `engine/game.js` `main()` | `engine/core.js` + `server/table.js` `Table` |
 | Wall | pre-shuffled array, `wall.pop()` | `DynamicPool` weighted sampling |
 | Powers | **inline simplified `powerDraw()`** — *not* the roster framework | full `PowerDispatcher` |
-| Aborts | all five | none (`RULES.serverAborts`) |
+| Aborts | all five, switchable (`RULES.aborts`) | all five, switchable (`RULES.serverAborts`) |
 
 **The rule functions themselves are defined once**, in `engine/helpers.js`, and both
 front-ends import them: `getWaits`, `isDiscardFuriten`, `tryRon`, `botDiscard`,
@@ -140,9 +140,11 @@ current behaviour so a consolidation has something to fail against. See
 ### 4.4 Rules are data
 
 Numeric rule values belong in `engine/rules-config.js` (`RULES`), not inline. Both
-`game.js` and `server/table.js` read it. Abort flags are paired — `RULES.aborts` for the
-offline engine, `RULES.serverAborts` for the server — with the comment "flip a flag only
-together with its handler".
+`game.js` and `server/table.js` read it, including the paired abort switches — `RULES.aborts`
+for the offline engine, `RULES.serverAborts` for the server. Each front-end gates its
+abortive-draw detections through `MF.abortEnabled`, which treats a flag as enabled unless it
+is explicitly `false`; both sets enable all five today, so the switch is behaviour-neutral
+until someone deliberately turns one off.
 
 ---
 

@@ -76,6 +76,17 @@ function minHan(overtime) {
   return overtime ? RULES.overtimeMinHan : RULES.minHan;
 }
 
+// Abortive-draw switch. Each front-end passes its own enabled-flag set —
+// `RULES.aborts` for the offline engine, `RULES.serverAborts` for the server —
+// and a *detected* abort is only declared when its flag is not explicitly
+// `false`. Defaulting to enabled means a missing (or misspelled) key can never
+// silently disable a rule; only a deliberate `false` does. Both sets enable all
+// five today, so this is behaviour-neutral — it is the switch `conventions.md`
+// and `rules-config.js` promise, made live.
+function abortEnabled(flags, name) {
+  return !flags || flags[name] !== false;
+}
+
 // One mangan-tsumo payment from `payer` to `collector`: 4000 when either side
 // is the dealer (the dealer always pays/receives the dealer rate), 2000
 // otherwise, plus RULES.honbaTsumo per honba. This single rule was written out
@@ -156,6 +167,7 @@ module.exports = {
   postHandFlow,
   notenPayments,
   minHan,
+  abortEnabled,
   manganPayment,
   nagashiPayments,
   winPayments,

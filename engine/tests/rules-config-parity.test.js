@@ -158,6 +158,24 @@ test('both front-ends settle a win through match-flow, not inline', () => {
   }
 });
 
+test('both front-ends gate their abortive draws through the shared switch', () => {
+  // The abort flags were dead config for the whole life of this file (KI-04): two
+  // identical objects read by nothing. This pins them live — each front-end reads
+  // its own set through MF.abortEnabled and names all five aborts, so a handler
+  // cannot be wired on one side and silently forgotten on the other.
+  const names = ['kyuushuKyuuhai', 'suufonRenda', 'suukaikan', 'suuchaRiichi', 'tripleRon'];
+  for (const [file, src, flags] of [
+    ['engine/game.js', GAME_SETTLEMENT, 'RULES.aborts'],
+    ['server/table.js', TABLE_JS, 'RULES.serverAborts'],
+  ]) {
+    assert.match(src, /abortEnabled/, `${file} should call MF.abortEnabled`);
+    for (const n of names) {
+      const re = new RegExp(`abortEnabled\\(\\s*${flags.replace('.', '\\.')}\\s*,\\s*'${n}'`);
+      assert.match(src, re, `${file} must gate ${n} through ${flags}`);
+    }
+  }
+});
+
 test('the two front-ends settle a riichi declaration identically', () => {
   // Same expression shape on both sides, so a change to one is a visible diff
   // against the other rather than an invisible divergence. Whitespace-tolerant:

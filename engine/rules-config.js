@@ -24,10 +24,12 @@ const RULES = {
   maxKan: 4,
   rinshanSlots: 4,
   deadWallLength: 14,
-  // Abortive draws. game.js enables all five; the server implements all five
-  // too (kyuushu has a documented human limitation: no deal-time prompt, so
-  // human 9-kind hands auto play on — see table.js checkKyuushu).
-  // Flip a flag only together with its handler.
+  // Abortive draws. Each front-end reads its own set through
+  // engine/match-flow.js `abortEnabled`: `aborts` for the offline engine,
+  // `serverAborts` for the server. A flag is ON unless explicitly `false`, so a
+  // typo cannot silently disable a rule. Both sets enable all five; the server's
+  // kyuushu keeps a documented human limitation (no deal-time prompt) — see
+  // table.js `checkKyuushu`.
   aborts: {
     kyuushuKyuuhai: true,
     suufonRenda: true,
