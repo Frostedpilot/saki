@@ -1244,22 +1244,9 @@ async function main() {
         console.log(
           `\n*** TSUMO ${names[winner]} ${winBy.tag || ''} ${r.text} ${JSON.stringify(r.yaku)} ten=${r.ten} ***`
         );
-        if (winner === dealer) {
-          for (let i = 0; i < 4; i++)
-            if (i !== winner) {
-              const pay = r.oya[0] + RULES.honbaTsumo * honba;
-              scores[i] -= pay;
-              scores[winner] += pay;
-            }
-        } else {
-          for (let i = 0; i < 4; i++)
-            if (i !== winner) {
-              const base = i === dealer ? r.ko[0] : r.ko[1];
-              const pay = base + RULES.honbaTsumo * honba;
-              scores[i] -= pay;
-              scores[winner] += pay;
-            }
-        }
+        // Shared score arithmetic (match-flow.js winPayments).
+        const { deltas } = MF.winPayments({ type: 'tsumo', winner, dealer, honba, result: r });
+        for (let i = 0; i < 4; i++) scores[i] += deltas[i];
         scores[winner] += ctx.riichiPool;
         ctx.riichiPool = 0;
       } else {
@@ -1269,9 +1256,15 @@ async function main() {
           `\n*** ${winBy.wins.length > 1 ? 'DOUBLE ' : ''}RON on ${winBy.tile} from ${names[winBy.from]} ${winBy.tag || ''} ***`
         );
         for (const w of winBy.wins) {
-          const pay = w.r.ten + RULES.honbaRon * honba;
-          scores[winBy.from] -= pay;
-          scores[w.seat] += pay;
+          const { deltas, pay } = MF.winPayments({
+            type: 'ron',
+            winner: w.seat,
+            dealer,
+            honba,
+            result: w.r,
+            from: winBy.from,
+          });
+          for (let i = 0; i < 4; i++) scores[i] += deltas[i];
           console.log(`  -> ${names[w.seat]} ${w.r.text} ${JSON.stringify(w.r.yaku)} +${pay}`);
         }
         scores[winBy.wins[0].seat] += ctx.riichiPool;

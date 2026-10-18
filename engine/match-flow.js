@@ -15,10 +15,11 @@
 //
 // Server gaps stay explicit, not silent: agari-yame/enchousen and
 // chombo-as-penalty exist only in game.js (the five abortive draws and nagashi
-// mangan are now implemented on both sides). This module covers the paths both
-// front-ends implement — including the nagashi payout, which was duplicated
-// inline in each loop; the game.js-only paths keep their inline code and are
-// marked as such at the call site.
+// mangan are now implemented on both sides). This module also owns the point
+// *arithmetic* both loops ran inline — the win settlement (`winPayments`) and
+// the mangan payments (`manganPayment`/`nagashiPayments`) — so a scoring rule
+// changed here cannot land in one front-end only. The game.js-only paths keep
+// their inline code and are marked as such at the call site.
 'use strict';
 
 const { RULES } = require('./rules-config');
@@ -109,6 +110,35 @@ function nagashiPayments(order, dealer, honba) {
   return { deltas, totals };
 }
 
+// Score distribution for a single winning seat — the arithmetic both front-ends
+// ran inline. `result` is the scorer output (`oya`/`ko` for a tsumo, `ten` for a
+// ron). Returns per-seat `deltas` and `pay`, the total the winner collects from
+// the other seats *before* the riichi-stick award, which the caller gives to the
+// nearest winner in turn order. Pure: callers add `deltas` to their scores.
+//
+// Dealer-ness drives the tsumo split: a dealer winner takes the dealer rate from
+// every seat; a non-dealer winner takes the dealer rate from the dealer and the
+// child rate from the other children. `from` is the discarder on a ron.
+function winPayments({ type, winner, dealer, honba, result, from }) {
+  const deltas = [0, 0, 0, 0];
+  let pay = 0;
+  if (type === 'tsumo') {
+    for (let i = 0; i < 4; i++) {
+      if (i === winner) continue;
+      const base = winner === dealer ? result.oya[0] : i === dealer ? result.ko[0] : result.ko[1];
+      const p = base + RULES.honbaTsumo * honba;
+      deltas[i] -= p;
+      pay += p;
+    }
+    deltas[winner] += pay;
+  } else {
+    pay = result.ten + RULES.honbaRon * honba;
+    deltas[from] -= pay;
+    deltas[winner] += pay;
+  }
+  return { deltas, pay };
+}
+
 // Tobi bust-out: index of the first sub-zero score, or -1.
 function bustOutSeat(scores) {
   return scores.findIndex((s) => s < 0);
@@ -128,6 +158,7 @@ module.exports = {
   minHan,
   manganPayment,
   nagashiPayments,
+  winPayments,
   bustOutSeat,
   dealerLeads,
 };

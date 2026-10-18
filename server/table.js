@@ -2229,30 +2229,16 @@ class Table {
       for (const w of wins) {
         const r = this.rescore(w.seat, w.flags);
         w.r = r;
-        let pay = 0;
-        if (isTsumo) {
-          if (w.seat === dealer) {
-            for (let i = 0; i < 4; i++) {
-              if (i === w.seat) continue;
-              const p0 = r.oya[0] + RULES.honbaTsumo * this.honba;
-              this.scores[i] -= p0;
-              pay += p0;
-            }
-          } else {
-            for (let i = 0; i < 4; i++) {
-              if (i === w.seat) continue;
-              const base = i === dealer ? r.ko[0] : r.ko[1];
-              const p0 = base + RULES.honbaTsumo * this.honba;
-              this.scores[i] -= p0;
-              pay += p0;
-            }
-          }
-          this.scores[w.seat] += pay;
-        } else {
-          pay = r.ten + RULES.honbaRon * this.honba;
-          this.scores[winBy.from] -= pay;
-          this.scores[w.seat] += pay;
-        }
+        // Shared score arithmetic (match-flow.js winPayments).
+        const { deltas, pay } = MF.winPayments({
+          type: isTsumo ? 'tsumo' : 'ron',
+          winner: w.seat,
+          dealer,
+          honba: this.honba,
+          result: r,
+          from: winBy.from,
+        });
+        for (let i = 0; i < 4; i++) this.scores[i] += deltas[i];
         w.pay = pay;
       }
       // Riichi sticks to the nearest winner in turn order (wins[0]).

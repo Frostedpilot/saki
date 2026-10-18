@@ -134,10 +134,10 @@ and flipping a flag would do nothing. They document intent; they do not enforce 
 **Reduced, not closed.** The *shared rule functions* are no longer duplicated —
 `engine/helpers.js` is now the single definition for waits, furiten, bot decisions,
 abort conditions and oka/uma, and `engine/match-flow.js` the single definition for the
-hand-transition table and the mangan payments (the nagashi payout and the offline chombo
-penalty). What still differs is the **turn loop**: `game.js`'s `main()` and
-`server/table.js`'s `Table` each drive a hand's turn sequence independently — a sync CLI
-versus an async phase machine — and that is not shared.
+hand-transition table and the score arithmetic (the win settlement, the nagashi payout and
+the offline chombo penalty). What still differs is the **turn loop**: `game.js`'s `main()`
+and `server/table.js`'s `Table` each drive a hand's turn sequence independently — a sync
+CLI versus an async phase machine — and that is not shared.
 
 ### `rules-config.js` was dead, and is now live
 
@@ -176,8 +176,10 @@ like one task and is not:
   `Table`'s kyuushu path keeps one documented limitation (no deal-time prompt, so a human
   9-kind hand auto-plays on). What is still unshared is the *switch*: `RULES.aborts` /
   `RULES.serverAborts` gate nothing.
-- **Mangan payments.** No longer duplicated: the nagashi-mangan payout and the
-  game.js-only chombo penalty share one pairwise rule, `match-flow.js manganPayment`.
+- **Score arithmetic.** No longer duplicated: `match-flow.js winPayments` settles a
+  tsumo/ron on both sides, and `manganPayment`/`nagashiPayments` cover the nagashi payout
+  and the game.js-only chombo penalty. What the turn loops still own is *when* to settle,
+  not how the points move.
 - **Agari-yame, enchousen, chombo-as-penalty.** game.js only.
 - **Oka/uma.** Not a front-end gap any more — the server sends raw scores and the client
   derives final standings with `applyOkaUma`, mirroring `engine/helpers.js`.
@@ -1593,6 +1595,7 @@ Docs are consistent and CI is green. These are the remaining **code** items:
 | 29 | ~~2026-10 audit Phase 5: verify `call`s in `replay.js`; test `scripts/check-links.mjs` (the last untested source file)~~ | ✅ done | Part C (A-19, A-20) |
 | 30 | ~~KI-04 increment: share the mangan payment (nagashi payout + chombo) in `match-flow.js`; reconcile the KI-04/oka-uma text~~ | ✅ done | KI-04 |
 | 31 | ~~2026-10 repo hygiene: forward-only Git LFS tracking for the two large binaries (CI checkout `lfs: true`); close KI-12 as a decided "no LICENSE"~~ | ✅ done | KI-08, KI-12 |
+| 32 | ~~KI-04 increment: share the win-settlement arithmetic (`winPayments`) in `match-flow.js`~~ | ✅ done | KI-04 |
 
 Item **23** is now *partly* done — the shared constants live in one place with a parity
 test — but merging the two orchestration loops is still open. **21** was its prerequisite

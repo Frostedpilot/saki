@@ -87,25 +87,23 @@ test('each shared constant is actually referenced, not merely imported', () => {
   // Catches the failure mode this file exists for: an import that is never used, or
   // a config entry nobody reads. `rules-config.js` was dead for its entire life and
   // only a human noticed.
-  // notenTotal/minHan may be consumed via engine/match-flow.js (notenPayments,
-  // minHan), which itself reads RULES — that indirection is the KI-04 sharing,
-  // not dead config. So those two accept either a direct RULES.* use or the
-  // match-flow call.
-  const gameUses = ['startScore', 'riichiValue', 'honbaTsumo', 'honbaRon'];
-  const tableUses = ['startScore', 'riichiValue', 'honbaTsumo', 'honbaRon'];
-  for (const key of gameUses) {
+  for (const key of ['startScore', 'riichiValue']) {
     assert.match(GAME_JS, new RegExp(`RULES\\.${key}\\b`), `engine/game.js should use RULES.${key}`);
-  }
-  for (const key of tableUses) {
     assert.match(TABLE_JS, new RegExp(`RULES\\.${key}\\b`), `server/table.js should use RULES.${key}`);
   }
+  // The settlement numbers are consumed inside engine/match-flow.js (notenPayments,
+  // minHan, winPayments, manganPayment, nagashiPayments), which itself reads RULES —
+  // that indirection is the KI-04 sharing, not dead config. So each accepts either a
+  // direct RULES.* use or a match-flow call.
+  const viaFlow = /notenPayments|minHan|winPayments|manganPayment|nagashiPayments|match-flow/;
   for (const [name, src] of [
     ['engine/game.js', GAME_JS],
     ['server/table.js', TABLE_JS],
   ]) {
-    const direct = new RegExp('RULES\\.notenTotal\\b').test(src);
-    const viaFlow = /notenPayments|match-flow/.test(src);
-    assert.ok(direct || viaFlow, `${name} should consume notenTotal directly or via match-flow`);
+    for (const key of ['notenTotal', 'honbaTsumo', 'honbaRon']) {
+      const direct = new RegExp(`RULES\\.${key}\\b`).test(src);
+      assert.ok(direct || viaFlow.test(src), `${name} should consume ${key} directly or via match-flow`);
+    }
   }
 });
 
@@ -147,6 +145,17 @@ test('both front-ends settle the mangan payment through match-flow, not inline',
   }
   // The game.js-only chombo penalty shares the same pairwise rule.
   assert.match(GAME_SETTLEMENT, /manganPayment/, 'chombo should call MF.manganPayment');
+});
+
+test('both front-ends settle a win through match-flow, not inline', () => {
+  for (const [name, src] of [
+    ['engine/game.js', GAME_SETTLEMENT],
+    ['server/table.js', TABLE_JS],
+  ]) {
+    assert.match(src, /winPayments/, `${name} should call MF.winPayments`);
+    assert.doesNotMatch(src, /RULES\.honbaTsumo/, `${name} must not multiply the tsumo honba inline`);
+    assert.doesNotMatch(src, /RULES\.honbaRon/, `${name} must not multiply the ron honba inline`);
+  }
 });
 
 test('the two front-ends settle a riichi declaration identically', () => {

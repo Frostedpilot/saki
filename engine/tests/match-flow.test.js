@@ -123,3 +123,65 @@ test('manganPayment: 4000 when either side is the dealer, else 2000', () => {
   assert.equal(F.manganPayment(1, 2, 0, 1), 2000 + RULES.honbaTsumo);
   assert.equal(F.manganPayment(1, 2, 0), 2000, 'honba defaults to 0 (the chombo path)');
 });
+
+// Win settlement — the score arithmetic both front-ends used to run inline.
+test('winPayments: dealer tsumo takes the dealer rate from every seat', () => {
+  const { deltas, pay } = F.winPayments({
+    type: 'tsumo',
+    winner: 2,
+    dealer: 2,
+    honba: 0,
+    result: { oya: [4000], ko: [2000, 2000] },
+  });
+  assert.deepEqual(deltas, [-4000, -4000, 12000, -4000]);
+  assert.equal(pay, 12000);
+});
+
+test('winPayments: non-dealer tsumo charges the dealer more', () => {
+  const { deltas, pay } = F.winPayments({
+    type: 'tsumo',
+    winner: 2,
+    dealer: 0,
+    honba: 0,
+    result: { oya: [4000], ko: [2000, 1000] },
+  });
+  assert.deepEqual(deltas, [-2000, -1000, 4000, -1000]);
+  assert.equal(pay, 4000);
+});
+
+test('winPayments: tsumo honba is per payer; ron honba is per win', () => {
+  const tsumo = F.winPayments({
+    type: 'tsumo',
+    winner: 0,
+    dealer: 0,
+    honba: 1,
+    result: { oya: [4000], ko: [2000, 2000] },
+  });
+  assert.equal(tsumo.pay, 3 * (4000 + RULES.honbaTsumo));
+  const ron = F.winPayments({
+    type: 'ron',
+    winner: 1,
+    dealer: 0,
+    honba: 2,
+    result: { ten: 5200 },
+    from: 3,
+  });
+  assert.equal(ron.pay, 5200 + RULES.honbaRon * 2);
+  assert.deepEqual(ron.deltas, [0, ron.pay, 0, -ron.pay]);
+});
+
+test('winPayments: a settled hand is always zero-sum', () => {
+  const cases = [
+    { type: 'tsumo', winner: 0, dealer: 0, honba: 1, result: { oya: [4000], ko: [2000, 2000] } },
+    { type: 'tsumo', winner: 3, dealer: 1, honba: 0, result: { oya: [2000], ko: [2000, 1000] } },
+    { type: 'ron', winner: 2, dealer: 0, honba: 0, result: { ten: 8000 }, from: 1 },
+  ];
+  for (const args of cases) {
+    const { deltas } = F.winPayments(args);
+    assert.equal(
+      deltas.reduce((a, b) => a + b, 0),
+      0,
+      `zero-sum: ${JSON.stringify(args)}`
+    );
+  }
+});
