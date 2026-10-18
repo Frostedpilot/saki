@@ -64,12 +64,15 @@ it is stated here once and cross-linked everywhere else:
 | | Offline (`engine/game.js`) | Network (`server/table.js`) |
 | --- | --- | --- |
 | Length | Tonpuusen (4) or hanchan (8), `--kyoku` | **Tonpuusen only**, 4 rounds |
-| Abortive draws | **All five enabled** | **All five disabled** |
-| Nagashi mangan, oka/uma | Yes | No |
+| Abortive draws | **All five enabled** | **All five enabled** (KI-25) |
+| Nagashi mangan | Yes | Yes (KI-25) |
+| Agari-yame / enchousen | Yes | Yes (KI-25) |
+| Oka/uma (final standings) | Yes | Offline only — the client computes its own |
 | Wall model | Pre-shuffled array, `wall.pop()` | `DynamicPool` weighted sampling |
 
 Both read `engine/rules-config.js` (`RULES.aborts` vs `RULES.serverAborts`) so the
-divergence is explicit data rather than a hidden branch. Per-rule detail:
+divergence is explicit data rather than a hidden branch; `RULES.serverAborts` is now
+all-true. Per-rule detail:
 [`docs/engine-implementation.md`](docs/engine-implementation.md).
 
 ---
@@ -100,7 +103,7 @@ saki/
 │   │   ├── nodokaEval.js    "Nodocchi" EV / tenpai evaluator
 │   │   ├── mjaiAdapter.js   pluggable evaluator interface (MJAI bots)
 │   │   └── rosters/         one file per character power (8 shipped)
-│   └── tests/               25 *.test.js, node:test
+│   └── tests/               28 *.test.js, node:test
 │
 ├── scripts/
 │   └── check-links.mjs      markdown link checker (npm run links)
@@ -115,7 +118,7 @@ saki/
 │   ├── protocol.js          protocol v6 JSON codec
 │   ├── yaku-map.js          riichi lib yaku names -> protocol Kind/DoraLabel
 │   ├── public/              vendored prebuilt WASM client (upstream build, ~12 MB)
-│   └── test/                bridge (E2E), settlement, validation, call-window, yaku-map
+│   └── test/                bridge (E2E), aborts, settlement, validation, call-window, yaku-map
 │
 ├── web-client/              Vite + lit-html + strict TypeScript client
 │   └── src/
@@ -142,9 +145,9 @@ via Node's built-in test runner.
 
 ```bash
 npm test              # everything CI runs (~2 min)
-npm run test:engine   # 369 tests + 48 rule checks
-npm run test:server   # 97 server tests
-npm run test:client   # 225 client tests + tsc type-check
+npm run test:engine   # 385 tests + 48 rule checks
+npm run test:server   # 127 server tests
+npm run test:client   # 237 client tests + tsc type-check
 npm run links         # markdown link check
 npm run smoke         # one short deterministic hand
 ```
@@ -177,9 +180,10 @@ npm run smoke         # one short deterministic hand
 
 ## Known state
 
-An active personal project. **CI is green on every push**, tests run locally via one
-command, and the engine is a single npm workspace — but there is still **no linter, no
-LICENSE, and no release process**.
+An active personal project. CI runs on every push (`npm ci`, format check, lint, the full
+test suite, a CLI smoke check and the link check), and all of it is reproducible locally
+with one command (`npm run check`). The engine is a single npm workspace. Still missing:
+a **LICENSE** and a release process.
 
 Character coverage is the main remaining gap: **8 powers implemented out of ~28
 documented**. The structural risks that are still open, and the documentation-rot

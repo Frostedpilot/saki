@@ -119,8 +119,8 @@ The same rules are implemented twice, and the two copies disagree:
 | --- | --- | --- |
 | Wall | pre-shuffled array, `wall.pop()` | `DynamicPool` weighted sampling |
 | Length | tonpuusen or hanchan (`--kyoku`) | tonpuusen only |
-| Abortive draws | **all five on** | **all five off** |
-| Nagashi mangan, oka/uma | yes | no |
+| Abortive draws | **all five on** | **all five on** (was off — see [KI-25](#ki-25)) |
+| Nagashi mangan, oka/uma | yes | nagashi yes; oka/uma offline only (was both off) |
 | Character powers | **inline `powerDraw()`, not the roster framework** | full `PowerDispatcher` + `rosters/` |
 
 **Still open.** A rule fixed in `game.js` is not automatically fixed in `table.js`. This
@@ -237,13 +237,17 @@ reachable only via `server/table.js` and the engine unit tests.
 
 ## <a id="ki-06"></a>KI-06 🟡 CI added; no linter, no release process
 
-- **CI: ✅ fixed.** `.github/workflows/ci.yml` runs on push and PR: `npm ci`, engine
-  tests, server E2E, client type-check + build, a CLI smoke check, and the markdown link
-  checker. The 369 tests plus the 48-check selftest now run automatically.
+- **CI: ✅ fixed.** `.github/workflows/ci.yml` runs on push and PR: `npm ci`, ESLint +
+  Prettier `format:check`, engine tests, server E2E, client type-check + build, a CLI smoke
+  check, and the markdown link checker. The 385 tests plus the 48-check selftest now run
+  automatically.
 - **Markdown link checking: ✅ added.** `scripts/check-links.mjs` (`npm run links`)
   verifies every relative link in every `.md` resolves. It caught real breakage during
   this work and is cheap to run locally.
-- **No linter or formatter.** Still no ESLint, Prettier, or `.editorconfig`.
+- **Linter and formatter: ✅ added.** ESLint (`eslint.config.mjs`) and Prettier, wired into
+  `npm run lint` / `npm run format` / `npm run format:check`. `npm run check` runs all of
+  them before the tests (the format step was added after it let `table.js` drift — see
+  [A-12](#a-12)). No `.editorconfig`; Prettier owns whitespace.
 - **Node version: ✅ pinned.** `"engines": { "node": ">=22" }` in all three
   `package.json`s plus the root, CI runs Node 22 explicitly, and a root `.nvmrc`
   pins `22` for version managers.
@@ -1156,11 +1160,19 @@ rule layer (item 23), which is behaviour-changing and not yet characterised (ite
 
 ---
 
-## <a id="ki-12"></a>KI-12 ✅ CLOSED — No LICENSE (decision: repo is private)
+## <a id="ki-12"></a>KI-12 ⚠️ REOPENED — No LICENSE (claimed "repo is private")
 
-**Decided by the repo owner: not adding a LICENSE.** The repository is private, so there
-is no redistribution to license. Recorded here so this stops being re-raised as an open
-item — it is a decision, not an oversight.
+**Decided by the repo owner: not adding a LICENSE.** The repository was believed to be
+private, so there was no redistribution to license. Recorded here so this stops being
+re-raised as an open item — it is a decision, not an oversight.
+
+**2026-10 audit correction.** The repository is **public on GitHub**
+(`Frostedpilot/saki`), so the "private, therefore no redistribution" rationale does not
+hold. `engine/` and `server/` depend on third-party `riichi` and `syanten` and vendor a
+FluffyStuff SVG sheet plus official Saki card art; those redistribution terms are
+undefined and are documented in [`provenance.md`](provenance.md). This needs revisiting
+(add a LICENSE and confirm rights for the vendored art) now that the code is reachable by
+anyone.
 
 The original concern was that `engine/` and `server/` depend on third-party `riichi` and
 `syanten` and vendor a FluffyStuff SVG sheet plus official Saki card art, leaving
@@ -1169,7 +1181,7 @@ redistribution terms undefined. That remains factually true and is documented in
 private.
 
 **If this repo is ever made public, revisit this** — vendored third-party art would then
-need actual redistribution rights.
+need actual redistribution rights. *(It is public; see the correction above.)*
 
 # Part B — Documentation rot
 
@@ -1327,6 +1339,121 @@ are actually cited.
 
 ---
 
+# Part C — 2026-10 audit (Phase 0–1)
+
+An independent audit of the tree found the following. All are fixed; each names the
+symbol and, where it exists, the test that pins it. Severity uses the same key as Part A.
+
+## <a id="a-01"></a>A-01 🔴 FIXED — a malformed frame killed the whole process
+
+`server/protocol.js` `tilesToSaki` mapped `(tiles || []).map(...)`. A syntactically valid
+frame — `{"Action":{"Pon":{"tiles":1}}}` — made `1.map` throw. Because
+`parseClientMessage` was called **before** the `try` in the WS listener
+(`server/index.js`), and the process had no `uncaughtException` handler, one bad frame
+took down **every room on the process**.
+
+Fixed: `tilesToSaki` uses `Array.isArray(...)`; parsing moved inside the message guard;
+process-level `uncaughtException` / `unhandledRejection` handlers log and keep serving.
+Pinned by `protocol: a non-array tiles payload cannot crash the codec`
+(`server/test/validation.test.js`).
+
+## <a id="a-02"></a>A-02 🔴 FIXED — a throwing character hook bricked the room
+
+`server/table.js` called several character hooks bare (`hooks._state()`,
+`hooks.getHudAdvice`, `hooks.getTierInfo`, `hooks.onTurnStart`, `hooks.onKanDeclared`).
+The hand driver is one long async chain, so a throw rejected `Table.run()`; the listener's
+`catch` only logged it, and `Room.onStartGame` early-returns while `this.game` is set, so
+the room could **never be started again**.
+
+Fixed: every hook routes through a guarded `callHook` helper (warn-once, never throw),
+and `Room.onStartGame`'s rejection path calls `afterGameOver()` so the room returns to the
+lobby. See also A-03.
+
+## <a id="a-03"></a>A-03 🟠 FIXED — `run()` rejection left the room un-startable
+
+Same root as A-02: `onStartGame` set `this.game` and only logged a rejected `run()`; the
+guard at the top of `onStartGame` (`if (this.game) return`) then made every later start a
+silent no-op. Fixed by dropping back to the post-game lobby on rejection.
+
+## <a id="a-04"></a>A-04 🔴 FIXED — abortive draws fell through into the chi branch
+
+`engine/game.js` `main()` ended the call loop with `if (winner >= 0) break;`. An abortive
+draw sets `winner = -2` (chombo `-3`), so an abort triggered **inside** the
+pon/daiminkan/chi call loop did not end the hand: play fell through to the chi check and
+kept going, drawing and discarding after the hand was void — corrupting tile
+conservation. Fixed with `if (winner !== -1) break;`, covering win (`>= 0`), abort
+(`-2`) and chombo (`-3`).
+
+## <a id="a-05"></a>A-05 🔴 FIXED — CPU bots could never chi
+
+CPU call claims come from `H.chiOptions` as **bare ranks** (`[2, 3]`); human claims arrive
+from the wire as **codes** (`["2m","3m"]`). `Table.doOpenChi` normalized both with
+`norm(...)`, which leaves bare ranks suitless, so `normChosen` never matched a legal
+option and every CPU chi was rejected as illegal. Fixed by appending the called tile's
+suit to bare ranks before comparing. Pinned by
+`doOpenChi accepts a CPU claim that carries bare ranks, not codes`.
+
+## <a id="a-06"></a>A-06 🟠 FIXED — `is_furiten` was always false
+
+Waits are a 13-tile property, but `Table.furitenNow` fed the 14-tile hand (drawn tile
+still in it) to `H.getWaits`, which then tested a 15-tile agari — never valid — so it
+returned `[]` and every `TileDrawn.isFuriten` was `false`. `engine/game.js` carried the
+same dead code in its human furiten warning. Fixed with a `concealed13()` view (and, in
+`game.js`, scoring the concealed hand without the drawn tile). `furitenNow` also now
+reports temporary (passed-ron) furiten, and `clearTempFuritenOnDraw` runs on both rinshan
+draws.
+
+## <a id="a-07"></a>A-07 🟠 FIXED — `onTurnEnd` fired for all four seats on every discard
+
+`Table.playTurn` looped `for (let s = 0; s < 4; s++)` calling every seat's `onTurnEnd`, so
+a "next 3 turns" tier buff expired in under one turn. The engine sim calls it for the
+acting seat only. Fixed to tick only the seat whose turn ended.
+
+## <a id="a-08"></a>A-08 🟠 FIXED — riichi-tsumogiri was not enforced after a call
+
+`validateAct` enforced it on the turn path, but `Table.discardAfterCall` has its own loop
+and skipped the check, and the CPU branch passed `false` for `riichiLocked`. Fixed in
+both: the human loop rejects a non-drawn discard while riichi, and `botDiscard` receives
+`!!me.riichi`.
+
+## <a id="a-09"></a>A-09 🟡 FIXED — kakans were reported as Daiminkan
+
+`Table.doOwnKan` upgraded the pon meld but set `pm.type = 'kan'` (the daiminkan tag), so
+`playerHandInfo` mapped it to `Daiminkan`. Now tagged `'kakan'` on both the engine and
+server sides, so the wire reports `Kakan`.
+
+## <a id="a-10"></a>A-10 🟡 FIXED — kan-dora seeding never landed, and used the wrong slot
+
+`Table` ran `maybeActivateTier` **after** `revealKanDora`, so Saki's kan-dora seed swapped
+a dead-wall tile that had already been copied into the indicator. It also passed the
+per-seat kan count while `revealKanDora` indexes by the **total** kan count, so kans split
+across seats seeded the wrong slot. Fixed by running the hook before the reveal and
+passing `ctx.kanCount + 1`; `revealKanDora` now also keeps `state.doraIndicators` in step.
+The suukaikan check moved ahead of the reveal too, so an aborting 4th kan no longer
+reveals a dora it then discards.
+
+## <a id="a-11"></a>A-11 🟡 FIXED — aka waits were double-counted
+
+`trajectoryPlanner.ukeire` and `nodokaEval` added `pool.get(tile.replace('5','0'))` for
+**every** wait, but `replace` leaves non-fives unchanged, so every non-five wait counted
+its live tiles twice. Fixed to add the aka copy only when the wait is actually on a five.
+
+## <a id="a-12"></a>A-12 ⚪ FIXED — formatting was outside the gate
+
+`npm run check` ran lint, tests and links but not `format:check`, so `server/table.js`
+drifted out of Prettier's style and CI's separate format step failed (the failing run on
+`0d936db`). `check` now runs `format:check` first, and the two over-long ternaries are
+rewrapped.
+
+### Deferred
+
+- **A tile-conservation assertion in `game.js` `main()`** (wire `engine/invariants.js`
+  into the offline loop). The naive partition double-counts the dead wall — rinshan
+  suffixes and revealed indicators remain in the array — so it needs a wanpai-aware
+  partition first. The fall-through it would have caught is fixed directly (A-04).
+
+---
+
 # Suggested order of work
 
 Docs are consistent and CI is green. These are the remaining **code** items:
@@ -1359,6 +1486,7 @@ Docs are consistent and CI is green. These are the remaining **code** items:
 | 22 | ~~Client tests: Vitest + jsdom (225 tests)~~ | ✅ done | KI-07, KI-23, KI-24 |
 | 23 | ~~Share rule constants via rules-config + parity guard; sweep found KI-19/20/21~~ (orchestration merge still open, see KI-04) | partly done | KI-04, KI-19, KI-20, KI-21 |
 | 24 | ~~Split `Table` out of `server/room.js`~~ | ✅ done | KI-11 |
+| 25 | ~~2026-10 audit Phase 0–1: malformed-frame crash, hook bricking, abort fall-through, CPU chi, furiten, `onTurnEnd`, kakan tag, kan-dora seeding, aka double-count, format gate~~ | ✅ done | Part C |
 
 Item **23** is now *partly* done — the shared constants live in one place with a parity
 test — but merging the two orchestration loops is still open. **21** was its prerequisite
