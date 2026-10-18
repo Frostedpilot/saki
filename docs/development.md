@@ -11,6 +11,7 @@ Everything needed to set up, run, test, and debug Saki locally.
 | Node.js | **22+** (developed on 22.18.0) | Native test runner (`node --test`), `node:http`, ES2022 |
 | npm | 10+ | ships with Node 22 |
 | A browser | any modern | the web client |
+| Git LFS | 3+ (only to edit the vendored binaries) | `server/public/*.wasm` and `web-client/public/images/*.png` are LFS-tracked going forward — see [`provenance.md`](provenance.md) §5 |
 
 There is no Python, Rust, Go, Make, or Docker toolchain involved — the WASM client in
 `server/public/` is a **prebuilt vendored artifact**, nothing in this repo compiles it.

@@ -110,6 +110,22 @@ third-party, despite the character names.
 
 ---
 
+## 5. Large-binary storage (Git LFS)
+
+The two largest assets above — `mahjong-client.aa938046.wasm` (12.4 MB) and
+`sakicardsv13.png` (23 MB) — were committed as ordinary git blobs before
+`.gitattributes` existed. That file now routes *future* changes to those paths
+(`server/public/*.wasm`, `web-client/public/images/*.png`) through Git LFS, so the
+repository stops growing with every art or build refresh.
+
+**History is deliberately not rewritten.** No `git lfs migrate` was run, so existing
+clones are unaffected and no force-push was needed; the blobs already in history remain
+ordinary objects. The cost is that the ~35 MB is still in history and a fresh clone still
+fetches it. Anyone editing one of those two files needs `git-lfs` installed — the CI
+checkout passes `lfs: true` for the same reason.
+
+---
+
 ## Summary of what is *not* recorded anywhere in git
 
 1. the upstream commit for `server/public/`
@@ -118,4 +134,6 @@ third-party, despite the character names.
 4. any licence for the repo as a whole
 
 Items 1–3 are recoverable by re-deriving from upstream and re-recording here. Item 4 is a
-deliberate open decision — see [KI-12](known-issues.md#ki-12).
+deliberate decision, not an open item: the repo carries **no LICENSE** — see
+[KI-12](known-issues.md#ki-12), which also explains why the vendored art makes a code
+license only a partial answer.

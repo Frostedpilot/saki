@@ -1,0 +1,10 @@
+# Large vendored binaries.
+#
+# These two files are committed artefacts we do not build here (see
+# docs/provenance.md): the prebuilt upstream WASM client and the Saki card art.
+# They are tracked through Git LFS so that *future* edits stop growing the
+# repository. History is deliberately NOT rewritten — the blobs committed before
+# this file are still ordinary git objects, so an existing clone is unaffected
+# and no force-push is needed. See docs/known-issues.md KI-08.
+web-client/public/images/*.png filter=lfs diff=lfs merge=lfs -text
+server/public/*.wasm filter=lfs diff=lfs merge=lfs -text

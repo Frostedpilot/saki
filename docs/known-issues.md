@@ -1167,28 +1167,26 @@ rule layer (item 23), which is behaviour-changing and not yet characterised (ite
 
 ---
 
-## <a id="ki-12"></a>KI-12 ⚠️ REOPENED — No LICENSE (claimed "repo is private")
+## <a id="ki-12"></a>KI-12 ✅ DECIDED — no LICENSE (a deliberate choice, not an oversight)
 
-**Decided by the repo owner: not adding a LICENSE.** The repository was believed to be
-private, so there was no redistribution to license. Recorded here so this stops being
-re-raised as an open item — it is a decision, not an oversight.
+**The repo owner has decided not to add a LICENSE, and to keep it that way now that the
+repository is public on GitHub (`Frostedpilot/saki`).** Recorded here so it stops being
+re-raised as an open audit item.
 
-**2026-10 audit correction.** The repository is **public on GitHub**
-(`Frostedpilot/saki`), so the "private, therefore no redistribution" rationale does not
-hold. `engine/` and `server/` depend on third-party `riichi` and `syanten` and vendor a
-FluffyStuff SVG sheet plus official Saki card art; those redistribution terms are
-undefined and are documented in [`provenance.md`](provenance.md). This needs revisiting
-(add a LICENSE and confirm rights for the vendored art) now that the code is reachable by
-anyone.
+The reasoning, stated plainly because it is a real trade-off rather than a non-issue:
+`engine/` and `server/` depend on third-party `riichi` and `syanten` (their own npm
+licenses, unaffected by ours), and the repo vendors a FluffyStuff SVG tile sheet, official
+*Saki* card art and a prebuilt upstream WASM client. **Those vendored assets are not ours
+to license**, and their redistribution terms are unknown — catalogued in
+[`provenance.md`](provenance.md). A repository LICENSE could therefore only cover the code
+we wrote, and would sit beside (not resolve) the art question. The owner has chosen to add
+no license at all rather than license the code and carve the art out.
 
-The original concern was that `engine/` and `server/` depend on third-party `riichi` and
-`syanten` and vendor a FluffyStuff SVG sheet plus official Saki card art, leaving
-redistribution terms undefined. That remains factually true and is documented in
-[`provenance.md`](provenance.md); it simply does not need resolving while the repo is
-private.
-
-**If this repo is ever made public, revisit this** — vendored third-party art would then
-need actual redistribution rights. *(It is public; see the correction above.)*
+The 2026-10 audit correctly flagged that the earlier "the repo is private, therefore no
+redistribution" rationale no longer held once the repo was public. That correction was
+right about the rationale; the *decision* stands regardless. Anyone forking or reusing
+this repo should treat it as **all rights reserved**, and obtain rights for the vendored
+art from its sources.
 
 # Part B — Documentation rot
 
@@ -1578,7 +1576,7 @@ Docs are consistent and CI is green. These are the remaining **code** items:
 | 14 | ~~Cover `yaku-map.js`; fix the dropped Toitoi/Sanankou~~ | ✅ done | KI-13 |
 | 15 | ~~Assert score conservation; fix riichi sticks lost at an exhaustive draw~~ | ✅ done | KI-14 |
 | 16 | ~~Log 500s distinctly from 404s in the static handler~~ | ✅ done | KI-09 |
-| 17 | ~~Record `server/public/` provenance~~ (LICENSE skipped: private repo) | ✅ done | KI-08, KI-12 |
+| 17 | ~~Record `server/public/` provenance~~ (LICENSE: owner decision, none — KI-12) | ✅ done | KI-08, KI-12 |
 | 17a | ~~Sweep `resolveCallWindow` and the scoring path~~ | ✅ done | KI-16 |
 | 17b | ~~Guard bare value-taking CLI flags (`--powers` crashed on `true.split`)~~ | ✅ done | KI-17 |
 | 18 | ~~Add an `.nvmrc`~~ | ✅ done | KI-06 |
@@ -1593,7 +1591,8 @@ Docs are consistent and CI is green. These are the remaining **code** items:
 | 27 | ~~2026-10 audit Phase 3: wanpai-aware tile-conservation invariant in the offline loop + opt-in server check~~ | ✅ done | Part C (A-16) |
 | 28 | ~~2026-10 audit Phase 4: dispatch `onPreDeal`/`onWallSetup`; `getTurnClock` → `TurnTimer` → client countdown + auto-tsumogiri~~ | ✅ done | Part C (A-17, A-18) |
 | 29 | ~~2026-10 audit Phase 5: verify `call`s in `replay.js`; test `scripts/check-links.mjs` (the last untested source file)~~ | ✅ done | Part C (A-19, A-20) |
-| 30 | ~~KI-04 increment: share the mangan payment (nagashi payout + chombo) in `match-flow.js`; reconcile the KI-04/oka-uma text~~ | ✅ done | KI-04, KI-12 (part) |
+| 30 | ~~KI-04 increment: share the mangan payment (nagashi payout + chombo) in `match-flow.js`; reconcile the KI-04/oka-uma text~~ | ✅ done | KI-04 |
+| 31 | ~~2026-10 repo hygiene: forward-only Git LFS tracking for the two large binaries (CI checkout `lfs: true`); close KI-12 as a decided "no LICENSE"~~ | ✅ done | KI-08, KI-12 |
 
 Item **23** is now *partly* done — the shared constants live in one place with a parity
 test — but merging the two orchestration loops is still open. **21** was its prerequisite

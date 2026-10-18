@@ -183,8 +183,10 @@ npm run smoke         # one short deterministic hand
 
 An active personal project. CI runs on every push (`npm ci`, format check, lint, the full
 test suite, a CLI smoke check and the link check), and all of it is reproducible locally
-with one command (`npm run check`). The engine is a single npm workspace. Still missing:
-a **LICENSE** and a release process.
+with one command (`npm run check`). The engine is a single npm workspace. Still missing: a
+release process. There is deliberately **no LICENSE** — see
+[`docs/known-issues.md` KI-12](docs/known-issues.md#ki-12), which explains why the
+vendored art makes that a decision rather than an oversight.
 
 Character coverage is the main remaining gap: **8 powers implemented out of ~28
 documented**. The structural risks that are still open, and the documentation-rot

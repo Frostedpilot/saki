@@ -23,6 +23,11 @@ jobs:
         node: ['22']
     steps:
       - uses: actions/checkout@v4
+        with:
+          # The two large vendored binaries are Git-LFS tracked going forward
+          # (see .gitattributes). Harmless today — no pointer objects exist yet,
+          # because history was deliberately not rewritten.
+          lfs: true
 
       - uses: actions/setup-node@v4
         with:
