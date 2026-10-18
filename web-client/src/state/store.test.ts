@@ -407,6 +407,72 @@ describe('riichi auto-tsumogiri', () => {
   });
 });
 
+// ------------------------------------------------------- calls & the river
+//
+// `TileDiscarded` records `lastDiscarderSeat`; `PlayerCalled` unconditionally
+// popped that seat's river. An ankan or kakan takes its tile from the caller's
+// own hand, so the stale `lastDiscarderSeat` meant those calls deleted an
+// unrelated player's most recent discard.
+
+describe('calls and the discard river', () => {
+  const discard = (player: number, index: number) => ({
+    Event: { TileDiscarded: { player, tile: { index }, hand: [], is_riichi: false } },
+  });
+
+  test('a pon removes the called tile from the discarder river', () => {
+    const { store, socket } = makeStore();
+    socket.emit(gameStarted());
+    socket.emit(discard(1, 3));
+    expect(store.discards[1]).toHaveLength(1);
+    socket.emit({
+      Event: {
+        PlayerCalled: {
+          player: 0,
+          from_player: 1,
+          call_type: 'Pon',
+          called_tile: { index: 3 },
+          tiles: [{ index: 3 }, { index: 3 }, { index: 3 }],
+        },
+      },
+    });
+    expect(store.discards[1]).toHaveLength(0);
+  });
+
+  test('an ankan leaves the previous discarder river intact', () => {
+    const { store, socket } = makeStore();
+    socket.emit(gameStarted());
+    socket.emit(discard(1, 3));
+    expect(store.discards[1]).toHaveLength(1);
+    socket.emit({
+      Event: {
+        PlayerCalled: {
+          player: 0,
+          call_type: 'Ankan',
+          tiles: [{ index: 5 }, { index: 5 }, { index: 5 }, { index: 5 }],
+        },
+      },
+    });
+    expect(store.discards[1]).toHaveLength(1);
+  });
+
+  test('a kakan leaves the previous discarder river intact', () => {
+    const { store, socket } = makeStore();
+    socket.emit(gameStarted());
+    socket.emit(discard(1, 3));
+    socket.emit({
+      Event: {
+        PlayerCalled: {
+          player: 0,
+          call_type: 'Kakan',
+          called_tile: { index: 5 },
+          tiles: [{ index: 5 }, { index: 5 }, { index: 5 }, { index: 5 }],
+        },
+      },
+    });
+    expect(store.discards[1]).toHaveLength(1);
+  });
+});
+
 // --------------------------------------------------------------- GameOver
 
 describe('GameOver', () => {

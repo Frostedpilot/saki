@@ -1445,12 +1445,57 @@ drifted out of Prettier's style and CI's separate format step failed (the failin
 `0d936db`). `check` now runs `format:check` first, and the two over-long ternaries are
 rewrapped.
 
-### Deferred
+## <a id="a-13"></a>A-13 🟠 FIXED — an ankan deleted an unrelated player's river tile
+
+`web-client/src/state/store.ts` handled `PlayerCalled` by popping
+`discards[lastDiscarderSeat]`. That is correct for chi/pon/daiminkan, which consume the
+discard that was just made — but an **ankan** (and a kakan) takes its tile from the
+caller's own hand, so `lastDiscarderSeat` is whatever discard happened *earlier*. The
+client therefore erased some other seat's last river tile every time anyone declared a
+self-kan. Fixed by only popping the river for `chi`/`pon`/`daiminkan`. Pinned by
+`calls and the discard river` (`web-client/src/state/store.test.ts`).
+
+## <a id="a-14"></a>A-14 🟠 FIXED — an ankan crashed the call log line
+
+Same code path: the call log ran `tileToFace(pc.called_tile)`, but an ankan carries no
+`called_tile`, so `tileToFace(undefined)` threw inside the message handler — aborting the
+rest of that event (turn state, meld render, notify). No `try/catch` wraps
+`handleServerMessage`. Fixed to omit the `on <tile>` clause when there is no called tile.
+Same test as A-13.
+
+## <a id="a-15"></a>A-15 ⚪ FIXED — the engine manifest pointed at a file that does not exist
+
+`engine/package.json` declared `"main": "index.js"`, and there is no `index.js`; every
+consumer loads the engine by relative path (`server/table.js` requires `../engine/core`,
+`../engine/helpers`, …). The field was harmless in practice but wrong, and the package
+lacked `"private": true` beside its workspace siblings. `main` is dropped; `private` and a
+real `description` are set.
+
+### Reported but not fixed (deliberate)
 
 - **A tile-conservation assertion in `game.js` `main()`** (wire `engine/invariants.js`
-  into the offline loop). The naive partition double-counts the dead wall — rinshan
-  suffixes and revealed indicators remain in the array — so it needs a wanpai-aware
-  partition first. The fall-through it would have caught is fixed directly (A-04).
+  into the offline loop). A naive partition double-counts the wanpai: the fixed 14-slot
+  `deadWall` array is *not* mutated when a rinshan tile is drawn into a hand (the tablet
+  reads `dead[rinshanIdx++]` and leaves the slot in place — `Table.doOwnKan`), so the tile
+  sits in both the hand and the dead wall. A correct check must partition
+  `dead.slice(rinshanIdx)`. The fall-through it would have caught is fixed directly
+  (A-04). See the [suggested order of work](#suggested-order-of-work).
+- **`onPreDeal` / `onWallSetup` are declared and unit-tested on the dispatcher, but never
+  invoked.** `engine/powers/index.js` dispatches both, `engine/tests/powers.test.js`
+  covers them, and [`conventions.md`](conventions.md) documents them as lifecycle phases
+  0 and 1 — yet neither `engine/game.js` nor `server/table.js` calls them, and no shipped
+  roster implements them. A power author following the docs would write a hook that never
+  runs. Treat them as reserved until wired.
+- **`getTurnClock` / `TurnTimer` are dead end-to-end.** The dispatcher exposes
+  `getTurnClock(seat, state)` (default 10s), `server/protocol.js` has `turnTimer(seconds)`,
+  and `web-client/src/net/protocol-types.ts` types `TurnTimer` — but the server never
+  sends it and the client has no handler. There is no turn timeout anywhere, so the hook's
+  contract is unenforced and the event is unreachable.
+- **`replay.verifyKyouku` skips `call` actions.** The verifier asserts draw-liveness and
+  conservation for draws and discards but `continue`s past `call`, so a journal with a
+  bogus meld still "verifies". The module is experimental with no production writer
+  (`createJournal`/`record` are called only from tests), so this is deferred rather than
+  wrong in a shipped path.
 
 ---
 
@@ -1487,6 +1532,7 @@ Docs are consistent and CI is green. These are the remaining **code** items:
 | 23 | ~~Share rule constants via rules-config + parity guard; sweep found KI-19/20/21~~ (orchestration merge still open, see KI-04) | partly done | KI-04, KI-19, KI-20, KI-21 |
 | 24 | ~~Split `Table` out of `server/room.js`~~ | ✅ done | KI-11 |
 | 25 | ~~2026-10 audit Phase 0–1: malformed-frame crash, hook bricking, abort fall-through, CPU chi, furiten, `onTurnEnd`, kakan tag, kan-dora seeding, aka double-count, format gate~~ | ✅ done | Part C |
+| 26 | ~~2026-10 audit Phase 2: client ankan river-pop + call-log crash, `engine` manifest~~ | ✅ done | Part C (A-13–A-15) |
 
 Item **23** is now *partly* done — the shared constants live in one place with a parity
 test — but merging the two orchestration loops is still open. **21** was its prerequisite

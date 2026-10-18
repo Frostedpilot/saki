@@ -1074,25 +1074,30 @@ export class GameStore {
         });
       }
 
+      const callType = String(pc.call_type || '').toLowerCase();
+
       // Keep the concealed-hand count in sync. TileDiscarded only decrements on
       // discards, so without this the count drifts high after every call.
       if (callerSeat !== this.yourSeat) {
-        const ct = String(pc.call_type || '').toLowerCase();
         const taken =
-          ct === 'chi' || ct === 'pon'
+          callType === 'chi' || callType === 'pon'
             ? 2
-            : ct === 'daiminkan'
+            : callType === 'daiminkan'
               ? 3
-              : ct === 'ankan' || ct === 'closedkan'
+              : callType === 'ankan' || callType === 'closedkan'
                 ? 4
-                : ct === 'kakan'
+                : callType === 'kakan'
                   ? 1
                   : 0;
         this.opponentTileCounts[callerSeat] = Math.max(0, (this.opponentTileCounts[callerSeat] || 0) - taken);
       }
 
-      // Remove the called tile from the discarder's river
-      if (this.lastDiscarderSeat >= 0 && this.discards[this.lastDiscarderSeat]?.length > 0) {
+      // Remove the called tile from the discarder's river — but only for calls
+      // that genuinely consumed another player's discard. Ankan and kakan take
+      // the tile from the caller's own hand, so `lastDiscarderSeat` is stale for
+      // them and popping it deleted an unrelated player's river tile.
+      const consumedDiscard = callType === 'chi' || callType === 'pon' || callType === 'daiminkan';
+      if (consumedDiscard && this.lastDiscarderSeat >= 0 && this.discards[this.lastDiscarderSeat]?.length > 0) {
         this.discards[this.lastDiscarderSeat].pop();
         if (this.lastDiscard && this.lastDiscard.seat === this.lastDiscarderSeat) {
           this.lastDiscard = null;
@@ -1109,9 +1114,13 @@ export class GameStore {
       }
 
       const tileFaces = (orderedTiles || []).map(tileToFace).join(', ');
+      // An ankan (and a kakan that only carries the caller's own fourth tile)
+      // has no `called_tile`; `tileToFace(undefined)` would throw inside the
+      // message handler and swallow the rest of the event.
+      const target = pc.called_tile ? ` on ${tileToFace(pc.called_tile)}` : '';
       this.addLog(
         'call',
-        `${callerSeat === this.yourSeat ? 'You' : this.getSeatName(callerSeat)} called ${pc.call_type} on ${tileToFace(pc.called_tile)}! [${tileFaces}]`
+        `${callerSeat === this.yourSeat ? 'You' : this.getSeatName(callerSeat)} called ${pc.call_type}${target}! [${tileFaces}]`
       );
 
       this.currentTurn = callerSeat;

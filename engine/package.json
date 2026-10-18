@@ -1,8 +1,8 @@
 {
   "name": "engine",
   "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
+  "private": true,
+  "description": "Saki riichi engine: rules, tile model, scoring, RNG, and the power framework",
   "scripts": {
     "test": "node --test tests/*.test.js && node game.js --selftest=1"
   },
