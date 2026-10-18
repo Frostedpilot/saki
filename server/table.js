@@ -542,14 +542,15 @@ class Table {
       return p;
     });
 
+    const initialIndicators = MF.doraIndicatorSlots(0);
     const ctx = {
       state,
       players,
       dead,
       dealer,
       bakaze: bakazeNum,
-      doraInd: [dead[4]],
-      uraInd: [dead[5]],
+      doraInd: [dead[initialIndicators.dora]],
+      uraInd: [dead[initialIndicators.ura]],
       kanCount: 0,
       rinshanIdx: 0,
       callsMade: 0,
@@ -564,11 +565,10 @@ class Table {
       uraDora: () => ctx.uraInd.map(DORA_NEXT),
       revealKanDora: () => {
         ctx.kanCount++;
-        const di = 4 + ctx.kanCount * 2,
-          ui = 5 + ctx.kanCount * 2;
-        if (di < 14) {
-          ctx.doraInd.push(dead[di]);
-          ctx.uraInd.push(dead[ui]);
+        const slots = MF.doraIndicatorSlots(ctx.kanCount);
+        if (slots.revealed) {
+          ctx.doraInd.push(dead[slots.dora]);
+          ctx.uraInd.push(dead[slots.ura]);
         }
         // Keep state.doraIndicators in step with ctx (powers score against it).
         state.doraIndicators = [...ctx.doraInd];

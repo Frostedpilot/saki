@@ -134,10 +134,11 @@ behaviour-neutral today; it exists so the two sides *can* differ without forking
 **Reduced, not closed.** The *shared rule functions* are no longer duplicated —
 `engine/helpers.js` is now the single definition for waits, furiten, bot decisions,
 abort conditions and oka/uma, and `engine/match-flow.js` the single definition for the
-hand-transition table and the score arithmetic (the win settlement, the nagashi payout and
-the offline chombo penalty). What still differs is the **turn loop**: `game.js`'s `main()`
-and `server/table.js`'s `Table` each drive a hand's turn sequence independently — a sync
-CLI versus an async phase machine — and that is not shared.
+hand-transition table, the score arithmetic (the win settlement, the nagashi payout and
+the offline chombo penalty), the abortive-draw switch (`abortEnabled`) and the dead-wall
+indicator layout (`doraIndicatorSlots`). What still differs is the **turn loop**: `game.js`'s
+`main()` and `server/table.js`'s `Table` each drive a hand's turn sequence independently — a
+sync CLI versus an async phase machine — and that is not shared.
 
 ### `rules-config.js` was dead, and is now live
 
@@ -156,7 +157,7 @@ Both now read it (`engine/game.js`, `server/table.js`), so these cannot diverge:
 | honba per win (ron) | `+ 300 * honba` in both | `RULES.honbaRon` |
 | noten schedule | `[0, 3000, 1500, 1000][n]` inline | `RULES.notenTotal` |
 
-`engine/tests/rules-config-parity.test.js` (7 tests) keeps it that way. It asserts the
+`engine/tests/rules-config-parity.test.js` (11 tests) keeps it that way. It asserts the
 config is *imported and referenced* — not merely correct, which is the check that let
 the file stay dead — and fails if either front-end reintroduces a literal copy of one of
 the expressions above. Verified to bite: reinstating `+ 300 * honba` in `game.js` fails
@@ -1596,6 +1597,7 @@ Docs are consistent and CI is green. These are the remaining **code** items:
 | 31 | ~~2026-10 repo hygiene: forward-only Git LFS tracking for the two large binaries (CI checkout `lfs: true`); close KI-12 as a decided "no LICENSE"~~ | ✅ done | KI-08, KI-12 |
 | 32 | ~~KI-04 increment: share the win-settlement arithmetic (`winPayments`) in `match-flow.js`~~ | ✅ done | KI-04 |
 | 33 | ~~KI-04: make the abort switches live (`match-flow.js abortEnabled`), so `RULES.aborts` / `RULES.serverAborts` gate the five detections on both front-ends~~ | ✅ done | KI-04 |
+| 34 | ~~KI-04 increment: share the dead-wall indicator layout (`match-flow.js doraIndicatorSlots`), replacing the `4 + kanCount * 2` / `5 + kanCount * 2` stride copied into both loops~~ | ✅ done | KI-04 |
 
 Item **23** is now *partly* done — the shared constants live in one place with a parity
 test — but merging the two orchestration loops is still open. **21** was its prerequisite

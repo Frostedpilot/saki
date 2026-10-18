@@ -504,15 +504,15 @@ async function main() {
     const firstLapDiscards = []; // for suufon-renda (first discard each, no calls)
     let suufonDone = false;
     let fourRiichiPending = false; // set when 4th riichi declared; checked after its discard
-    const doraInd = [dead[4]],
-      uraInd = [dead[5]];
+    const initialIndicators = MF.doraIndicatorSlots(0);
+    const doraInd = [dead[initialIndicators.dora]],
+      uraInd = [dead[initialIndicators.ura]];
     const revealKanDora = () => {
       kanCount++;
-      const di = 4 + kanCount * 2,
-        ui = 5 + kanCount * 2;
-      if (di < 14) {
-        doraInd.push(dead[di]);
-        uraInd.push(dead[ui]);
+      const slots = MF.doraIndicatorSlots(kanCount);
+      if (slots.revealed) {
+        doraInd.push(dead[slots.dora]);
+        uraInd.push(dead[slots.ura]);
       }
     };
     const baseDora = () => doraInd.map(DORA_NEXT);

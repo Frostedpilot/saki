@@ -196,3 +196,16 @@ test('abortEnabled: enabled unless the flag is explicitly false', () => {
   assert.equal(F.abortEnabled(flags, 'suufonRenda'), true, 'a missing key defaults on');
   assert.equal(F.abortEnabled(undefined, 'anything'), true, 'no flag set defaults on');
 });
+
+// The dead-wall indicator layout: rinshan slots first, then dora/ura pairs. The
+// initial pair is the first, each kan reveals the next, and the pair stops once it
+// would run past the wall.
+test('doraIndicatorSlots: initial pair, kan pairs, and the wall bound', () => {
+  assert.deepEqual(F.doraIndicatorSlots(0), { dora: 4, ura: 5, revealed: true });
+  assert.deepEqual(F.doraIndicatorSlots(1), { dora: 6, ura: 7, revealed: true });
+  assert.deepEqual(F.doraIndicatorSlots(4), { dora: 12, ura: 13, revealed: true });
+  assert.equal(F.doraIndicatorSlots(5).revealed, false, 'past the dead wall');
+  // Derived from RULES, not a literal: the offsets must agree with the config.
+  assert.equal(F.doraIndicatorSlots(0).dora, RULES.rinshanSlots);
+  assert.ok(F.doraIndicatorSlots(4).ura < RULES.deadWallLength);
+});

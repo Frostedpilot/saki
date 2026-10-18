@@ -15,11 +15,14 @@
 //
 // Server gaps stay explicit, not silent: agari-yame/enchousen and
 // chombo-as-penalty exist only in game.js (the five abortive draws and nagashi
-// mangan are now implemented on both sides). This module also owns the point
-// *arithmetic* both loops ran inline — the win settlement (`winPayments`) and
-// the mangan payments (`manganPayment`/`nagashiPayments`) — so a scoring rule
-// changed here cannot land in one front-end only. The game.js-only paths keep
-// their inline code and are marked as such at the call site.
+// mangan are now implemented on both sides). This module also owns the pieces
+// both loops ran inline — the point *arithmetic* (the win settlement
+// `winPayments`, the mangan payments `manganPayment`/`nagashiPayments`), the
+// abortive-draw switch (`abortEnabled`, read with `RULES.aborts` /
+// `RULES.serverAborts`), and the dead-wall indicator layout
+// (`doraIndicatorSlots`) — so a rule changed here cannot land in one front-end
+// only. The game.js-only paths keep their inline code and are marked as such at
+// the call site.
 'use strict';
 
 const { RULES } = require('./rules-config');
@@ -85,6 +88,18 @@ function minHan(overtime) {
 // and `rules-config.js` promise, made live.
 function abortEnabled(flags, name) {
   return !flags || flags[name] !== false;
+}
+
+// Dead-wall indicator layout, shared so the stride lives in one place. The wall
+// is RULES.deadWallLength (14) tiles: the first RULES.rinshanSlots (4) are the
+// rinshan draws, then dora/ura indicator pairs. `kans` 0 is the initial pair; the
+// `kans`-th kan reveals the next pair. `revealed` is false once that pair would
+// run past the wall (so a fifth kan adds no indicator). Both front-ends index
+// `dead` through this.
+function doraIndicatorSlots(kans) {
+  const dora = RULES.rinshanSlots + kans * 2;
+  const ura = dora + 1;
+  return { dora, ura, revealed: ura < RULES.deadWallLength };
 }
 
 // One mangan-tsumo payment from `payer` to `collector`: 4000 when either side
@@ -168,6 +183,7 @@ module.exports = {
   notenPayments,
   minHan,
   abortEnabled,
+  doraIndicatorSlots,
   manganPayment,
   nagashiPayments,
   winPayments,

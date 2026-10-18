@@ -176,6 +176,20 @@ test('both front-ends gate their abortive draws through the shared switch', () =
   }
 });
 
+test('both front-ends index the dead wall through match-flow, not a literal', () => {
+  // The indicator stride was `4 + kanCount * 2` / `5 + kanCount * 2` copied into
+  // both loops (KI-04 again). It is now `MF.doraIndicatorSlots`; this fails if a
+  // literal copy returns.
+  for (const [name, src] of [
+    ['engine/game.js', GAME_SETTLEMENT],
+    ['server/table.js', TABLE_JS],
+  ]) {
+    assert.match(src, /doraIndicatorSlots/, `${name} should call MF.doraIndicatorSlots`);
+    assert.doesNotMatch(src, /kanCount \* 2/, `${name} must not re-derive the indicator stride`);
+    assert.doesNotMatch(src, /dead\[[45]\]/, `${name} must not hard-code the initial indicator slot`);
+  }
+});
+
 test('the two front-ends settle a riichi declaration identically', () => {
   // Same expression shape on both sides, so a change to one is a visible diff
   // against the other rather than an invisible divergence. Whitespace-tolerant:
