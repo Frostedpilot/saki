@@ -1217,20 +1217,14 @@ async function main() {
     if (winBy && winBy.type === 'chombo') {
       const o = winBy.offender;
       console.log(`\n*** CHOMBO ${names[o]} (illegal ankan after riichi) - mangan penalty, replay ***`);
-      if (o === dealer) {
-        for (let i = 0; i < 4; i++)
-          if (i !== o) {
-            scores[i] += 4000;
-            scores[o] -= 4000;
-          }
-      } else {
-        for (let i = 0; i < 4; i++)
-          if (i !== o) {
-            const c = i === dealer ? 4000 : 2000;
-            scores[i] += c;
-            scores[o] -= c;
-          }
-      }
+      // Chombo penalty: the offender pays every other seat a mangan tsumo.
+      // Shared pairwise rule (match-flow.js); honba is deliberately ignored.
+      for (let i = 0; i < 4; i++)
+        if (i !== o) {
+          const c = MF.manganPayment(o, i, dealer);
+          scores[i] += c;
+          scores[o] -= c;
+        }
       riichiCarry = ctx.riichiPool; // sticks stay on the table
       console.log(`scores: ${scores.join('/')} (honba ${honba}, carry ${riichiCarry})`);
       kyoku--;
@@ -1337,24 +1331,10 @@ async function main() {
           `NAGASHI MANGAN: ${nagashi.map((i) => names[i]).join(' ')} (all discards terminals/honors, closed)`
         );
         const order = [0, 1, 2, 3].map((k) => (dealer + k) % 4).filter((i) => nagashi.includes(i));
-        for (const w of order) {
-          if (w === dealer) {
-            for (let i = 0; i < 4; i++)
-              if (i !== w) {
-                const pay = 4000 + RULES.honbaTsumo * honba;
-                scores[i] -= pay;
-                scores[w] += pay;
-              }
-          } else {
-            for (let i = 0; i < 4; i++)
-              if (i !== w) {
-                const pay = (i === dealer ? 4000 : 2000) + RULES.honbaTsumo * honba;
-                scores[i] -= pay;
-                scores[w] += pay;
-              }
-          }
-          console.log(`  -> ${names[w]} mangan tsumo`);
-        }
+        // Shared payout (match-flow.js): a mangan tsumo per qualifying seat.
+        const { deltas } = MF.nagashiPayments(order, dealer, honba);
+        for (let i = 0; i < 4; i++) scores[i] += deltas[i];
+        for (const w of order) console.log(`  -> ${names[w]} mangan tsumo`);
         scores[order[0]] += ctx.riichiPool;
         ctx.riichiPool = 0;
       } else if (nTen > 0 && nTen < 4) {

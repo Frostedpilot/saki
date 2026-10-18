@@ -137,6 +137,18 @@ test('server/table.js settlement uses RULES, not literals', () => {
   }
 });
 
+test('both front-ends settle the mangan payment through match-flow, not inline', () => {
+  for (const [name, src] of [
+    ['engine/game.js', GAME_SETTLEMENT],
+    ['server/table.js', TABLE_JS],
+  ]) {
+    assert.doesNotMatch(src, /\b(4000|2000)\b/, `${name} hardcodes a mangan payment again`);
+    assert.match(src, /nagashiPayments/, `${name} should call MF.nagashiPayments`);
+  }
+  // The game.js-only chombo penalty shares the same pairwise rule.
+  assert.match(GAME_SETTLEMENT, /manganPayment/, 'chombo should call MF.manganPayment');
+});
+
 test('the two front-ends settle a riichi declaration identically', () => {
   // Same expression shape on both sides, so a change to one is a visible diff
   // against the other rather than an invisible divergence. Whitespace-tolerant:

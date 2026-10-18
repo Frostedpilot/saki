@@ -120,21 +120,24 @@ The same rules are implemented twice, and the two copies disagree:
 | Wall | pre-shuffled array, `wall.pop()` | `DynamicPool` weighted sampling |
 | Length | tonpuusen or hanchan (`--kyoku`) | tonpuusen only |
 | Abortive draws | **all five on** | **all five on** (was off — see [KI-25](#ki-25)) |
-| Nagashi mangan, oka/uma | yes | nagashi yes; oka/uma offline only (was both off) |
+| Nagashi mangan, oka/uma | yes | nagashi yes (shared payout); oka/uma is client-side standings over raw wire scores |
 | Character powers | **inline `powerDraw()`, not the roster framework** | full `PowerDispatcher` + `rosters/` |
 
 **Still open.** A rule fixed in `game.js` is not automatically fixed in `table.js`. This
 has already happened: the permanent-riichi-furiten bug existed on both sides and needed
 two fixes plus a regression suite. The divergence is at least *declared* in
 `engine/rules-config.js` (`RULES.aborts` vs `RULES.serverAborts`) — but nothing reads
-those two objects, because the server has no abort handlers to switch on. They document
-intent; they do not enforce it.
+those two objects. The server now *has* all five abort handlers (see [KI-25](#ki-25)), so
+the flags are no longer blocked on missing code; the handlers are simply unconditional,
+and flipping a flag would do nothing. They document intent; they do not enforce it.
 
 **Reduced, not closed.** The *shared rule functions* are no longer duplicated —
 `engine/helpers.js` is now the single definition for waits, furiten, bot decisions,
-abort conditions and oka/uma, and `game.js` imports all of them (see KI-03). What still
-differs is the **rule front-ends**: `game.js`'s `main()` and `server/table.js`'s
-`Table` each orchestrate a hand independently, and that orchestration is not shared.
+abort conditions and oka/uma, and `engine/match-flow.js` the single definition for the
+hand-transition table and the mangan payments (the nagashi payout and the offline chombo
+penalty). What still differs is the **turn loop**: `game.js`'s `main()` and
+`server/table.js`'s `Table` each drive a hand's turn sequence independently — a sync CLI
+versus an async phase machine — and that is not shared.
 
 ### `rules-config.js` was dead, and is now live
 
@@ -169,11 +172,15 @@ like one task and is not:
   have different control architectures because one is a CLI and the other is a server.
   Merging them means rewriting both, not extracting a shared function — which is why
   item 23 was scoped at 2–3 days.
-- **Abortive draws.** `game.js` implements all five; `Table` implements none. The
-  handlers do not exist server-side, so no amount of sharing fixes this — it needs
-  writing, and `RULES.aborts` / `RULES.serverAborts` already flag the intent.
-- **Nagashi mangan, oka/uma, agari-yame, enchousen.** Offline only. Oka/uma is a
-  scoring concern with no network equivalent (the client computes its own standings).
+- **Abortive draws.** Both front-ends now implement all five (see [KI-25](#ki-25));
+  `Table`'s kyuushu path keeps one documented limitation (no deal-time prompt, so a human
+  9-kind hand auto-plays on). What is still unshared is the *switch*: `RULES.aborts` /
+  `RULES.serverAborts` gate nothing.
+- **Mangan payments.** No longer duplicated: the nagashi-mangan payout and the
+  game.js-only chombo penalty share one pairwise rule, `match-flow.js manganPayment`.
+- **Agari-yame, enchousen, chombo-as-penalty.** game.js only.
+- **Oka/uma.** Not a front-end gap any more — the server sends raw scores and the client
+  derives final standings with `applyOkaUma`, mirroring `engine/helpers.js`.
 - **Character powers.** `game.js --powers` drives a small inline `powerDraw()` and is
   explicitly *not* the roster framework; only the server path exercises
   `PowerDispatcher` + `rosters/`.
@@ -1586,6 +1593,7 @@ Docs are consistent and CI is green. These are the remaining **code** items:
 | 27 | ~~2026-10 audit Phase 3: wanpai-aware tile-conservation invariant in the offline loop + opt-in server check~~ | ✅ done | Part C (A-16) |
 | 28 | ~~2026-10 audit Phase 4: dispatch `onPreDeal`/`onWallSetup`; `getTurnClock` → `TurnTimer` → client countdown + auto-tsumogiri~~ | ✅ done | Part C (A-17, A-18) |
 | 29 | ~~2026-10 audit Phase 5: verify `call`s in `replay.js`; test `scripts/check-links.mjs` (the last untested source file)~~ | ✅ done | Part C (A-19, A-20) |
+| 30 | ~~KI-04 increment: share the mangan payment (nagashi payout + chombo) in `match-flow.js`; reconcile the KI-04/oka-uma text~~ | ✅ done | KI-04, KI-12 (part) |
 
 Item **23** is now *partly* done — the shared constants live in one place with a parity
 test — but merging the two orchestration loops is still open. **21** was its prerequisite

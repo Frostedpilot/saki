@@ -93,11 +93,13 @@ event-type tag (e.g. `RINSHAN_RESONANCE_TRIGGER`, `CHILLING_GAZE`,
 ## Excluded features
 
 Chombo-as-penalty (illegal post-riichi kan is refused instead), pao/sekinin,
-3-player, reconnection/resync, oka/uma (raw scores in GameOver),
-and the human kyuushu prompt (human 9-kind hands auto play on; CPU seats
-declare at the standard rate). All five abortive draws, nagashi mangan,
-agari-yame and enchousen (with overtime ryanhan-shibari) are implemented —
-see `table.js` (`checkKyuushu`, `checkLapAbort`, `abortHand`, `checkMatchEnd`).
+3-player, reconnection/resync, and the human kyuushu prompt (human 9-kind hands
+auto play on; CPU seats declare at the standard rate). All five abortive draws,
+nagashi mangan, agari-yame and enchousen (with overtime ryanhan-shibari) are
+implemented — see `table.js` (`checkKyuushu`, `checkLapAbort`, `abortHand`,
+`checkMatchEnd`). Oka/uma are not applied server-side: `GameOver` carries raw
+scores and the client derives final standings with `applyOkaUma` (mirroring
+`engine/helpers.js`).
 
 > **Turn clock is advisory.** The acting human gets a `TurnTimer`
 > (`getTurnClock`, default 10 s) and the client counts it down and tsumogiris at
@@ -108,9 +110,10 @@ see `table.js` (`checkKyuushu`, `checkLapAbort`, `abortHand`, `checkMatchEnd`).
 > (`web-client/src/net/socket.ts`), but the server has no session resume — a new
 > `Hello` mints a fresh anonymous session, so the reconnected client holds a
 > stale `GameStore` and every action returns `InvalidAction`. Reload the page.
-> The offline engine (`engine/game.js`) implements all five aborts and oka/uma,
-> as does the server now — the remaining front-end gap is oka/uma display
-> (server sends raw scores) and chombo settlement.
+> The offline engine (`engine/game.js`) implements all five aborts, as does the
+> server. Oka/uma is applied client-side over the raw wire scores, and the
+> chombo-as-penalty path (a mangan paid by the offender) exists offline only —
+> the server refuses the illegal kan instead of penalising it.
 
 ## Environment variables
 

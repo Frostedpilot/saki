@@ -13,10 +13,12 @@
 //   exhaustive, dealer tenpai    -> dealer repeats, honba+1
 //   exhaustive, dealer noten     -> rotate, honba+1
 //
-// Server gaps stay explicit, not silent: kyuushu/suufon/suucha/suukaikan,
-// nagashi, agari-yame/enchousen and chombo-as-penalty exist only in game.js.
-// This module covers the paths both front-ends implement; the game.js-only
-// paths keep their inline code and are marked as such at the call site.
+// Server gaps stay explicit, not silent: agari-yame/enchousen and
+// chombo-as-penalty exist only in game.js (the five abortive draws and nagashi
+// mangan are now implemented on both sides). This module covers the paths both
+// front-ends implement — including the nagashi payout, which was duplicated
+// inline in each loop; the game.js-only paths keep their inline code and are
+// marked as such at the call site.
 'use strict';
 
 const { RULES } = require('./rules-config');
@@ -73,6 +75,40 @@ function minHan(overtime) {
   return overtime ? RULES.overtimeMinHan : RULES.minHan;
 }
 
+// One mangan-tsumo payment from `payer` to `collector`: 4000 when either side
+// is the dealer (the dealer always pays/receives the dealer rate), 2000
+// otherwise, plus RULES.honbaTsumo per honba. This single rule was written out
+// three times — twice as the inline nagashi payout (game.js and table.js) and
+// once as game.js's chombo penalty — with the chombo copy passing honba 0
+// (a penalty ignores honba). Both callers now share it.
+function manganPayment(payer, collector, dealer, honba = 0) {
+  const base = payer === dealer || collector === dealer ? 4000 : 2000;
+  return base + RULES.honbaTsumo * honba;
+}
+
+// Nagashi mangan: each qualifying seat, processed in `order` (turn order from
+// the dealer), is treated as a mangan tsumo. The amounts depend only on the
+// dealer and honba, not on the running scores, so this is pure: callers add
+// `deltas` to their own score array. Returns per-seat deltas and each winner's
+// collected total. The riichi-stick award (to the first winner in turn order)
+// is the caller's, not this module's.
+function nagashiPayments(order, dealer, honba) {
+  const deltas = [0, 0, 0, 0];
+  const totals = [0, 0, 0, 0];
+  for (const w of order) {
+    let total = 0;
+    for (let i = 0; i < 4; i++) {
+      if (i === w) continue;
+      const pay = manganPayment(i, w, dealer, honba);
+      deltas[i] -= pay;
+      total += pay;
+    }
+    deltas[w] += total;
+    totals[w] = total;
+  }
+  return { deltas, totals };
+}
+
 // Tobi bust-out: index of the first sub-zero score, or -1.
 function bustOutSeat(scores) {
   return scores.findIndex((s) => s < 0);
@@ -85,4 +121,13 @@ function dealerLeads(scores, dealer) {
   return scores.every((s, i) => i === dealer || d > s);
 }
 
-module.exports = { dealerWonOnWin, postHandFlow, notenPayments, minHan, bustOutSeat, dealerLeads };
+module.exports = {
+  dealerWonOnWin,
+  postHandFlow,
+  notenPayments,
+  minHan,
+  manganPayment,
+  nagashiPayments,
+  bustOutSeat,
+  dealerLeads,
+};

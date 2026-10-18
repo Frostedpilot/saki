@@ -2297,32 +2297,14 @@ class Table {
       const nagashi = [0, 1, 2, 3].filter((s) => H.isNagashi(players[s]));
       if (nagashi.length) {
         const order = [0, 1, 2, 3].map((k) => (dealer + k) % 4).filter((s) => nagashi.includes(s));
-        const pays = new Map();
-        for (const w of order) {
-          let pay = 0;
-          if (w === dealer) {
-            for (let i = 0; i < 4; i++) {
-              if (i === w) continue;
-              const p0 = 4000 + RULES.honbaTsumo * this.honba;
-              this.scores[i] -= p0;
-              pay += p0;
-            }
-          } else {
-            for (let i = 0; i < 4; i++) {
-              if (i === w) continue;
-              const p0 = (i === dealer ? 4000 : 2000) + RULES.honbaTsumo * this.honba;
-              this.scores[i] -= p0;
-              pay += p0;
-            }
-          }
-          this.scores[w] += pay;
-          pays.set(w, pay);
-        }
+        // Shared payout (match-flow.js): a mangan tsumo per qualifying seat.
+        const { deltas, totals } = MF.nagashiPayments(order, dealer, this.honba);
+        for (let i = 0; i < 4; i++) this.scores[i] += deltas[i];
         const sticksGain = ctx.riichiPool;
         this.scores[order[0]] += sticksGain;
         ctx.riichiPool = 0;
         for (const w of order) {
-          const scorePoints = pays.get(w) + (w === order[0] ? sticksGain : 0);
+          const scorePoints = totals[w] + (w === order[0] ? sticksGain : 0);
           this.broadcast(
             P.evRoundWon({
               winner: P.seatWind(w, dealer),
