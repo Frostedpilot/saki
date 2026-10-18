@@ -26,7 +26,11 @@ function ukeire(hand, pool) {
   let n = 0;
   for (const [tile, count] of Object.entries(h.wait)) {
     void count;
-    const live = pool ? (pool.get(tile) || 0) + (pool.get(tile.replace('5', '0')) || 0) : 4;
+    // A wait on 5x is satisfied by either live 5x or its aka 0x, so add both —
+    // but only for the fives. `tile.replace('5','0')` left non-fives unchanged,
+    // so the old code added pool.get(tile) twice for every non-five wait.
+    const aka = tile.replace(/^5/, '0');
+    const live = pool ? (pool.get(tile) || 0) + (aka !== tile ? pool.get(aka) || 0 : 0) : 4;
     n += live;
   }
   return n;

@@ -61,6 +61,18 @@ const server = http.createServer((req, res) => {
 // ------------------------------------------------------------------- WS hub
 const wss = new WebSocketServer({ server, path: '/ws' });
 
+// Last-resort guards. The bridge holds every room's async match in this one
+// process, so a single unexpected throw — a bug in a character hook, a stray
+// edge case in the hand driver — must not take down every other game with it.
+// Log loudly and keep serving; per-connection handling above catches the
+// ordinary cases first.
+process.on('uncaughtException', (e) => {
+  console.error('[bridge] uncaughtException (process kept alive):', e);
+});
+process.on('unhandledRejection', (e) => {
+  console.error('[bridge] unhandledRejection (process kept alive):', e);
+});
+
 // Room code alphabet without confusing characters (0/O, 1/I).
 const CODE_ALPHABET = '23456789ABCDEFGHJKLMNPQRSTUVWXYZ';
 function genCode() {
@@ -208,15 +220,18 @@ wss.on('connection', (ws) => {
   const client = { ws, sessionToken: null, displayName: '', room: null, seat: -1 };
   ws.on('message', (data) => {
     const text = data.toString();
-    const parsed = P.parseClientMessage(text);
-    if (!parsed.ok) {
-      send(ws, P.errorMessage('InvalidMessage', 'unparseable message'));
-      return;
-    }
+    // Parsing is inside the guard too: a malformed-but-valid-JSON payload can
+    // throw inside the codec (e.g. a non-array `tiles`), and that must be a
+    // rejected message, not an uncaught exception that takes down the process.
     try {
+      const parsed = P.parseClientMessage(text);
+      if (!parsed.ok) {
+        send(ws, P.errorMessage('InvalidMessage', 'unparseable message'));
+        return;
+      }
       route(client, parsed);
     } catch (e) {
-      console.error('[bridge] route error:', e);
+      console.error('[bridge] message handling error:', e);
       send(ws, P.errorMessage('ServerError', String(e && e.message)));
     }
   });

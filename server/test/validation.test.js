@@ -16,6 +16,7 @@ const { test } = require('node:test');
 const assert = require('node:assert/strict');
 
 const { Table } = require('../table');
+const P = require('../protocol');
 
 // A kan is declared on your own turn *after* drawing, so the hand has 14 tiles.
 // The helpers recompute waits from the remainder after the 4 kan tiles are
@@ -523,7 +524,7 @@ test('doOwnKan allows the same kakan when not in riichi', async () => {
 
   assert.equal(out.end, false);
   assert.equal(me.hand.length, before - 1, 'the fourth tile moved out of hand');
-  assert.equal(me.melds[0].type, 'kan', 'the meld was upgraded');
+  assert.equal(me.melds[0].type, 'kakan', 'the meld was upgraded');
   assert.equal(me.melds[0].tiles.length, 4);
 });
 
@@ -582,4 +583,37 @@ test('tsumo denial separates noten from no-yaku from shibari', () => {
   } finally {
     t.overtime = false;
   }
+});
+
+// ------------------------------------------------ malformed-input hardening
+
+test('protocol: a non-array tiles payload cannot crash the codec', () => {
+  // The crash from the audit: valid JSON with `tiles` as a number reached
+  // `(tiles || []).map`, threw a TypeError out of the WS listener, and killed
+  // the whole process (no uncaughtException handler).
+  assert.deepEqual(P.tilesToSaki(1), []);
+  assert.deepEqual(P.tilesToSaki(undefined), []);
+  assert.deepEqual(P.tilesToSaki('3m'), []);
+  const parsed = P.parseClientMessage('{"Action":{"Pon":{"tiles":1}}}');
+  assert.equal(parsed.ok, true);
+  assert.equal(parsed.action.type, 'Pon');
+  assert.deepEqual(parsed.action.tiles, []);
+});
+
+test('doOpenChi accepts a CPU claim that carries bare ranks, not codes', async () => {
+  // CPU claims come from H.chiOptions as bare ranks ([2, 3]); human claims come
+  // in as protocol codes (["2m","3m"]). The validator used to norm() the bare
+  // ranks as-is, so no CPU chi ever matched a legal option and CPU seats could
+  // never chi. Both shapes must work.
+  const t = makeTable();
+  const qp = t.ctx.players[1];
+  qp.isCpu = true;
+  qp.hand = ['2m', '3m', '5p', '6p', '7p', '2s', '3s', '4s', '6s', '7s', '8s', '1z', '1z'];
+  t.ctx.players[0].discards = ['1m'];
+
+  const out = await t.doOpenChi(1, 0, '1m', [2, 3]);
+  assert.ok(out, 'the chi must be accepted, not rejected as an illegal option');
+  assert.equal(qp.melds.length, 1);
+  assert.equal(qp.melds[0].type, 'chi');
+  assert.equal(qp.melds[0].tiles.length, 3);
 });

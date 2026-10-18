@@ -747,7 +747,7 @@ async function main() {
           const pm = me.melds.find((m) => m.type === 'pon' && same(m.tiles[0], kt));
           const i = me.hand.findIndex((x) => same(x, kt));
           pm.tiles.push(me.hand.splice(i, 1)[0]);
-          pm.type = 'kan';
+          pm.type = 'kakan';
           console.log(`  ${names[turn]} KAKAN ${kt}`);
         } else {
           // closed kan: kokushi-only chankan exception
@@ -867,18 +867,14 @@ async function main() {
         console.log(
           `  YOUR hand(${me.hand.length}): ${me.hand.join(' ')} shanten=${shantenOf(me.hand)} dora=${ctx.dora}`
         );
-        const waits0 = getWaits({ ...me, hand: me.hand.filter((_, i) => i !== me.hand.length - 1) }, P, dead, {
-          dora: [],
-          bakaze,
-          jikaze: 1,
-        });
-        void waits0;
-        const h =
-          me.hand.length >= 13
-            ? hairiOf(me.hand.slice(0, 13).length ? me.hand.slice(0, Math.min(me.hand.length, 14)) : me.hand)
-            : null;
+        // Waits/furiten are a 13-tile property. The hand here holds the drawn
+        // tile (14), so score the concealed hand WITHOUT it — passing 14 tiles
+        // to getWaits made it test a 15-tile agari, which never exists, so the
+        // furiten warning below could never fire (it was effectively dead).
+        const concealed13 = me.hand.filter((_, i) => i !== me.hand.length - 1);
+        const h = hairiOf(concealed13);
         if (h && h.now !== undefined) console.log(`  hairi now=${h.now}`);
-        const myWaits = getWaits(me, P, dead, { dora: [], bakaze, jikaze: 1 });
+        const myWaits = getWaits({ ...me, hand: concealed13 }, P, dead, { dora: [], bakaze, jikaze: 1 });
         if (myWaits.length && me.discards.some((d) => myWaits.includes(norm(d))))
           console.log('  *** YOU ARE FURITEN (ron blocked) ***');
         const a = (await ask('  discard? (tile or index): ')).trim();
@@ -1078,7 +1074,11 @@ async function main() {
           }
         }
       }
-      if (winner >= 0) break;
+      // Any terminal result ends the hand: a win (>=0), an abortive draw (-2)
+      // or a chombo (-3). The old `winner >= 0` check missed aborts set inside
+      // the call loop below, so play fell through to the chi branch and kept
+      // going after an abort (corrupting tile conservation / double-drawing).
+      if (winner !== -1) break;
       if (called) continue;
       const nx = (turn + 1) % 4;
       if (!P[nx].riichi) {

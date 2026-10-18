@@ -37,6 +37,20 @@ function warnOnce(site, e) {
   console.warn(`[power] '${site}' threw and was ignored: ${msg}`);
 }
 
+// Invoke a character hook defensively. A bug in a power must not break the
+// match — but it must not be silent, and (because the hand driver is one big
+// async chain) an unguarded throw also rejected run() and bricked the room.
+// Every hook call goes through here so there is exactly one policy.
+function callHook(hooks, name, ...args) {
+  if (!hooks || typeof hooks[name] !== 'function') return null;
+  try {
+    return hooks[name].call(hooks, ...args);
+  } catch (e) {
+    warnOnce(name, e);
+    return null;
+  }
+}
+
 const KIND_ORDER = {};
 KINDS.forEach((k, i) => {
   KIND_ORDER[k] = i;
@@ -214,8 +228,8 @@ class Table {
       const gauge = Math.min(100, Math.max(0, Math.round((flowVal / 150) * 100)));
       let isActive = false;
       let desc = `Flow: ${flowVal} / 150`;
-      if (hooks && typeof hooks._state === 'function') {
-        const hs = hooks._state();
+      const hs = callHook(hooks, '_state');
+      if (hs && typeof hs === 'object') {
         for (const val of Object.values(hs)) {
           if (typeof val === 'number' && val > 0) isActive = true;
           if (typeof val === 'boolean' && val) isActive = true;
@@ -223,7 +237,7 @@ class Table {
       }
       if (power === 'nodoka') {
         if (hooks && typeof hooks.getHudAdvice === 'function') {
-          desc = hooks.getHudAdvice(state);
+          desc = callHook(hooks, 'getHudAdvice', state) || desc;
         } else if (flowVal >= 50) {
           desc = `Nodocchi Mode (${flowVal}/150)`;
         }
@@ -240,7 +254,8 @@ class Table {
       const armedTier = this.armedTiers ? this.armedTiers[s] || 0 : 0;
       let availableTiers = [];
       if (hooks && typeof hooks.getTierInfo === 'function') {
-        availableTiers = hooks.getTierInfo(state);
+        const tiers = callHook(hooks, 'getTierInfo', state);
+        availableTiers = Array.isArray(tiers) ? tiers : [];
       }
       this.broadcast(
         P.evSuperpowerIndicator({
@@ -554,6 +569,8 @@ class Table {
           ctx.doraInd.push(dead[di]);
           ctx.uraInd.push(dead[ui]);
         }
+        // Keep state.doraIndicators in step with ctx (powers score against it).
+        state.doraIndicators = [...ctx.doraInd];
         this.broadcast(P.evDoraIndicatorsUpdated({ doraIndicators: P.tilesToProtocol(ctx.doraInd) }));
       },
     };
@@ -817,15 +834,27 @@ class Table {
     return false;
   }
 
+  // A 13-tile view of a seat's concealed hand. Mid-turn the hand holds the
+  // just-drawn tile (14 tiles). Waits/furiten are a 13-tile property: passing
+  // the 14-tile hand to getWaits made it test a 15-tile agari (never valid), so
+  // getWaits returned [] and furiten was never reported to the client.
+  concealed13(me) {
+    if (me.hand.length < 14 || me.lastDrawn === null) return me.hand;
+    const out = [...me.hand];
+    const i = out.findIndex((x) => same(x, me.lastDrawn));
+    if (i >= 0) out.splice(i, 1);
+    return out;
+  }
+
   furitenNow(me) {
-    return H.isDiscardFuriten(
-      me,
-      H.getWaits(me, this.ctx.players, this.ctx.dead, {
-        dora: [],
-        bakaze: this.ctx.bakaze,
-        jikaze: P.jikazeOf(me.seat, this.ctx.dealer),
-      })
-    );
+    const waits = H.getWaits({ ...me, hand: this.concealed13(me) }, this.ctx.players, this.ctx.dead, {
+      dora: [],
+      bakaze: this.ctx.bakaze,
+      jikaze: P.jikazeOf(me.seat, this.ctx.dealer),
+    });
+    // Temp (passed-ron) furiten blocks ron just like discard furiten; tryRon
+    // enforces both, so the indicator must reflect both.
+    return me.tempFuriten === true || H.isDiscardFuriten(me, waits);
   }
 
   tenpaiSeats() {
@@ -1014,14 +1043,16 @@ class Table {
     }
 
     if (ctx.state.powers) {
-      for (let s = 0; s < 4; s++) {
-        const h = ctx.state.powers.hooksFor(s);
-        if (h && typeof h.onTurnEnd === 'function') {
-          try {
-            h.onTurnEnd(ctx.state);
-          } catch (e) {
-            warnOnce('onTurnEnd', e);
-          }
+      // Only the seat whose turn just ended ticks its durations. Firing this for
+      // all four seats on every discard expired per-turn tier buffs ~4x too fast
+      // (a "next 3 turns" buff was worth about one turn). The engine sim calls
+      // onTurnEnd for the acting seat only, which is the semantics to match.
+      const h = ctx.state.powers.hooksFor(seat);
+      if (h && typeof h.onTurnEnd === 'function') {
+        try {
+          h.onTurnEnd(ctx.state);
+        } catch (e) {
+          warnOnce('onTurnEnd', e);
         }
       }
     }
@@ -1184,7 +1215,17 @@ class Table {
       const claim = this.scoreFor(seat, me.lastDrawn, { tsumo: true, kan: false, last: isLastDraw, tenhou: firstDraw });
       if (!this.isAWin(claim) || !this.winMeetsFloor(claim)) {
         const why = this.tsumoBlockReason(seat, claim);
-        return { ok: false, reason: why === 'no-yaku' ? 'tsumo not available (complete but no yaku)' : why === 'shibari' ? 'tsumo not available (ryanhan-shibari: needs 2+ han)' : why === 'noten' ? 'tsumo not available (hand not complete)' : 'tsumo not available' };
+        return {
+          ok: false,
+          reason:
+            why === 'no-yaku'
+              ? 'tsumo not available (complete but no yaku)'
+              : why === 'shibari'
+                ? 'tsumo not available (ryanhan-shibari: needs 2+ han)'
+                : why === 'noten'
+                  ? 'tsumo not available (hand not complete)'
+                  : 'tsumo not available',
+        };
       }
       return { ok: true, action: a };
     }
@@ -1294,7 +1335,7 @@ class Table {
       const i = me.hand.findIndex((x) => same(x, tile));
       if (i < 0 || !pm) return { end: false, next: (seat + 1) % 4 };
       pm.tiles.push(me.hand.splice(i, 1)[0]);
-      pm.type = 'kan';
+      pm.type = 'kakan';
       this.broadcast(
         P.evPlayerCalled({
           player: P.seatWind(seat, ctx.dealer),
@@ -1320,12 +1361,13 @@ class Table {
         })
       );
     }
-    ctx.revealKanDora();
     ctx.callsMade++;
     H.clearAllIppatsu(ctx.players);
     ctx.kansBy[seat]++;
     // Suukaikan: four kans split across seats aborts the hand (a solo quad
     // plays on). Mirrors engine/game.js via the shared H.isSuukaikanAbort.
+    // Checked BEFORE the kan-dora flip so an aborting 4th kan does not reveal
+    // a dora and then discard the hand.
     if (H.isSuukaikanAbort(ctx.kansBy)) {
       console.log(`[bridge] SUUKAIKAN (four kans: ${ctx.kansBy.join('/')}) - abortive draw`);
       return { end: true, winner: -1, winBy: { type: 'abort', reason: 'Suukaikan' } };
@@ -1334,14 +1376,21 @@ class Table {
     if (ctx.state.powers && typeof ctx.state.powers.broadcastPlayerKan === 'function') {
       ctx.state.powers.broadcastPlayerKan(seat, ctx.state);
     }
+    // Run the kan power hook BEFORE flipping the kan dora, so a seeding power
+    // (Saki's kan-dora seed) can swap the indicator that is about to be
+    // revealed. kanCount is the TOTAL kan index revealKanDora will use
+    // (ctx.kanCount + 1), not the per-seat count — otherwise kans split across
+    // seats seed the wrong dead-wall slot.
     if (this.powerOf(seat) !== 'none') {
-      this.maybeActivateTier(seat, ctx.kansBy[seat]);
+      this.maybeActivateTier(seat, ctx.kanCount + 1);
     }
+    ctx.revealKanDora();
 
     const rt = ctx.dead[ctx.rinshanIdx++];
     if (rt === undefined) return { end: true, winner: -1, winBy: null };
     me.hand.push(rt);
     me.lastDrawn = rt;
+    H.clearTempFuritenOnDraw(me); // a kan draw is still a draw
 
     const trs = this.scoreFor(seat, rt, { tsumo: true, kan: true, last: false, tenhou: false });
     const wantTsumo = this.isAWin(trs) && this.winMeetsFloor(trs);
@@ -1407,10 +1456,7 @@ class Table {
     // Normal-type powers are fully automatic: no armed tier, no cost, always
     // at full strength. Fire the onTurnStart condition if it exists.
     if (type === 'normal') {
-      let activation = null;
-      if (typeof hooks.onTurnStart === 'function') {
-        activation = hooks.onTurnStart(state, { type: 'normal', armedTier: 0 });
-      }
+      const activation = callHook(hooks, 'onTurnStart', state, { type: 'normal', armedTier: 0 });
       if (activation && activation.activated) {
         const eventType =
           (activation.event && activation.event.type) ||
@@ -1438,7 +1484,7 @@ class Table {
 
     let activation = null;
     if (typeof hooks.onTurnStart === 'function') {
-      activation = hooks.onTurnStart(state, { armedTier });
+      activation = callHook(hooks, 'onTurnStart', state, { armedTier });
     } else {
       const order = armedTier === 'auto' ? [4, 3, 2, 1] : [armedTier];
       for (const t of order) {
@@ -1499,10 +1545,11 @@ class Table {
     // Normal-type powers need no arming and spend nothing: the hook evaluates
     // its own condition and pins the on-deck replacement slot when it fires.
     if (type === 'normal') {
-      let activation = null;
-      if (typeof hooks.onKanDeclared === 'function') {
-        activation = hooks.onKanDeclared(state, { kanCount, rinshanIdx: ctx.rinshanIdx, armedTier: 0 });
-      }
+      const activation = callHook(hooks, 'onKanDeclared', state, {
+        kanCount,
+        rinshanIdx: ctx.rinshanIdx,
+        armedTier: 0,
+      });
       if (activation && activation.activated) {
         const eventType =
           (activation.event && activation.event.type) ||
@@ -1528,7 +1575,11 @@ class Table {
 
     let activation = null;
     if (typeof hooks.onKanDeclared === 'function') {
-      activation = hooks.onKanDeclared(this.ctx.state, { armedTier, kanCount, rinshanIdx: this.ctx.rinshanIdx });
+      activation = callHook(hooks, 'onKanDeclared', this.ctx.state, {
+        armedTier,
+        kanCount,
+        rinshanIdx: this.ctx.rinshanIdx,
+      });
     } else {
       const order = armedTier === 'auto' ? [4, 3, 2, 1] : [armedTier];
       for (const t of order) {
@@ -1597,7 +1648,17 @@ class Table {
           const r = this.scoreFor(seat, me.lastDrawn, { tsumo: true, kan: true, last: false, tenhou: false });
           if (!this.isAWin(r) || !this.winMeetsFloor(r)) {
             const why = this.tsumoBlockReason(seat, r);
-            this.sendError(seat, 'InvalidAction', why === 'no-yaku' ? 'tsumo not available (complete but no yaku)' : why === 'shibari' ? 'tsumo not available (ryanhan-shibari: needs 2+ han)' : why === 'noten' ? 'tsumo not available (hand not complete)' : 'tsumo not available');
+            this.sendError(
+              seat,
+              'InvalidAction',
+              why === 'no-yaku'
+                ? 'tsumo not available (complete but no yaku)'
+                : why === 'shibari'
+                  ? 'tsumo not available (ryanhan-shibari: needs 2+ han)'
+                  : why === 'noten'
+                    ? 'tsumo not available (hand not complete)'
+                    : 'tsumo not available'
+            );
             continue;
           }
           const result = { type: 'tsumo', winner: seat, tag: 'RINSHAN' };
@@ -1624,12 +1685,19 @@ class Table {
           this.sendError(seat, 'InvalidAction', 'tile not in hand');
           continue;
         }
+        // Riichi locks the hand: after a call/kan the drawn tile must be
+        // discarded (tsumogiri). The turn path enforced this in validateAct,
+        // but discardAfterCall has its own loop and skipped it.
+        if (me.riichi && me.lastDrawn !== null && norm(a.tile) !== norm(me.lastDrawn)) {
+          this.sendError(seat, 'InvalidAction', 'riichi player may only tsumogiri');
+          continue;
+        }
         action = a;
         break;
       }
     } else {
       const callStartTime = Date.now();
-      const di = H.botDiscard(me.hand, false, banned, () => this.decide.next());
+      const di = H.botDiscard(me.hand, !!me.riichi, banned, () => this.decide.next());
       action = { type: 'Discard', tile: me.hand[di] };
       await botWait(callStartTime);
     }
@@ -1912,17 +1980,21 @@ class Table {
         console.log(`[bridge] SUUKAIKAN (four kans: ${ctx.kansBy.join('/')}) - abortive draw`);
         return { end: true, winner: -1, winBy: { type: 'abort', reason: 'Suukaikan' } };
       }
-      ctx.revealKanDora();
       if (ctx.state.powers && typeof ctx.state.powers.broadcastPlayerKan === 'function') {
         ctx.state.powers.broadcastPlayerKan(q, ctx.state);
       }
+      // Hook before the dora flip so a seeding power (Saki) can swap the
+      // indicator about to be revealed (see doOwnKan). kanCount is the total
+      // kan index revealKanDora will use, not the per-seat count.
       if (this.powerOf(q) !== 'none') {
-        this.maybeActivateTier(q, ctx.kansBy[q]);
+        this.maybeActivateTier(q, ctx.kanCount + 1);
       }
+      ctx.revealKanDora();
       const rt = ctx.dead[ctx.rinshanIdx++];
       if (rt !== undefined) {
         qp.hand.push(rt);
         qp.lastDrawn = rt;
+        H.clearTempFuritenOnDraw(qp); // a kan draw is still a draw
         const trs = this.scoreFor(q, rt, { tsumo: true, kan: true, last: false, tenhou: false });
         const wantTsumo = this.isAWin(trs) && this.winMeetsFloor(trs);
         const tsumoReason = wantTsumo ? null : this.tsumoBlockReason(q, trs);
@@ -1991,7 +2063,15 @@ class Table {
       return [`${a}${s}`, `${b}${s}`].map(norm).sort().join(',');
     });
     const normChosen = chosen
-      .map((c) => norm(typeof c === 'string' ? c : String(c)))
+      .map((c) => {
+        const s = norm(tile)[1];
+        // CPU claims carry bare ranks (e.g. 3); human claims carry protocol
+        // codes ("3m"). Normalize both to a suit-bearing code before comparing.
+        // Previously bare ranks were norm()'d as-is, so CPU chi never matched
+        // any legal option and CPU seats could never chi.
+        const code = typeof c === 'string' && /[mpsz]$/.test(c) ? c : `${c}${s}`;
+        return norm(code);
+      })
       .sort()
       .join(',');
     if (!legalOpts.includes(normChosen)) {

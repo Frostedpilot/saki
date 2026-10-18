@@ -66,7 +66,10 @@ function evaluateNodokaHand(hand, pool, opponents = [], ctx = {}) {
       let totalLiveWaits = 0;
       let totalPoints = 0;
       for (const w of waits) {
-        const liveCount = pool ? (pool.get(w) || 0) + (pool.get(w.replace(/^5/, '0')) || 0) : 4;
+        // Add the aka copy only when the wait is on a five; otherwise the old
+        // `w.replace(/^5/,'0')` returned `w` unchanged and double-counted.
+        const akaW = w.replace(/^5/, '0');
+        const liveCount = pool ? (pool.get(w) || 0) + (akaW !== w ? pool.get(akaW) || 0 : 0) : 4;
         totalLiveWaits += liveCount;
         try {
           const scoringCtx = {

@@ -233,7 +233,13 @@ class Room {
     this.returnedToLobby = [false, false, false, false];
     this.game = new Table(this, resolveMatchSeed());
     this.broadcastRoomState();
-    this.game.run().catch((e) => console.error(`[bridge] ${this.code} game error:`, e));
+    this.game.run().catch((e) => {
+      console.error(`[bridge] ${this.code} game error:`, e);
+      // A rejected run() used to leave this.game set forever: the early return
+      // above then made the room un-startable ("bricked") even though no match
+      // was running. Drop back to the post-game lobby so the room can recover.
+      this.afterGameOver();
+    });
   }
 
   onReadyNextRound(client) {

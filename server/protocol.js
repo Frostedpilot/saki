@@ -36,7 +36,11 @@ function tileToSaki(tile) {
 }
 
 function tilesToSaki(tiles) {
-  return (tiles || []).map(tileToSaki).filter(Boolean);
+  // Tolerate a malformed (non-array) `tiles` payload: a client can send
+  // {"Action":{"Pon":{"tiles":1}}}, and `(1 || []).map` throws a TypeError that
+  // used to escape the WS listener and kill the whole process (no uncaught
+  // handler). An empty list is rejected downstream by the rule checks.
+  return (Array.isArray(tiles) ? tiles : []).map(tileToSaki).filter(Boolean);
 }
 function tilesToProtocol(tiles) {
   return (tiles || []).map(sakiToTile);
