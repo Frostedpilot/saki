@@ -65,6 +65,9 @@ function startServer(seed = FIXED_SEED) {
         SAKI_POWER_SEATS: '0',
         BOT_DELAY_MS: '0',
         SAKI_SEED: String(seed),
+        // Turn the opt-in tile-conservation guard on for the full-match E2E, so
+        // CI exercises it on every run instead of only when a human remembers.
+        SAKI_INVARIANTS: '1',
       },
     });
     let log = '';

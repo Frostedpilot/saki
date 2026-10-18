@@ -1471,15 +1471,26 @@ consumer loads the engine by relative path (`server/table.js` requires `../engin
 lacked `"private": true` beside its workspace siblings. `main` is dropped; `private` and a
 real `description` are set.
 
+## <a id="a-16"></a>A-16 🟠 FIXED — tile conservation was asserted nowhere in the offline loop
+
+Every rule path assumed 136 tiles stayed accounted for, and nothing checked it: a
+runaway hand driver (A-04's abort fall-through, say) would print a plausible match from a
+corrupted table. `engine/invariants.js` had the check but only `replay.js` called it.
+
+Fixed: `invariants.wanpaiPartition(players, wall, dead, deadFrom)` builds the partition
+**wanpai-aware** — the fixed 14-slot `dead` array is not mutated by a rinshan draw
+(`game.js` reads `dead[rinshanIdx++]` and leaves the slot), so only `dead.slice(deadFrom)`
+is still on the table; counting the whole array double-counts every rinshan tile. `game.js`
+`main()` now asserts conservation after the deal and after every discard, and `Table`
+exposes an opt-in `assertConserved` (`SAKI_INVARIANTS=1`, wired into `DynamicPool.audit`,
+which folds in the pool and reserved slots). The bridge E2E sets the flag for its
+full-match run, so CI checks the server path too. Pinned by
+`engine/tests/invariants.test.js` (including a negative test that a rinshan tile is
+double-counted with `deadFrom = 0` and conserved with `deadFrom = 1`). Verified clean over
+15 unpowered and 10 powered full hanchans plus 7 bridge-match seeds.
+
 ### Reported but not fixed (deliberate)
 
-- **A tile-conservation assertion in `game.js` `main()`** (wire `engine/invariants.js`
-  into the offline loop). A naive partition double-counts the wanpai: the fixed 14-slot
-  `deadWall` array is *not* mutated when a rinshan tile is drawn into a hand (the tablet
-  reads `dead[rinshanIdx++]` and leaves the slot in place — `Table.doOwnKan`), so the tile
-  sits in both the hand and the dead wall. A correct check must partition
-  `dead.slice(rinshanIdx)`. The fall-through it would have caught is fixed directly
-  (A-04). See the [suggested order of work](#suggested-order-of-work).
 - **`onPreDeal` / `onWallSetup` are declared and unit-tested on the dispatcher, but never
   invoked.** `engine/powers/index.js` dispatches both, `engine/tests/powers.test.js`
   covers them, and [`conventions.md`](conventions.md) documents them as lifecycle phases
@@ -1533,6 +1544,7 @@ Docs are consistent and CI is green. These are the remaining **code** items:
 | 24 | ~~Split `Table` out of `server/room.js`~~ | ✅ done | KI-11 |
 | 25 | ~~2026-10 audit Phase 0–1: malformed-frame crash, hook bricking, abort fall-through, CPU chi, furiten, `onTurnEnd`, kakan tag, kan-dora seeding, aka double-count, format gate~~ | ✅ done | Part C |
 | 26 | ~~2026-10 audit Phase 2: client ankan river-pop + call-log crash, `engine` manifest~~ | ✅ done | Part C (A-13–A-15) |
+| 27 | ~~2026-10 audit Phase 3: wanpai-aware tile-conservation invariant in the offline loop + opt-in server check~~ | ✅ done | Part C (A-16) |
 
 Item **23** is now *partly* done — the shared constants live in one place with a parity
 test — but merging the two orchestration loops is still open. **21** was its prerequisite

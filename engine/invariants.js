@@ -22,6 +22,38 @@ function assertConservation(partitions, label = '') {
   if (problems.length) throw new Error(`conservation violated${label ? ` (${label})` : ''}: ${problems.join('; ')}`);
 }
 
+/**
+ * Build a conservation partition that is **wanpai-aware**.
+ *
+ * The dead wall is a fixed 14-slot window, but a rinshan draw does not remove
+ * the slot it draws from — `game.js` reads `dead[rinshanIdx++]` and leaves the
+ * array untouched (the same shape `Table.doOwnKan` uses). The drawn tile is
+ * therefore physically in a hand while its slot is still in `dead`, so counting
+ * the whole array double-counts every rinshan tile. Only `dead.slice(deadFrom)`
+ * is still on the table; `deadFrom` is `rinshanIdx`.
+ *
+ * Revealed dora/ura indicators live above the rinshan block and stay in the
+ * array, so they are counted once here — correctly, since they belong to no
+ * hand.
+ */
+function wanpaiPartition(players, wall, dead, deadFrom = 0) {
+  const parts = [wall, dead.slice(deadFrom)];
+  for (const p of players) {
+    parts.push(p.hand);
+    for (const m of p.melds) parts.push(m && m.tiles ? m.tiles : m);
+    parts.push(p.discards);
+  }
+  return parts;
+}
+
+function checkStateConservation(players, wall, dead, deadFrom = 0) {
+  return checkConservation(wanpaiPartition(players, wall, dead, deadFrom));
+}
+
+function assertStateConservation(players, wall, dead, deadFrom = 0, label = '') {
+  assertConservation(wanpaiPartition(players, wall, dead, deadFrom), label);
+}
+
 function assertDeadWall(dead, length = 14) {
   if (dead.length !== length) throw new Error(`dead wall length ${dead.length} != ${length}`);
 }
@@ -41,4 +73,13 @@ function assertScoresConserved(scores, riichiPool, startScore = 25000) {
     throw new Error(`scores not conserved: ${scores.join('/')} + pool ${riichiPool} = ${total} != ${expected}`);
 }
 
-module.exports = { checkConservation, assertConservation, assertDeadWall, assertHandSize, assertScoresConserved };
+module.exports = {
+  checkConservation,
+  assertConservation,
+  wanpaiPartition,
+  checkStateConservation,
+  assertStateConservation,
+  assertDeadWall,
+  assertHandSize,
+  assertScoresConserved,
+};

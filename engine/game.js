@@ -62,6 +62,10 @@ const {
 // honba, noten schedule, han floor. The turn loops stay separate (sync CLI vs
 // async WS); only the decisions are shared.
 const MF = require('./match-flow');
+// Tile conservation, wanpai-aware (see invariants.js `wanpaiPartition`). The
+// offline loop asserts it after every discard so a drifted hand driver fails
+// loudly here instead of printing a plausible-looking likely-bogus match.
+const { checkStateConservation } = require('./invariants');
 
 const POWERS = ['none', 'saki', 'kuro', 'koromo', 'yuuki', 'hisa'];
 // Accepts both `--flag=value` and `--flag value` (incl. negative values like
@@ -533,6 +537,15 @@ async function main() {
     for (let k = 0; k < 13; k++) for (let i = 0; i < 4; i++) P[(dealer + i) % 4].hand.push(wallFull.pop());
     const sortH = (h) => h.sort((a, b) => (norm(a) < norm(b) ? -1 : 1));
     P.forEach((p) => sortH(p.hand));
+    // Conservation guard for the whole hand. `rinshanIdx` marks how many wanpai
+    // slots have been drawn out of `dead` (those tiles now live in a hand), so
+    // only `dead.slice(rinshanIdx)` is still on the table — counting the whole
+    // array double-counts every rinshan tile. See invariants.js.
+    const assertConserved = (where) => {
+      const problems = checkStateConservation(P, wallFull, dead, rinshanIdx);
+      if (problems.length) throw new Error(`tile conservation broke ${where}: ${problems.join('; ')}`);
+    };
+    assertConserved('after the deal');
     console.log(
       `\n=== ${roundLabel(kyoku)}${overtime ? ' ENCHOUSEN' : ''} dealer=${names[dealer]} honba=${honba} dora=${doraInd}(${ctx.dora}) scores=${scores.join('/')} ===`
     );
@@ -908,6 +921,7 @@ async function main() {
       }
       const disc = me.hand.splice(di, 1)[0];
       me.discards.push(disc);
+      assertConserved(`after ${names[turn]} discarded ${disc}`);
       // Ippatsu survives the declaring discard and expires on the declarer's
       // next discard (or on any call via clearAllIppatsu).
       if (me.ippatsuJustDeclared) me.ippatsuJustDeclared = false;

@@ -17,6 +17,7 @@ const core = require('../engine/core');
 const { PowerDispatcher } = require('../engine/powers');
 const { createRNG } = require('../engine/rng');
 const { KINDS, norm, same, DORA_NEXT } = require('../engine/tiles');
+const { wanpaiPartition } = require('../engine/invariants');
 const { scoreHand } = require('../engine/scoring');
 const P = require('./protocol');
 const H = require('../engine/helpers');
@@ -857,6 +858,19 @@ class Table {
     return me.tempFuriten === true || H.isDiscardFuriten(me, waits);
   }
 
+  // Opt-in tile-conservation guard (`SAKI_INVARIANTS=1`). Development assertion,
+  // not a rule: off by default so it can never gate a live game. The live wall
+  // is an inventory (`state.pool`), so `DynamicPool.audit` folds in the pool
+  // counts and reserved slots; we contribute hands/melds/discards plus the
+  // wanpai slots not yet drawn out. See engine/invariants.js `wanpaiPartition`.
+  assertConserved(where) {
+    if (!process.env.SAKI_INVARIANTS) return;
+    const { players, dead, rinshanIdx, state } = this.ctx;
+    if (!state || !state.pool || typeof state.pool.audit !== 'function') return; // unit-test tables
+    const problems = state.pool.audit(wanpaiPartition(players, [], dead, rinshanIdx));
+    if (problems.length) throw new Error(`tile conservation broke ${where}: ${problems.join('; ')}`);
+  }
+
   tenpaiSeats() {
     const c = this.ctx;
     return [0, 1, 2, 3].filter(
@@ -1130,6 +1144,7 @@ class Table {
     }
     me.lastDrawn = null;
     me.discards.push(removed);
+    this.assertConserved(`after seat ${seat} discarded ${removed}`);
     // Suufon-renda accumulator: first discard of each seat while no call has
     // been made yet. Mirrors engine/game.js firstLapDiscards.
     if (ctx.callsMade === 0 && me.discards.length === 1 && !ctx.suufonDone) {

@@ -192,8 +192,8 @@ deploy is ~280 kB of JS + 46 kB of CSS **plus 23 MB of art**.
 
 ## 4. Environment variables
 
-Read by the server (`server/index.js`, `server/table.js`). **None are documented
-elsewhere in the repo.**
+Read by the server (`server/index.js`, `server/table.js`). Mirrored in the
+[`server/README.md`](../server/README.md#environment-variables) table.
 
 | Variable | Default | Effect |
 | --- | --- | --- |
@@ -202,6 +202,8 @@ elsewhere in the repo.**
 | `BOT_DELAY_MS` | `1000`, or `0` when `NODE_ENV=test` | Minimum CPU think-time. Set `0` to make games instant. |
 | `NODE_ENV` | unset | `test` only affects the default bot delay |
 | `SAKI_RIICHI_FORCE` | unset | `1` forces bots to riichi at a `0.45` probability gate instead of normal evaluation |
+| `SAKI_SEED` | unset | Pins the match seed (any integer) so a match is reproducible; a non-numeric value warns and falls back to random |
+| `SAKI_INVARIANTS` | unset | `1` turns on the tile-conservation assertion (`Table.assertConserved`): the hand driver throws if the 136 tiles stop adding up. Development only — never set it in production |
 
 Example — instant CPU games with no powers:
 
