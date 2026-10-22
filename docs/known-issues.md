@@ -152,12 +152,12 @@ availability (`kanOptions`), the call window (`callCandidates`) and call priorit
 three copies and kan budget", "chi is shimocha-only" and "ron beats pon/kan beats chi,
 nearest wins" have one definition; the server's ippatsu expiry now matches the CLI — the
 declaring discard keeps ippatsu, the declarer's next discard clears it, and any call clears
-it earlier. Phase 4 has started: `engine/hand-driver.js playHand(adapter)` owns the
-hand-level turn order and safety stop, and `Table.playOneHand` uses it. The per-turn body
-still comes from each driver, so `game.js`'s `main()` and `table.js`'s `playTurn()` each
-drive the draw/kan/riichi/discard/call sequence independently; moving that body into the
-shared driver is the remaining work. The boundary and the intentional divergences are
-recorded in [`turn-loop-merge.md`](turn-loop-merge.md).
+it earlier. Phase 4 has started: `engine/hand-driver.js` owns the hand-level turn order
+and the per-turn skeleton (`playHand` / `playTurn`), and `Table.playTurn` is now a thin
+adapter. The CLI still drives its draw/kan/riichi/discard/call sequence inline in
+`game.js main()`; porting that body to the same adapter is the remaining work. The
+boundary and the intentional divergences are recorded in
+[`turn-loop-merge.md`](turn-loop-merge.md).
 
 ### `rules-config.js` was dead, and is now live
 
@@ -1649,6 +1649,7 @@ Docs are consistent and CI is green. These are the remaining **code** items:
 | 40 | ~~KI-04 phase 3b: finish the shared single-turn core — `beginTurn` (first-draw/tenhou window, last draw, tsumo flags) and `resolveDiscard` (first-lap accumulation, ippatsu expiry as an explicit policy); both drivers route through them, and the stale tenhou-window divergence entry is removed~~ | ✅ done | KI-04 |
 | 41 | ~~KI-04 rule parity: unify ippatsu expiry — the server now uses the standard declarer-discard model (the declaring discard keeps ippatsu, the next discard clears it, any call clears it earlier), instead of only clearing on calls~~ | ✅ done | KI-04 |
 | 42 | ~~KI-04 phase 4a: start the shared hand driver — `engine/hand-driver.js playHand(adapter)` owns hand-level turn order and the safety stop; `Table.playOneHand` uses it, with per-turn migration still open~~ | ✅ done | KI-04 |
+| 43 | ~~KI-04 phase 4b: share the per-turn skeleton — `hand-driver.playTurn` owns draw → tsumo/kan/riichi/discard → call window; `Table.playTurn` is now a thin adapter, and the server's diagnostic/power hooks moved behind it~~ | ✅ done | KI-04 |
 
 Item **23** is now *partly* done — the shared rules and single-turn decisions live in one
 place with parity tests — but merging the two orchestration loops is still open. **21** was its prerequisite

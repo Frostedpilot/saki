@@ -27,6 +27,7 @@ const { RULES } = require('../rules-config');
 const ROOT = path.join(__dirname, '..', '..');
 const GAME_JS = fs.readFileSync(path.join(ROOT, 'engine', 'game.js'), 'utf8');
 const TABLE_JS = fs.readFileSync(path.join(ROOT, 'server', 'table.js'), 'utf8');
+const HAND_DRIVER_JS = fs.readFileSync(path.join(ROOT, 'engine', 'hand-driver.js'), 'utf8');
 const HELPERS_JS = fs.readFileSync(path.join(ROOT, 'engine', 'helpers.js'), 'utf8');
 
 // These snippets are regex metacharacter soup (`+`, `*`, `[`, `.`), so they must be
@@ -257,9 +258,13 @@ test('both front-ends route single-turn decisions through turn-core', () => {
     assert.match(src, /require\(['"][^'"]*turn-core['"]\)/, `${name} should import turn-core`);
     assert.match(src, /TC\.beginTurn\(/, `${name} should use TC.beginTurn`);
     assert.match(src, /TC\.resolveDiscard\(/, `${name} should use TC.resolveDiscard`);
-    assert.match(src, /TC\.kanOptions\(/, `${name} should use TC.kanOptions`);
     assert.match(src, /TC\.callCandidates\(/, `${name} should use TC.callCandidates`);
   }
+  // Own-kan moved into the shared per-turn skeleton with phase 4, so the
+  // remaining direct call is in game.js; the server reaches it via hand-driver.
+  assert.match(GAME_SETTLEMENT, /TC\.kanOptions\(/, 'engine/game.js should use TC.kanOptions');
+  assert.match(HAND_DRIVER_JS, /TC\.kanOptions\(/, 'engine/hand-driver.js should use TC.kanOptions');
+  assert.match(TABLE_JS, /require\(['"][^'"]*hand-driver['"]\)/, 'server/table.js should use hand-driver');
   assert.match(TABLE_JS, /TC\.arbitrateCalls\(/, 'server/table.js should use TC.arbitrateCalls');
   assert.doesNotMatch(TABLE_JS, /this\.ponOptions\s*\(/, 'server/table.js must not keep a local ponOptions');
 });

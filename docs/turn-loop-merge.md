@@ -16,7 +16,7 @@ everything below. A change here cannot land in one side only:
 | --- | --- | --- |
 | Rule predicates | `engine/helpers.js` | waits, furiten, ron, bot brains, chis, aborts, nagashi, oka/uma, riichi eligibility |
 | Single-turn decisions | `engine/turn-core.js` | turn start/tenhou window, discard + ippatsu bookkeeping, own-kan availability, call candidates, call priority |
-| Hand-level driver | `engine/hand-driver.js` | `playHand(adapter)` owns turn order and the safety stop; `Table.playOneHand` uses it, CLI migration next |
+| Hand-level driver | `engine/hand-driver.js` | `playHand` / `playTurn` own turn order and the draw→tsumo/kan/riichi/discard→call skeleton; the server is wired, CLI migration next |
 | Hand transition | `engine/match-flow.js` | `handOutcome` (canonical) and `postHandFlow` (adapter); dealer repeat, honba, kyoku |
 | Score arithmetic | `engine/match-flow.js` | `winPayments`, `manganPayment`, `nagashiPayments`, `notenPayments` |
 | Abort switch | `engine/match-flow.js` | `abortEnabled` (`RULES.aborts` / `RULES.serverAborts`) |
@@ -130,11 +130,11 @@ resolves early on a ron, while the CLI asks them in seat order. The adapter must
    expiry), `kanOptions` (own kan), `callCandidates` (ron/pon/daiminkan/chi) and
    `arbitrateCalls` (priority). Both drivers call it. What remains is the scheduling
    itself: phase 4.
-4. **Shared driver.** One `playHand(adapter)` and two thin adapters. **Started:** the
-   hand-level loop (`engine/hand-driver.js`) now owns turn order, the kyuushu handoff and
-   the safety stop, and `Table.playOneHand` uses it. The per-turn body is still adapter
-   work (`Table.playTurn` / the CLI's inline loop); moving draw, kan, riichi, discard and
-   the call window into the driver is the next step.
+4. **Shared driver.** One `playHand(adapter)` and two thin adapters. **Started and
+   server-wired:** `engine/hand-driver.js` owns the hand-level loop and the per-turn
+   skeleton (`playHand` / `playTurn`), and `Table.playTurn` is now a thin adapter
+   (draw, score, prompt, power hooks, settlement shape). The CLI still has its inline
+   loop; porting it is the remaining phase-4 work.
 5. **Delete the old loops** and the parity guards that existed only to keep them honest.
 
 Phases 1–3 are incremental and reviewable. Phase 4 is the 2–3 day rewrite; it should be its

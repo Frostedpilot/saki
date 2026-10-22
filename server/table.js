@@ -929,34 +929,60 @@ class Table {
 
   // ============================================================== a turn
   async playTurn(seat) {
+    return HD.playTurn(this, seat);
+  }
+
+  wallLeft() {
+    return this.ctx.poolTotal();
+  }
+
+  // --- adapter surface for engine/hand-driver.js -------------------------
+
+  startTurn(seat) {
     this.phase = PHASE.TURN_ACT;
     this.activeSeat = seat;
-    const turnStartTime = Date.now();
-    const ctx = this.ctx;
-    const { state, players } = ctx;
-    const me = players[seat];
-    ctx.drawsThisKyoku++;
-    H.clearTempFuritenOnDraw(me); // permanent furiten while riichi: never clears
-    const turnStart = TC.beginTurn(me, {
-      callsMade: ctx.callsMade,
-      drawsThisKyoku: ctx.drawsThisKyoku,
-      wallLeft: ctx.poolTotal(),
-    });
-    const isLastDraw = turnStart.isLastDraw;
+    return Date.now();
+  }
 
-    // Check turn power tier activation
+  onTurnStart(seat) {
     this.maybeActivateTurnPower(seat);
+  }
 
-    // ---- draw (engine canonical path: powers shape the weights) ----
-    const drawn = core.executeDrawStep(seat, state);
-    if (drawn === null) return { end: true, winner: -1, winBy: null };
-    me.lastDrawn = drawn;
+  async drawTurn(seat) {
+    return core.executeDrawStep(seat, this.ctx.state);
+  }
 
-    const firstDraw = turnStart.firstDraw;
-    const tsumoFlagsThis = turnStart.tsumoFlags;
-    const tsumoScore = this.scoreFor(seat, drawn, tsumoFlagsThis);
-    const wantTsumo = this.isAWin(tsumoScore) && this.winMeetsFloor(tsumoScore);
-    const tsumoReason = wantTsumo ? null : this.tsumoBlockReason(seat, tsumoScore);
+  onWallExhausted() {
+    return { end: true, winner: -1, winBy: null };
+  }
+
+  onInvalidTsumo(seat) {
+    return { end: true, winner: seat, winBy: null }; // should not happen
+  }
+
+  onDiscardError(seat, reason) {
+    this.sendError(seat, 'InvalidAction', reason);
+    return { end: true, winner: -1, winBy: null };
+  }
+
+  onTsumo(seat, { turnStart }) {
+    return {
+      end: true,
+      winner: seat,
+      winBy: {
+        type: 'tsumo',
+        seat,
+        winTile: this.ctx.players[seat].lastDrawn,
+        rinshan: false,
+        haitei: turnStart.isLastDraw,
+        first: turnStart.firstDraw,
+      },
+    };
+  }
+
+  emitDraw(seat, drawn, { tsumoScore, wantTsumo, tsumoReason }) {
+    const ctx = this.ctx;
+    const me = ctx.players[seat];
     if (!wantTsumo && tsumoReason && tsumoReason !== 'noten') {
       // Only noisy when the shape is complete but unwinable: that is the
       // "I have yaku but cannot tsumo" / "I am tenpai but cannot win" confusion.
@@ -969,8 +995,6 @@ class Table {
         warnOnce('tsumo-block-log', e);
       }
     }
-
-    // ---- emit draw events ----
     this.room.sendTo(
       seat,
       P.event(
@@ -997,9 +1021,11 @@ class Table {
         );
       }
     }
+  }
 
-    // ---- kan availability (own hand, shared with the CLI) ----
-    const kan = TC.kanOptions(me, { kanCount: ctx.kanCount, rinshanIdx: ctx.rinshanIdx });
+  async chooseTurnAction(seat, { turnStart, turnStartTime, wantTsumo, kan }) {
+    const ctx = this.ctx;
+    const me = ctx.players[seat];
     const ankanTile = kan.ankanTile;
     const ponUp = kan.ponUp;
     let kanChoice = null;
@@ -1018,7 +1044,6 @@ class Table {
       }
     }
 
-    // ---- decide action ----
     let action;
     if (!me.isCpu) {
       // Character turn clock (getTurnClock, phase 2c): the client renders and
@@ -1044,7 +1069,11 @@ class Table {
             continue;
           }
         }
-        const v = this.validateAct(seat, a, { wantTsumo, firstDraw, isLastDraw });
+        const v = this.validateAct(seat, a, {
+          wantTsumo,
+          firstDraw: turnStart.firstDraw,
+          isLastDraw: turnStart.isLastDraw,
+        });
         if (v.ok) {
           action = v.action;
           break;
@@ -1058,51 +1087,22 @@ class Table {
         ankanTile,
         ponUp,
         firstDraw: this.isFirstDraw(me),
-        isLastDraw,
+        isLastDraw: turnStart.isLastDraw,
       });
       if (action.type === 'Kan') action.kan = kanChoice;
       await botWait(turnStartTime);
     }
+    return action;
+  }
 
-    // ---- dispatch ----
-    if (action.type === 'Tsumo') {
-      const claim = this.scoreFor(seat, me.lastDrawn, tsumoFlagsThis);
-      if (this.isAWin(claim) && this.winMeetsFloor(claim)) {
-        return {
-          end: true,
-          winner: seat,
-          winBy: {
-            type: 'tsumo',
-            seat,
-            winTile: me.lastDrawn,
-            rinshan: false,
-            haitei: isLastDraw,
-            first: firstDraw,
-          },
-        };
-      }
-      return { end: true, winner: seat, winBy: null }; // should not happen
-    }
-
-    if (action.type === 'Kan') {
-      const out = await this.doOwnKan(seat, me, action.kan);
-      return out;
-    }
-
-    // Riichi or Discard
-    const riichi = action.type === 'Riichi';
-    if (riichi) this.declareRiichi(seat, action.riichiFirst);
-    const discResult = await this.executeDiscard(seat, action.tile, { banned: [] });
-    if (discResult.error) {
-      this.sendError(seat, 'InvalidAction', discResult.error);
-      return { end: true, winner: -1, winBy: null };
-    }
-
+  async afterDiscard(seat, { action }) {
+    const ctx = this.ctx;
+    const me = ctx.players[seat];
     // Snapshot waits after the discard for EVERY seat (human and CPU):
     // classifyHumanKan -> ankanKeepsWaits reads riichiWaits, and spreading
     // undefined would throw and kill the match. Never leave it unset.
-    if (riichi) {
-      me.riichiWaits = H.getWaits(me, players, ctx.dead, {
+    if (action.type === 'Riichi') {
+      me.riichiWaits = H.getWaits(me, ctx.players, ctx.dead, {
         dora: [],
         bakaze: ctx.bakaze,
         jikaze: P.jikazeOf(seat, ctx.dealer),
@@ -1123,11 +1123,6 @@ class Table {
         }
       }
     }
-
-    const houtei = ctx.poolTotal() === 0;
-    const callOut = await this.resolveCallWindow(seat, discResult.tile, { houtei });
-    if (callOut) return callOut; // {end:false,next} or {end:true,...}
-    return { end: false, next: (seat + 1) % 4 };
   }
 
   declareRiichi(seat, riichiFirst) {
