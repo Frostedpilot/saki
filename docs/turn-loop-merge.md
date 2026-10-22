@@ -1,6 +1,7 @@
 # Turn-loop merge (KI-04, audit item 23)
 
-**Status: deterministic layers merged; interactive scheduling not merged, on purpose.** The
+**Status: deterministic layers merged, and the pure single-turn decisions (own kan, call
+candidates, call priority) are now shared; interactive scheduling is not merged, on purpose.** The
 *rule* layer — including the canonical hand→next-hand outcome — is shared. The *interactive
 turn scheduling* is not. This document records the exact boundary, the divergences that
 make a naive merge unsafe, and the phased plan if it is ever attempted.
@@ -13,6 +14,7 @@ everything below. A change here cannot land in one side only:
 | Layer | Module | Notes |
 | --- | --- | --- |
 | Rule predicates | `engine/helpers.js` | waits, furiten, ron, bot brains, chis, aborts, nagashi, oka/uma, riichi eligibility |
+| Single-turn decisions | `engine/turn-core.js` | own-kan availability, call candidates, call priority; both drivers call it |
 | Hand transition | `engine/match-flow.js` | `handOutcome` (canonical) and `postHandFlow` (adapter); dealer repeat, honba, kyoku |
 | Score arithmetic | `engine/match-flow.js` | `winPayments`, `manganPayment`, `nagashiPayments`, `notenPayments` |
 | Abort switch | `engine/match-flow.js` | `abortEnabled` (`RULES.aborts` / `RULES.serverAborts`) |
@@ -21,7 +23,8 @@ everything below. A change here cannot land in one side only:
 | Conservation | `engine/invariants.js` | wanpai-aware audit (server only, behind `SAKI_INVARIANTS`) |
 
 What is **not** shared is the loop that asks "whose turn is it, what may they do, and what
-happens next". That loop is a *driver*, not a rule:
+happens next". That loop is a *driver*, not a rule. The pure decisions inside it are shared
+(`turn-core`); the scheduling is not:
 
 - **Offline (`game.js main()`)** — a synchronous `while`, with human decisions read from
   `readline` via `await ask(...)`, a pre-shuffled wall array drawn from the tail, and the
@@ -116,7 +119,11 @@ resolves early on a ron, while the CLI asks them in seat order. The adapter must
    not.
 3. **Single-turn core.** Extract `beginTurn` / `resolveDiscard` / `resolveCalls` as pure
    functions over a canonical state, still driven by each loop. This is where most of the
-   duplication is.
+   duplication is. *Partly done: `engine/turn-core.js` owns own-kan availability
+   (`kanOptions`), the call window (`callCandidates`) and priority arbitration
+   (`arbitrateCalls`), and both drivers call it. Still to extract: `beginTurn` (turn-start
+   flags and draw bookkeeping) and `resolveDiscard` (first-lap/ippatsu bookkeeping) as a
+   canonical reducer.*
 4. **Shared driver.** Only after 1–3: one `playHand(adapter)` and two thin adapters.
 5. **Delete the old loops** and the parity guards that existed only to keep them honest.
 

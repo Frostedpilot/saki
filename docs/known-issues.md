@@ -144,11 +144,15 @@ draw as the server already did. The one semantic difference the shared outcome s
 nagashi: the dealer now repeats when the dealer is a nagashi seat, matching the server
 (nagashi is a win). Chombo is no longer a divergence either: both sides allow the
 wait-changing ankan after riichi, warn, charge the shared mangan penalty and replay (the
-server's `chomboHand`; kakan-in-riichi stays refused on both). What still differs is the
-**turn loop**: `game.js`'s `main()` and `server/table.js`'s `Table` each drive a hand's
-turn sequence independently — a sync CLI versus an async phase machine — and that is not
-shared. The boundary and the intentional divergences are recorded in
-[`turn-loop-merge.md`](turn-loop-merge.md).
+server's `chomboHand`; kakan-in-riichi stays refused on both). Phase 3 has also extracted
+the pure single-turn decisions into `engine/turn-core.js`: own-kan availability
+(`kanOptions`), the call window (`callCandidates`) and call priority (`arbitrateCalls`).
+Both loops call it, so "riichi seats cannot call", "a daiminkan needs three copies and kan
+budget", "chi is shimocha-only" and "ron beats pon/kan beats chi, nearest wins" have one
+definition. What still differs is the **turn loop**: `game.js`'s `main()` and
+`server/table.js`'s `Table` each drive a hand's turn sequence independently — a sync CLI
+versus an async phase machine — and that scheduling is not shared. The boundary and the
+intentional divergences are recorded in [`turn-loop-merge.md`](turn-loop-merge.md).
 
 ### `rules-config.js` was dead, and is now live
 
@@ -172,7 +176,7 @@ Both now read it (`engine/game.js`, `server/table.js`), so these cannot diverge:
 `engine/match-flow.js handOutcome` is the single hand→next-hand transition for both
 drivers (`game.js` calls it directly; `table.js` reaches it through `postHandFlow`).
 
-`engine/tests/rules-config-parity.test.js` (15 tests) keeps it that way. It asserts the
+`engine/tests/rules-config-parity.test.js` (16 tests) keeps it that way. It asserts the
 config is *imported and referenced* — not merely correct, which is the check that let
 the file stay dead — and fails if either front-end reintroduces a literal copy of one of
 the expressions above. Verified to bite: reinstating `+ 300 * honba` in `game.js` fails
@@ -186,9 +190,10 @@ like one task and is not:
 - **The turn loop itself.** `game.js main()` is a `while` loop with decisions inline;
   `Table` is an async phase machine that awaits a WebSocket reply per decision. They
   have different control architectures because one is a CLI and the other is a server.
-  Merging them means rewriting both, not extracting a shared function — which is why
-  item 23 was scoped at 2–3 days. The exact boundary, the intentional rule divergences
-  (tenhou window, ippatsu, powers) and a phased plan are
+  The *decisions* are now shared (`turn-core`), but the *scheduling* is not, so merging
+  the loops still means rewriting both rather than extracting a shared function — which
+  is why item 23 was scoped at 2–3 days. The exact boundary, the intentional rule
+  divergences (tenhou window, ippatsu, powers) and a phased plan are
   in [`docs/turn-loop-merge.md`](turn-loop-merge.md).
 - **Abortive draws.** Both front-ends implement all five (see [KI-25](#ki-25)) and gate
   them through the shared `match-flow.js abortEnabled` switch; `Table`'s kyuushu path keeps
@@ -1635,6 +1640,7 @@ Docs are consistent and CI is green. These are the remaining **code** items:
 | 36 | ~~KI-04: canonical `match-flow.js handOutcome` (win/abort/chombo/exhaustive, including nagashi dealer repeat); route the offline settlement through it and make `postHandFlow` delegate, so both front-ends share one transition policy~~ | ✅ done | KI-04 |
 | 37 | ~~KI-04: unify first-lap abort ordering — suufon-renda is checked after the call window on both front-ends (a call on the 4th discard voids it), and `callsMade === 0` keeps a stale accumulator from firing later~~ | ✅ done | KI-04 |
 | 38 | ~~KI-04: chombo-as-penalty on the server — allow the wait-changing ankan after riichi, warn the offender, settle the shared mangan penalty + replay (`chomboHand`); kakan-in-riichi stays refused~~ | ✅ done | KI-04, KI-15 |
+| 39 | ~~KI-04 phase 3a: share the pure single-turn decisions — `engine/turn-core.js` owns own-kan availability (`kanOptions`), call candidates (`callCandidates`) and call priority (`arbitrateCalls`); both `game.js` and `table.js` call it, replacing the inline duplicates~~ | ✅ done | KI-04 |
 
 Item **23** is now *partly* done — the shared constants live in one place with a parity
 test — but merging the two orchestration loops is still open. **21** was its prerequisite

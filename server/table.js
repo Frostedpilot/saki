@@ -27,6 +27,7 @@ const Y = require('./yaku-map');
 const { ROSTERS } = require('./rosters');
 const { RULES } = require('../engine/rules-config');
 const MF = require('../engine/match-flow');
+const TC = require('../engine/turn-core');
 
 // A character hook that throws must not break the match, but it must not be
 // silent either: a power that is quietly inert looks identical to a power that
@@ -997,16 +998,12 @@ class Table {
       }
     }
 
-    // ---- kan availability (own hand) ----
-    const cnt = {};
-    for (const x of me.hand) {
-      const k = norm(x);
-      cnt[k] = (cnt[k] || 0) + 1;
-    }
-    const ankanTile = Object.keys(cnt).find((k) => cnt[k] === 4);
-    const ponUp = me.melds.find((m) => m.type === 'pon' && me.hand.some((h) => same(h, m.tiles[0])));
+    // ---- kan availability (own hand, shared with the CLI) ----
+    const kan = TC.kanOptions(me, { kanCount: ctx.kanCount, rinshanIdx: ctx.rinshanIdx });
+    const ankanTile = kan.ankanTile;
+    const ponUp = kan.ponUp;
     let kanChoice = null;
-    if (ctx.kanCount < RULES.maxKan && ctx.rinshanIdx < RULES.rinshanSlots) {
+    if (kan.canKan) {
       if (me.isCpu) {
         const r1 = this.decide.next();
         if (ankanTile && r1 < 0.5) {
@@ -1016,7 +1013,7 @@ class Table {
           // concealed hand and can change the wait). Bots bypass validateAct, so
           // the rule has to be enforced here as well as in classifyHumanKan.
           if (me.riichi) console.log(`[bridge] P${seat} skips KAKAN (illegal while in riichi)`);
-          else kanChoice = { kind: 'kakan', tile: norm(ponUp.tiles[0]) };
+          else kanChoice = { kind: 'kakan', tile: kan.kakanTile };
         }
       }
     }
@@ -1817,50 +1814,37 @@ class Table {
     this.phase = PHASE.CALL_WINDOW;
     this.activeSeat = -1;
 
-    // 1. Collect all valid call options for the other 3 seats
+    // 1. Collect all valid call options for the other 3 seats. The rules for
+    // which calls exist (riichi cannot call, the daiminkan needs three copies
+    // and kan budget, chi is shimocha-only) live in engine/turn-core.js so the
+    // CLI cannot drift from the server. `calls` is the wire shape only.
+    const candidates = TC.callCandidates({
+      from,
+      tile,
+      players,
+      dead: ctx.dead,
+      scoreCtxFor: (q) => this.shootCtx(q, flags.chankan, flags.houtei),
+      // No enchousen gate until overtime opens; then ryanhan-shibari.
+      // Reads RULES via match-flow so the floor cannot drift (game.js overtime).
+      minHan: MF.minHan(this.overtime),
+      chankan: !!flags.chankan,
+      kanCount: ctx.kanCount,
+      rinshanIdx: ctx.rinshanIdx,
+    });
+
     const candidateMap = new Map();
-    for (let k = 1; k <= 3; k++) {
-      const q = (from + k) % 4;
-      const qp = players[q];
-
-      let ronAtt = null;
-      const att = H.tryRon(qp, tile, this.shootCtx(q, flags.chankan, flags.houtei), players, ctx.dead, {
-        chankan: !!flags.chankan,
-        // No enchousen gate until overtime opens; then ryanhan-shibari.
-        // Reads RULES via match-flow so the floor cannot drift (game.js overtime).
-        minHan: MF.minHan(this.overtime),
-      });
-      if (att.win) ronAtt = att;
-
-      let ponOpts = null;
-      let canDaimin = false;
-      if (!flags.chankan && !qp.riichi) {
-        const nSame = qp.hand.filter((x) => same(x, tile)).length;
-        if (nSame >= 2) {
-          ponOpts = this.ponOptions(qp, tile);
-          if (nSame >= 3 && ctx.kanCount < RULES.maxKan && ctx.rinshanIdx < RULES.rinshanSlots) {
-            canDaimin = true;
-          }
-        }
+    for (const c of candidates) {
+      if (!TC.isCall(c)) continue;
+      const calls = [];
+      if (c.ron) calls.push('Ron');
+      if (c.daiminkan) calls.push('Daiminkan');
+      if (c.pon) calls.push({ Pon: { options: c.pon.map((pair) => pair.map(P.sakiToTile)) } });
+      if (c.chi) {
+        const suit = norm(tile)[1];
+        calls.push({ Chi: { options: c.chi.map((o) => o.map((n) => P.sakiToTile(n + suit))) } });
       }
-
-      let chiOpts = null;
-      if (!flags.chankan && q === (from + 1) % 4 && !qp.riichi && qp.hand.length > 0) {
-        const rawOpts = H.chiOptions(qp.hand, tile);
-        if (rawOpts.length) chiOpts = rawOpts;
-      }
-
-      if (ronAtt || ponOpts || chiOpts) {
-        const calls = [];
-        if (ronAtt) calls.push('Ron');
-        if (canDaimin) calls.push('Daiminkan');
-        if (ponOpts) calls.push({ Pon: { options: ponOpts } });
-        if (chiOpts) {
-          const suit = norm(tile)[1];
-          calls.push({ Chi: { options: chiOpts.map((o) => o.map((n) => P.sakiToTile(n + suit))) } });
-        }
-        candidateMap.set(q, { qp, ronAtt, ponOpts, canDaimin, chiOpts, calls });
-      }
+      c.calls = calls;
+      candidateMap.set(c.seat, c);
     }
 
     if (candidateMap.size === 0) {
@@ -1885,17 +1869,17 @@ class Table {
           const qp = c.qp;
           let res;
           if (qp.isCpu) {
-            if (c.ronAtt) res = { seat: q, type: 'Ron' };
-            else if (c.canDaimin && this.decide.next() < 0.25) res = { seat: q, type: 'Kan' };
+            if (c.ron) res = { seat: q, type: 'Ron' };
+            else if (c.daiminkan && this.decide.next() < 0.25) res = { seat: q, type: 'Kan' };
             else if (
-              c.ponOpts &&
+              c.pon &&
               H.botWantsCall(H.shantenOf(qp.hand) - H.shantenOf(this.removeCopies(qp.hand, tile, 2)), false, () =>
                 this.decide.next()
               )
             ) {
               res = { seat: q, type: 'Pon' };
-            } else if (c.chiOpts && this.decide.next() < 0.35) {
-              const chosen = c.chiOpts[Math.floor(this.decide.next() * c.chiOpts.length)];
+            } else if (c.chi && this.decide.next() < 0.35) {
+              const chosen = c.chi[Math.floor(this.decide.next() * c.chi.length)];
               res = { seat: q, type: 'Chi', tiles: chosen };
             } else {
               res = { seat: q, type: 'Pass' };
@@ -1912,10 +1896,10 @@ class Table {
               )
             );
             const allowed = new Set(['Pass']);
-            if (c.ronAtt) allowed.add('Ron');
-            if (c.ponOpts) allowed.add('Pon');
-            if (c.canDaimin) allowed.add('Kan');
-            if (c.chiOpts) allowed.add('Chi');
+            if (c.ron) allowed.add('Ron');
+            if (c.pon) allowed.add('Pon');
+            if (c.daiminkan) allowed.add('Kan');
+            if (c.chi) allowed.add('Chi');
             const action = await this.request(q, allowed);
             res = { seat: q, ...action };
           }
@@ -1926,7 +1910,7 @@ class Table {
 
           // If Ron was claimed and no other candidate can also Ron:
           const remainingCouldRon = candidateSeats.some(
-            (s) => !results.some((r) => r.seat === s) && candidateMap.get(s)?.ronAtt
+            (s) => !results.some((r) => r.seat === s) && candidateMap.get(s)?.ron
           );
           if (res.type === 'Ron' && !remainingCouldRon) {
             resolved = true;
@@ -1954,65 +1938,31 @@ class Table {
       }
     });
 
-    // 3. Priority Arbitration:
-    //
-    // IMPORTANT: `responses` arrives in *response* order, not turn order. CPU
-    // candidates resolve synchronously so they happen to land in turn order, but
-    // human candidates are awaited over the wire and can land in any order.
-    // Standard riichi gives pon/daiminkan to the claimant nearest the discarder
-    // in turn order, so every arbitration below ranks explicitly rather than
-    // relying on arrival order.
-    const turnRank = (seat) => (seat - from + 4) % 4;
-    const byTurnOrder = (a, b) => turnRank(a.seat) - turnRank(b.seat);
-    const ordered = [...responses].sort(byTurnOrder);
+    // 3. Priority Arbitration. The rule lives in engine/turn-core.js: ron
+    // wins, then the nearest pon/daiminkan, then chi. `responses` arrives in
+    // response order, not turn order, so the helper ranks explicitly. It also
+    // reports the candidates who could have ronned and passed, which is the
+    // temporary-furiten rule.
+    const verdict = TC.arbitrateCalls({ from, candidates: candidateMap, responses });
+    for (const seat of verdict.passers) players[seat].tempFuriten = true;
 
-    // Priority 1: Ron claims
-    const ronClaims = ordered.filter((r) => r.type === 'Ron');
-    if (ronClaims.length > 0) {
-      for (const r of ordered) {
-        if (candidateMap.get(r.seat)?.ronAtt && r.type !== 'Ron') {
-          players[r.seat].tempFuriten = true;
-        }
-      }
+    if (verdict.type === 'ron') {
       this.phase = PHASE.TURN_ACT;
       // Turn order also decides who collects the riichi sticks below, so hits
-      // must be ordered rather than in response order.
-      const hits = ronClaims.map((r) => ({ seat: r.seat }));
+      // stay in turn order rather than response order.
       return {
         end: true,
-        winner: hits[0].seat,
-        winBy: {
-          type: 'ron',
-          from,
-          hits,
-          tile,
-          flags,
-        },
+        winner: verdict.claims[0].seat,
+        winBy: { type: 'ron', from, hits: verdict.claims, tile, flags },
       };
     }
 
-    // Mark temporary furiten for players who passed Ron
-    for (const r of ordered) {
-      if (candidateMap.get(r.seat)?.ronAtt && r.type !== 'Ron') {
-        players[r.seat].tempFuriten = true;
-      }
+    if (verdict.type === 'pon' || verdict.type === 'daiminkan') {
+      return await this.doOpenCall(verdict.seat, from, tile, verdict.type);
     }
 
-    // Priority 2: Pon / Daiminkan claims — nearest claimant in turn order wins.
-    const ponClaim = ordered.find((r) => r.type === 'Pon' || (r.type === 'Kan' && candidateMap.get(r.seat)?.canDaimin));
-    if (ponClaim) {
-      const callKind = ponClaim.type === 'Kan' ? 'daiminkan' : 'pon';
-      return await this.doOpenCall(ponClaim.seat, from, tile, callKind);
-    }
-
-    // Priority 3: Chi claims (shimocha only, so at most one seat can claim)
-    const chiClaim = ordered.find((r) => r.type === 'Chi');
-    if (chiClaim && candidateMap.get(chiClaim.seat)?.chiOpts) {
-      let chosen = chiClaim.tiles;
-      if (!chosen || !Array.isArray(chosen) || chosen.length !== 2) {
-        chosen = candidateMap.get(chiClaim.seat).chiOpts[0];
-      }
-      return await this.doOpenChi(chiClaim.seat, from, tile, chosen);
+    if (verdict.type === 'chi') {
+      return await this.doOpenChi(verdict.seat, from, tile, verdict.tiles);
     }
 
     this.phase = PHASE.TURN_ACT;
@@ -2020,15 +1970,6 @@ class Table {
     const lapAbort = this.checkLapAbort();
     if (lapAbort) return { end: true, winner: -1, winBy: { type: 'abort', reason: lapAbort } };
     return null;
-  }
-
-  ponOptions(qp, tile) {
-    const held = qp.hand.filter((x) => same(x, tile));
-    const opts = [];
-    for (let i = 0; i < held.length; i++) {
-      for (let j = i + 1; j < held.length; j++) opts.push([held[i], held[j]]);
-    }
-    return opts.map((pair) => pair.map(P.sakiToTile));
   }
 
   removeCopies(hand, tile, n) {

@@ -91,6 +91,7 @@ saki/
 │   ├── rng.js               deterministic seeded RNG (mulberry32)
 │   ├── rules-config.js      rules as data (shared by game.js and table.js)
 │   ├── match-flow.js        shared hand-transition table (dealer/honba/kyoku/noten/han floor)
+│   ├── turn-core.js         shared single-turn decisions (own kan, call candidates, priority)
 │   ├── invariants.js        per-turn tile-conservation checks
 │   ├── replay.js            deterministic action journal + verifier
 │   ├── input.js             human discard-index parsing
@@ -103,7 +104,7 @@ saki/
 │   │   ├── nodokaEval.js    "Nodocchi" EV / tenpai evaluator
 │   │   ├── mjaiAdapter.js   pluggable evaluator interface (MJAI bots)
 │   │   └── rosters/         one file per character power (8 shipped)
-│   └── tests/               28 *.test.js, node:test
+│   └── tests/               30 *.test.js, node:test
 │
 ├── scripts/
 │   └── check-links.mjs      markdown link checker (npm run links)
@@ -145,7 +146,7 @@ via Node's built-in test runner.
 
 ```bash
 npm test              # everything CI runs
-npm run test:engine   # 421 tests + 48 rule checks
+npm run test:engine   # 435 tests + 48 rule checks
 npm run test:server   # 135 server tests
 npm run test:scripts  # 6 dev-script tests
 npm run test:client   # 244 client tests + tsc type-check

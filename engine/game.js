@@ -45,7 +45,6 @@ const {
   tryRon,
   botDiscard,
   botWantsCall,
-  chiOptions,
   kuikaeBannedChi,
   countYaochuu,
   distinctYaochuu,
@@ -63,6 +62,9 @@ const {
 // honba, noten schedule, han floor. The turn loops stay separate (sync CLI vs
 // async WS); only the decisions are shared.
 const MF = require('./match-flow');
+// Phase 3 of the turn-loop merge: the pure single-turn rules (own-kan
+// availability, call candidates, call priority) shared with server/table.js.
+const TC = require('./turn-core');
 // Tile conservation, wanpai-aware (see invariants.js `wanpaiPartition`). The
 // offline loop asserts it after every discard so a drifted hand driver fails
 // loudly here instead of printing a plausible-looking likely-bogus match.
@@ -624,26 +626,41 @@ async function main() {
     // Ron collection: EVERY eligible player wins (double ron), furiten
     // enforced, human prompted per seat, turn-ordered. 3 winners = triple
     // ron (caller handles as abortive draw). flags: {houtei, chankan, label}
+    //
+    // Detection is shared with the server (turn-core.callCandidates); this
+    // function only owns the CLI prompt and the temp-furiten consequence of
+    // declining.
     async function collectRon(tile, fromTurn, flags = {}) {
       const hits = [];
-      for (let k = 1; k <= 3; k++) {
-        const q = (fromTurn + k) % 4;
-        const qp = P[q];
-        const cs = {
+      const candidates = TC.callCandidates({
+        from: fromTurn,
+        tile,
+        players: P,
+        dead,
+        scoreCtxFor: (q) => ({
           dora: baseDora(),
           bakaze,
           jikaze: jikazeOf(q),
-          riichi: qp.riichi,
-          doubleRiichi: qp.doubleRiichi,
-          ippatsu: qp.ippatsu,
+          riichi: P[q].riichi,
+          doubleRiichi: P[q].doubleRiichi,
+          ippatsu: P[q].ippatsu,
           kanFlag: !!flags.chankan,
           lastFlag: !!flags.houtei,
           tenhou: false,
-        };
-        const att = tryRon(qp, tile, cs, P, dead, { chankan: !!flags.chankan, minHan: flags.minHan || 1 });
-        if (att.win) {
+        }),
+        minHan: flags.minHan || 1,
+        chankan: !!flags.chankan,
+        kanCount,
+        rinshanIdx,
+      });
+      for (const c of candidates) {
+        const q = c.seat;
+        const qp = c.qp;
+        if (c.ron) {
           if (qp.id === HUMAN) {
-            console.log(`  ${flags.label || 'RON'} available on ${tile}: ${att.r.text} ${JSON.stringify(att.r.yaku)}`);
+            console.log(
+              `  ${flags.label || 'RON'} available on ${tile}: ${c.ron.r.text} ${JSON.stringify(c.ron.r.yaku)}`
+            );
             const a = (await ask(`  ${flags.label || 'ron'}? (y/n): `)).trim();
             if (!a.toLowerCase().startsWith('y')) {
               qp.tempFuriten = true;
@@ -651,7 +668,9 @@ async function main() {
             }
           }
           hits.push({ seat: q });
-        } else if (att.blocked) console.log(`  ${names[q]} FURITEN (${att.reason}) - ron on ${tile} blocked`);
+        } else if (c.ronBlocked) {
+          console.log(`  ${names[q]} FURITEN (${c.ronBlocked.reason}) - ron on ${tile} blocked`);
+        }
       }
       return hits;
     }
@@ -697,15 +716,14 @@ async function main() {
         me.discards.length === 0 && me.melds.length === 0 && callsMade === 0 && drawsThisKyoku <= 4;
 
       // --- kakan (added kan): pon meld + 4th tile in hand ---
-      const ponUp = me.melds.find((m) => m.type === 'pon' && me.hand.some((h) => same(h, m.tiles[0])));
-      const cnt = {};
-      me.hand.forEach((x) => {
-        const k = norm(x);
-        cnt[k] = (cnt[k] || 0) + 1;
-      });
-      const ankanTile = Object.keys(cnt).find((k) => cnt[k] === 4);
+      // Shared own-kan rule (turn-core.js): the kan budget and rinshan budget
+      // gate the whole offer, and the ankan/kakan candidates come from one
+      // definition used by the server too.
+      const kan = TC.kanOptions(me, { kanCount, rinshanIdx });
+      const ankanTile = kan.ankanTile;
+      const ponUp = kan.ponUp;
       let kanChoice = null; // {kind:'ankan'|'kakan', tile}
-      if (kanCount < RULES.maxKan && rinshanIdx < RULES.rinshanSlots) {
+      if (kan.canKan) {
         if (me.id === HUMAN) {
           if (ankanTile || ponUp) {
             console.log(`  YOUR hand: ${me.hand.join(' ')} melds=${JSON.stringify(me.melds.map(meldStr))}`);
@@ -967,122 +985,130 @@ async function main() {
         break;
       }
       // --- pon / daiminkan / chi (break ippatsu for everyone) ---
+      // Candidate detection is shared with the server (turn-core.js): riichi
+      // seats cannot call, a daiminkan needs three copies and kan budget, and
+      // chi is shimocha-only. Ron was already resolved above, so skip it here.
+      const callOptions = TC.callCandidates({
+        from: turn,
+        tile: disc,
+        players: P,
+        dead,
+        ron: false,
+        canOpen: (seat, qp) => !CLOSED_ONLY || qp.id === HUMAN,
+        kanCount,
+        rinshanIdx,
+      });
       let called = false;
-      for (let k = 1; k <= 3 && !called; k++) {
-        const q = (turn + k) % 4;
-        if (P[q].riichi) continue;
-        const nSame = P[q].hand.filter((t) => same(t, disc)).length;
-        const canDaimin = nSame >= 3 && kanCount < RULES.maxKan && rinshanIdx < RULES.rinshanSlots && !CLOSED_ONLY;
-        if (nSame >= 2) {
-          let removed = 0;
-          const tmp = [...P[q].hand];
-          for (const x of [...tmp]) {
-            if (same(x, disc) && removed < 2) {
-              tmp.splice(tmp.indexOf(x), 1);
-              removed++;
-            }
+      for (const c of callOptions) {
+        if (called) break;
+        if (!c.pon) continue;
+        const q = c.seat;
+        let removed = 0;
+        const tmp = [...P[q].hand];
+        for (const x of [...tmp]) {
+          if (same(x, disc) && removed < 2) {
+            tmp.splice(tmp.indexOf(x), 1);
+            removed++;
           }
-          const gain = shantenOf(P[q].hand) - shantenOf(tmp);
-          // choice: 'kan' | 'pon' | null
-          let choice = null;
-          if (P[q].id === HUMAN) {
-            const a = canDaimin
-              ? (await ask(`  ${disc} KAN / PON / pass? (k/p/n): `)).trim().toLowerCase()
-              : (await ask(`  ${disc} PON? (y/n): `)).trim().toLowerCase();
-            choice =
-              (a === 'k' || a === 'kan') && canDaimin ? 'kan' : a === 'y' || a === 'p' || a === 'pon' ? 'pon' : null;
-          } else if (CLOSED_ONLY) {
-            choice = null;
-          } else if (canDaimin && Math.random() < 0.25) {
-            choice = 'kan';
-          } else if (botWantsCall(gain, CLOSED_ONLY)) {
-            choice = 'pon';
+        }
+        const gain = shantenOf(P[q].hand) - shantenOf(tmp);
+        // choice: 'kan' | 'pon' | null
+        let choice = null;
+        if (P[q].id === HUMAN) {
+          const a = c.daiminkan
+            ? (await ask(`  ${disc} KAN / PON / pass? (k/p/n): `)).trim().toLowerCase()
+            : (await ask(`  ${disc} PON? (y/n): `)).trim().toLowerCase();
+          choice =
+            (a === 'k' || a === 'kan') && c.daiminkan ? 'kan' : a === 'y' || a === 'p' || a === 'pon' ? 'pon' : null;
+        } else if (c.daiminkan && Math.random() < 0.25) {
+          choice = 'kan';
+        } else if (botWantsCall(gain, CLOSED_ONLY)) {
+          choice = 'pon';
+        }
+        if (choice === 'kan') {
+          const tiles = [];
+          for (let cc = 0; cc < 3; cc++) {
+            const i = P[q].hand.findIndex((x) => same(x, disc));
+            tiles.push(P[q].hand.splice(i, 1)[0]);
           }
-          if (choice === 'kan') {
-            const tiles = [];
-            for (let c = 0; c < 3; c++) {
-              const i = P[q].hand.findIndex((x) => same(x, disc));
-              tiles.push(P[q].hand.splice(i, 1)[0]);
-            }
-            tiles.push(disc);
-            me.discards.pop();
-            P[q].melds.push({ tiles, open: true, type: 'kan' });
-            console.log(`  ${names[q]} DAIMINKAN ${disc}`);
-            callsMade++;
-            clearAllIppatsu(P);
-            kansBy[q]++;
-            if (suukaikanAbort(kansBy)) {
-              winner = -2;
-              winBy = { type: 'abort', reason: `SUUKAIKAN (four kans: ${kansBy.join('/')})` };
-              break;
-            }
-            revealKanDora();
-            ctx.dora = baseDora();
-            console.log(`  new dora=${ctx.dora}`);
-            if (rinshanIdx < RULES.rinshanSlots) {
-              const rt = dead[rinshanIdx++];
-              P[q].hand.push(rt);
-              clearTempFuritenOnDraw(P[q]); // a rinshan draw is still your own draw
-              console.log(`  ${names[q]} rinshan draw ${rt}`);
-              ctx.jikaze = jikazeOf(q);
-              const trs = scoreHand(P[q].hand, P[q].melds, rt, true, {
-                dora: baseDora(),
-                bakaze,
-                jikaze: jikazeOf(q),
-                riichi: false,
-                doubleRiichi: false,
-                ippatsu: false,
-                kanFlag: true,
-                lastFlag: false,
-                tenhou: false,
-              });
-              if (trs.isAgari && (trs.yakuman > 0 || trs.han >= minHan)) {
-                winner = q;
-                winBy = tsumoWin(P[q], q, trs, true, false);
-                break;
-              }
-            } else console.log('  no rinshan tiles left');
-            const dc = await discardAfterCall(P[q], q, jikazeOf, ask);
-            const hitsD = await collectRon(dc, q, { houtei: wallFull.length === 0, minHan });
-            if (tripleRonAbort(hitsD)) {
-              winner = -2;
-              winBy = { type: 'abort', reason: `TRIPLE RON on ${dc}` };
-              break;
-            }
-            if (hitsD.length > 0) {
-              winner = hitsD[0].seat;
-              winBy = ronWinResultMulti(hitsD, q, dc, { houtei: wallFull.length === 0 });
-              break;
-            }
-            turn = (q + 1) % 4;
-            called = true;
-          } else if (choice === 'pon') {
-            const tiles = [];
-            for (let c = 0; c < 2; c++) {
-              const i = P[q].hand.findIndex((x) => same(x, disc));
-              tiles.push(P[q].hand.splice(i, 1)[0]);
-            }
-            tiles.push(disc);
-            me.discards.pop();
-            P[q].melds.push({ tiles, open: true, type: 'pon' });
-            console.log(`  ${names[q]} PON ${disc}`);
-            callsMade++;
-            clearAllIppatsu(P);
-            const dc = await discardAfterCall(P[q], q, jikazeOf, ask, [norm(tiles[0])]); // kuikae: no 4th tile
-            const hitsQ = await collectRon(dc, q, { houtei: wallFull.length === 0, minHan });
-            if (tripleRonAbort(hitsQ)) {
-              winner = -2;
-              winBy = { type: 'abort', reason: `TRIPLE RON on ${dc}` };
-              break;
-            }
-            if (hitsQ.length > 0) {
-              winner = hitsQ[0].seat;
-              winBy = ronWinResultMulti(hitsQ, q, dc, { houtei: wallFull.length === 0 });
-              break;
-            }
-            turn = (q + 1) % 4;
-            called = true;
+          tiles.push(disc);
+          me.discards.pop();
+          P[q].melds.push({ tiles, open: true, type: 'kan' });
+          console.log(`  ${names[q]} DAIMINKAN ${disc}`);
+          callsMade++;
+          clearAllIppatsu(P);
+          kansBy[q]++;
+          if (suukaikanAbort(kansBy)) {
+            winner = -2;
+            winBy = { type: 'abort', reason: `SUUKAIKAN (four kans: ${kansBy.join('/')})` };
+            break;
           }
+          revealKanDora();
+          ctx.dora = baseDora();
+          console.log(`  new dora=${ctx.dora}`);
+          if (rinshanIdx < RULES.rinshanSlots) {
+            const rt = dead[rinshanIdx++];
+            P[q].hand.push(rt);
+            clearTempFuritenOnDraw(P[q]); // a rinshan draw is still your own draw
+            console.log(`  ${names[q]} rinshan draw ${rt}`);
+            ctx.jikaze = jikazeOf(q);
+            const trs = scoreHand(P[q].hand, P[q].melds, rt, true, {
+              dora: baseDora(),
+              bakaze,
+              jikaze: jikazeOf(q),
+              riichi: false,
+              doubleRiichi: false,
+              ippatsu: false,
+              kanFlag: true,
+              lastFlag: false,
+              tenhou: false,
+            });
+            if (trs.isAgari && (trs.yakuman > 0 || trs.han >= minHan)) {
+              winner = q;
+              winBy = tsumoWin(P[q], q, trs, true, false);
+              break;
+            }
+          } else console.log('  no rinshan tiles left');
+          const dc = await discardAfterCall(P[q], q, jikazeOf, ask);
+          const hitsD = await collectRon(dc, q, { houtei: wallFull.length === 0, minHan });
+          if (tripleRonAbort(hitsD)) {
+            winner = -2;
+            winBy = { type: 'abort', reason: `TRIPLE RON on ${dc}` };
+            break;
+          }
+          if (hitsD.length > 0) {
+            winner = hitsD[0].seat;
+            winBy = ronWinResultMulti(hitsD, q, dc, { houtei: wallFull.length === 0 });
+            break;
+          }
+          turn = (q + 1) % 4;
+          called = true;
+        } else if (choice === 'pon') {
+          const tiles = [];
+          for (let cc = 0; cc < 2; cc++) {
+            const i = P[q].hand.findIndex((x) => same(x, disc));
+            tiles.push(P[q].hand.splice(i, 1)[0]);
+          }
+          tiles.push(disc);
+          me.discards.pop();
+          P[q].melds.push({ tiles, open: true, type: 'pon' });
+          console.log(`  ${names[q]} PON ${disc}`);
+          callsMade++;
+          clearAllIppatsu(P);
+          const dc = await discardAfterCall(P[q], q, jikazeOf, ask, [norm(tiles[0])]); // kuikae: no 4th tile
+          const hitsQ = await collectRon(dc, q, { houtei: wallFull.length === 0, minHan });
+          if (tripleRonAbort(hitsQ)) {
+            winner = -2;
+            winBy = { type: 'abort', reason: `TRIPLE RON on ${dc}` };
+            break;
+          }
+          if (hitsQ.length > 0) {
+            winner = hitsQ[0].seat;
+            winBy = ronWinResultMulti(hitsQ, q, dc, { houtei: wallFull.length === 0 });
+            break;
+          }
+          turn = (q + 1) % 4;
+          called = true;
         }
       }
       // Any terminal result ends the hand: a win (>=0), an abortive draw (-2)
@@ -1092,41 +1118,40 @@ async function main() {
       if (winner !== -1) break;
       if (called) continue;
       const nx = (turn + 1) % 4;
-      if (!P[nx].riichi) {
-        const opts = chiOptions(P[nx].hand, disc);
-        if (opts.length) {
-          let doIt = P[nx].id === HUMAN ? null : !CLOSED_ONLY && Math.random() < 0.35;
-          if (P[nx].id === HUMAN) {
-            const a = (await ask(`  ${disc} CHI ${opts.map((o) => o.join('+')).join('/')}? (y/n): `)).trim();
-            doIt = a.toLowerCase().startsWith('y');
+      const chiCand = callOptions.find((c) => c.seat === nx && c.chi);
+      if (chiCand) {
+        const opts = chiCand.chi;
+        let doIt = P[nx].id === HUMAN ? null : !CLOSED_ONLY && Math.random() < 0.35;
+        if (P[nx].id === HUMAN) {
+          const a = (await ask(`  ${disc} CHI ${opts.map((o) => o.join('+')).join('/')}? (y/n): `)).trim();
+          doIt = a.toLowerCase().startsWith('y');
+        }
+        if (doIt) {
+          const o = opts[Math.floor(Math.random() * opts.length)];
+          const tiles = [disc];
+          for (const nn of o) {
+            const i = P[nx].hand.findIndex((x) => norm(x) === nn + norm(disc)[1]);
+            tiles.push(P[nx].hand.splice(i, 1)[0]);
           }
-          if (doIt) {
-            const o = opts[Math.floor(Math.random() * opts.length)];
-            const tiles = [disc];
-            for (const nn of o) {
-              const i = P[nx].hand.findIndex((x) => norm(x) === nn + norm(disc)[1]);
-              tiles.push(P[nx].hand.splice(i, 1)[0]);
-            }
-            me.discards.pop();
-            P[nx].melds.push({ tiles, open: true, type: 'chi' });
-            console.log(`  ${names[nx]} CHI ${disc} [${o}]`);
-            callsMade++;
-            clearAllIppatsu(P);
-            const dc = await discardAfterCall(P[nx], nx, jikazeOf, ask, kuikaeBannedChi(tiles[1], tiles[2]));
-            const hitsX = await collectRon(dc, nx, { houtei: wallFull.length === 0, minHan });
-            if (tripleRonAbort(hitsX)) {
-              winner = -2;
-              winBy = { type: 'abort', reason: `TRIPLE RON on ${dc}` };
-              break;
-            }
-            if (hitsX.length > 0) {
-              winner = hitsX[0].seat;
-              winBy = ronWinResultMulti(hitsX, nx, dc, { houtei: wallFull.length === 0 });
-              break;
-            }
-            turn = (nx + 1) % 4;
-            continue;
+          me.discards.pop();
+          P[nx].melds.push({ tiles, open: true, type: 'chi' });
+          console.log(`  ${names[nx]} CHI ${disc} [${o}]`);
+          callsMade++;
+          clearAllIppatsu(P);
+          const dc = await discardAfterCall(P[nx], nx, jikazeOf, ask, kuikaeBannedChi(tiles[1], tiles[2]));
+          const hitsX = await collectRon(dc, nx, { houtei: wallFull.length === 0, minHan });
+          if (tripleRonAbort(hitsX)) {
+            winner = -2;
+            winBy = { type: 'abort', reason: `TRIPLE RON on ${dc}` };
+            break;
           }
+          if (hitsX.length > 0) {
+            winner = hitsX[0].seat;
+            winBy = ronWinResultMulti(hitsX, nx, dc, { houtei: wallFull.length === 0 });
+            break;
+          }
+          turn = (nx + 1) % 4;
+          continue;
         }
       }
       // Suufon-renda: the first four discards are one wind AND nobody called.
