@@ -45,7 +45,6 @@ sides must agree on one rule first.
 | Area | Offline | Server | Why it exists |
 | --- | --- | --- | --- |
 | Kyuushu prompt | human may abort or play on | humans auto play on (CPU may abort) | no deal-time prompt exists on the wire |
-| Chombo | illegal ankan-after-riichi is a mangan penalty, replay | the kan is refused, hand continues | server cannot "undo" a committed action cleanly |
 | Tenhou window | `drawsThisKyoku <= 4` guard | `isFirstDraw` without that guard | offline guards a dealer-renchan edge |
 | Ippatsu | `ippatsuJustDeclared` survives the declaring discard | only `clearAllIppatsu` on calls | different expiry models |
 | Agari-yame / enchousen | dealer is prompted; overtime persisted explicitly | auto-end if dealer leads; overtime exits on rotation | human vs bot match control |
@@ -67,6 +66,15 @@ was made, so both drivers check it after the call window — a call on the 4th f
 discard voids it. Suucha-riichi is unaffected by the ordering: when all four players are in
 riichi, none of them can pon/chi/kan, so the only possible claim is ron, which takes
 precedence in both.
+
+The **chombo** is now a penalty on both sides, not a refusal. An ankan after riichi that
+changes the waits is declarable: the server marks it (`classifyHumanKan` →
+`{kind:'ankan', chombo:true}`), `doOwnKan` warns the offender, does **not** apply the kan,
+and settles the same mangan tsumo penalty + replay as `game.js`. Honba is unchanged and
+the riichi sticks carry (the shared `handOutcome({kind:'chombo'})` transition). Unknown
+wait snapshots fall into the same branch rather than silently legalising the kan.
+Kakan-in-riichi is still refused — a riichi hand has no open pon, and `game.js` refuses it
+too rather than treating it as a chombo.
 
 ## If the merge is attempted: required adapter
 
@@ -97,8 +105,9 @@ resolves early on a ron, while the CLI asks them in seat order. The adapter must
 
 1. **Rule parity first.** Make the two sides agree on every divergence in the table above,
    or mark each as an explicit config policy (`RULES.*`). *Done for the numeric ones:
-   `minWallForRiichi`, `maxKan`, `rinshanSlots`; the rinshan temp-furiten clear; and the
-   agari-yame test (`dealerLeads`).*
+   `minWallForRiichi`, `maxKan`, `rinshanSlots`; the rinshan temp-furiten clear; the
+   agari-yame test (`dealerLeads`); and chombo-as-penalty, now settled through the shared
+   `handOutcome` transition.*
 2. **Canonical outcome.** `handOutcome({kind, winnerSeats, tenpaiSeats, nagashiSeats,
    dealer})` returns `{honba, keepDealer, kyokuRepeat}`. **Done.** `game.js` calls it directly
    for chombo/abort/win/exhaustive; `server/table.js` keeps its `postHandFlow` call, which
@@ -118,10 +127,10 @@ own branch, and it will almost certainly change at least one rule.
 
 The deterministic layers are merged, including the hand outcome. The interactive drivers
 are deliberately separate: they encode genuinely different control models (blocking CLI vs
-awaited network phases) and a few still-different rules (chombo, tenhou window, ippatsu,
-powers). Unifying the scheduling for its own sake would add a third abstraction and
-risk rule regressions with no player-visible benefit. If a specific divergence is wrong,
-fix that rule in both front-ends — that is the high-value work, and it is what the parity
-guards in `engine/tests/rules-config-parity.test.js` protect.
+awaited network phases) and a few still-different rules (tenhou window, ippatsu, powers).
+Unifying the scheduling for its own sake would add a third abstraction and risk rule
+regressions with no player-visible benefit. If a specific divergence is wrong, fix that
+rule in both front-ends — that is the high-value work, and it is what the parity guards in
+`engine/tests/rules-config-parity.test.js` protect.
 
 See also: [KI-04](known-issues.md#ki-04), [conventions §4.3](conventions.md).

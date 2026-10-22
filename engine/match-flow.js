@@ -13,16 +13,15 @@
 //   exhaustive, dealer tenpai    -> dealer repeats, honba+1
 //   exhaustive, dealer noten     -> rotate, honba+1
 //
-// Server gaps stay explicit, not silent: agari-yame/enchousen and
-// chombo-as-penalty exist only in game.js (the five abortive draws and nagashi
-// mangan are now implemented on both sides). This module also owns the pieces
-// both loops ran inline — the point *arithmetic* (the win settlement
-// `winPayments`, the mangan payments `manganPayment`/`nagashiPayments`), the
-// abortive-draw switch (`abortEnabled`, read with `RULES.aborts` /
-// `RULES.serverAborts`), and the dead-wall indicator layout
-// (`doraIndicatorSlots`) — so a rule changed here cannot land in one front-end
-// only. The game.js-only paths keep their inline code and are marked as such at
-// the call site.
+// Server gaps stay explicit, not silent: agari-yame/enchousen exist only in
+// game.js (the five abortive draws, nagashi mangan and chombo-as-penalty are
+// now implemented on both sides). This module also owns the pieces both loops
+// ran inline — the point *arithmetic* (the win settlement `winPayments`, the
+// mangan payments `manganPayment`/`nagashiPayments`), the abortive-draw switch
+// (`abortEnabled`, read with `RULES.aborts` / `RULES.serverAborts`), and the
+// dead-wall indicator layout (`doraIndicatorSlots`) — so a rule changed here
+// cannot land in one front-end only. The game.js-only paths keep their inline
+// code and are marked as such at the call site.
 'use strict';
 
 const { RULES } = require('./rules-config');

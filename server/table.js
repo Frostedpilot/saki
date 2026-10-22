@@ -6,12 +6,14 @@
 // calls, ippatsu, furiten, exhaustive-draw tenpai payments, renchan, honba and
 // riichi sticks.
 //
-// Not implemented in this prototype: chombo-as-penalty (ankan-after-riichi is
-// prevented server-side instead), disconnection resync (disconnect = CPU
-// substitution), and the human kyuushu prompt (human 9-kind hands auto play
-// on; CPU seats declare at the standard rate). Everything else in the offline
-// game.js loop — all five abortive draws, nagashi mangan, agari-yame and
-// enchousen — is implemented here.
+// Chombo is a penalty, not a refusal: an illegal ankan after riichi (the kan
+// would change the waits) is allowed, warned about, charged a mangan penalty,
+// and the hand replays (see chomboHand). Kakan while in riichi stays refused:
+// a riichi hand has no open pon, and game.js refuses it too. Still not
+// implemented: disconnection resync (disconnect = CPU substitution) and the
+// human kyuushu prompt (human 9-kind hands auto play on; CPU seats declare at
+// the standard rate). Everything else in the offline game.js loop — all five
+// abortive draws, nagashi mangan, agari-yame and enchousen — is implemented here.
 
 const core = require('../engine/core');
 const { PowerDispatcher } = require('../engine/powers');
@@ -630,7 +632,11 @@ class Table {
       }
 
       outcome =
-        winBy && winBy.type === 'abort' ? await this.abortHand(winBy.reason, {}) : await this.finishHand(winner, winBy);
+        winBy && winBy.type === 'abort'
+          ? await this.abortHand(winBy.reason, {})
+          : winBy && winBy.type === 'chombo'
+            ? await this.chomboHand(winBy.offender)
+            : await this.finishHand(winner, winBy);
     }
 
     // Carry flow over to the next hand (Spec §6). Settlement hooks
@@ -660,7 +666,7 @@ class Table {
     if (!keepDealer) this.dealer = (this.dealer + 1) % 4;
     this.kyoku++;
 
-    if (!outcome.aborted) {
+    if (!outcome.aborted && !outcome.chombo) {
       const wSeats =
         flowWinBy && flowWinBy.type === 'tsumo'
           ? [flowWinner]
@@ -723,6 +729,34 @@ class Table {
     );
     console.log(`[bridge] ABORTIVE ${reason} - hand void, no payments`);
     return { aborted: true };
+  }
+
+  // Chombo settlement: the offender pays every other seat a mangan tsumo
+  // (honba ignored, shared match-flow arithmetic), sticks carry, and the hand
+  // replays with the dealer repeating and honba unchanged. Mirrors
+  // engine/game.js, where an illegal ankan after riichi is a mangan penalty.
+  async chomboHand(offender) {
+    const ctx = this.ctx;
+    for (let i = 0; i < 4; i++) {
+      if (i === offender) continue;
+      const pay = MF.manganPayment(offender, i, ctx.dealer);
+      this.scores[i] += pay;
+      this.scores[offender] -= pay;
+    }
+    this.riichiCarry = ctx.riichiPool;
+    ctx.riichiPool = 0;
+    this.broadcast(
+      P.evRoundDraw({
+        scores: [...this.scores],
+        reason: `Chombo (P${offender})`,
+        tenpai: [],
+        riichiSticks: this.riichiCarry / 1000,
+        playerHands: this.playerHandsInfo(),
+        declarer: offender,
+      })
+    );
+    console.log(`[bridge] CHOMBO P${offender} - mangan penalty, hand replays`);
+    return { chombo: true };
   }
 
   // First-lap abort check, called when a discard goes fully unclaimed (no ron,
@@ -802,15 +836,17 @@ class Table {
     // Shared transition table (engine/match-flow.js): same dealer/honba/kyoku
     // decision as the offline game.js loop. Normalizes the table's winBy
     // shapes (tsumo seat / ron hits[].seat) into winnerSeats first.
+    const chombo = Boolean(outcome && outcome.chombo);
     let win = null;
-    if (winBy !== null && winBy !== undefined) {
+    if (!chombo && winBy !== null && winBy !== undefined) {
       const winnerSeats = winBy.type === 'tsumo' ? [winner] : (winBy.hits || []).map((h) => h.seat);
       win = { type: winBy.type, winnerSeats };
     }
     const flow = MF.postHandFlow({
       aborted: Boolean(outcome && outcome.aborted),
+      chombo,
       win,
-      tenpaiSeats: win ? [] : this.tenpaiSeats(),
+      tenpaiSeats: win || chombo ? [] : this.tenpaiSeats(),
       dealer,
     });
     if (flow.honba === 'increment') this.honba++;
@@ -1202,9 +1238,10 @@ class Table {
     // Adding a kan to an existing pon moves a tile out of the concealed hand and
     // into the meld, which can change the wait. Standard riichi forbids it
     // outright while in riichi — unlike ankan, which is legal if the waits are
-    // unchanged. Both rule implementations used to allow it here.
+    // unchanged. A riichi hand has no pon, so this is defensive; game.js also
+    // refuses it rather than treating it as a chombo.
     const kakanForbidden = me.riichi
-      ? { error: true, reason: 'cannot add a kan to a pon while in riichi (chombo) - choose another tile' }
+      ? { error: true, reason: 'cannot add a kan to a pon while in riichi - choose another tile' }
       : null;
 
     if (tileIndex !== undefined && tileIndex !== null && tileIndex >= 0) {
@@ -1214,7 +1251,10 @@ class Table {
         const c = me.hand.filter((x) => norm(x) === k).length;
         if (c === 4) {
           if (me.riichi && !H.ankanKeepsWaits(me, k)) {
-            return { error: true, reason: 'this ankan would change your riichi waits (chombo) - choose another tile' };
+            // Illegal but declarable: the player may chombo. doOwnKan warns
+            // them, charges the mangan penalty and replays the hand (game.js
+            // offers the same "declare anyway" choice).
+            return { kind: 'ankan', tile: k, chombo: true };
           }
           return { kind: 'ankan', tile: k };
         }
@@ -1232,7 +1272,10 @@ class Table {
     const ankanTile = Object.keys(cnt).find((k) => cnt[k] === 4);
     if (ankanTile) {
       if (me.riichi && !H.ankanKeepsWaits(me, ankanTile)) {
-        return { error: true, reason: 'this ankan would change your riichi waits (chombo) - choose another tile' };
+        // Same declarable chombo as the tile-index path above (unknown waits
+        // fail into this branch too, so a missing snapshot cannot silently
+        // legalise the kan).
+        return { kind: 'ankan', tile: ankanTile, chombo: true };
       }
       return { kind: 'ankan', tile: ankanTile };
     }
@@ -1267,11 +1310,13 @@ class Table {
     if (a.type === 'Kan') {
       const k = a.kan;
       if (!k) return { ok: false, reason: 'kan not possible' };
-      if (k.error) return { ok: false, reason: k.reason || 'illegal kan (chombo) - choose another tile' };
+      if (k.error) return { ok: false, reason: k.reason || 'illegal kan - choose another tile' };
+      // k.chombo (wait-changing ankan after riichi) is deliberately accepted
+      // here: doOwnKan warns and settles it as a mangan penalty + replay.
       // Defence in depth: classifyHumanKan already refuses kakan while in riichi,
       // but the rule is cheap enough to assert again at the boundary.
       if (k.kind === 'kakan' && me.riichi) {
-        return { ok: false, reason: 'cannot add a kan to a pon while in riichi (chombo)' };
+        return { ok: false, reason: 'cannot add a kan to a pon while in riichi' };
       }
       if (this.ctx.kanCount >= RULES.maxKan || this.ctx.rinshanIdx >= RULES.rinshanSlots)
         return { ok: false, reason: 'no kan slots left' };
@@ -1353,6 +1398,16 @@ class Table {
     if (kan.kind === 'kakan' && me.riichi) {
       console.log(`[bridge] P${seat} kakan refused: illegal while in riichi`);
       return { end: false, next: (seat + 1) % 4 };
+    }
+
+    // Illegal ankan after riichi: allowed, but it is a chombo. Warn, then settle
+    // the mangan penalty and replay — the same choice game.js offers the human.
+    // The kan is NOT applied (game.js breaks before moving any tiles).
+    if (kan.chombo) {
+      const msg = `chombo: ankan ${tile} after riichi changes your waits - mangan penalty, hand replays`;
+      console.log(`[bridge] P${seat} ${msg}`);
+      this.sendError(seat, 'Chombo', msg);
+      return { end: true, winner: -3, winBy: { type: 'chombo', offender: seat } };
     }
 
     if (kan.kind === 'kakan') {

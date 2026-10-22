@@ -109,7 +109,7 @@ test('no kan available returns null', () => {
 
 // --------------------------------------------------- ankan while in riichi
 
-test('ankan while riichi is refused when it would change the waits', () => {
+test('ankan while riichi is a declarable chombo when it would change the waits', () => {
   const t = makeTable();
   const me = t.ctx.players[0];
   me.riichi = true;
@@ -117,8 +117,10 @@ test('ankan while riichi is refused when it would change the waits', () => {
   me.riichiWaits = ['1p', '2p'];
   me.hand = ['1m', '1m', '1m', '1m', '3p', '4p', '6s', '7s', '8s', '9s', '1z', '2z', '5z', '3z'];
   const k = t.classifyHumanKan(0);
-  assert.ok(k.error, 'wait-changing ankan during riichi is chombo');
-  assert.match(k.reason, /chombo/);
+  assert.equal(k.kind, 'ankan', 'the player may declare it and chombo');
+  assert.equal(k.tile, '1m');
+  assert.equal(k.chombo, true, 'flagged so doOwnKan can warn and penalise');
+  assert.ok(!k.error, 'no longer refused server-side');
 });
 
 test('ankan while riichi is allowed when the waits are unchanged', () => {
@@ -135,23 +137,25 @@ test('ankan while riichi is allowed when the waits are unchanged', () => {
   assert.equal(k.tile, '1m');
 });
 
-test('ankan while riichi is refused when the kan *would* change a real wait', () => {
+test('ankan while riichi is a chombo when the kan *would* change a real wait', () => {
   const t = makeTable();
   const me = t.ctx.players[0];
   me.riichi = true;
   me.riichiWaits = ['2p', '5z'];
   // Kan the 2p pair instead: that collapses two waits into one.
   me.hand = ['1m', '1m', '1m', '1m', '2p', '2p', '2p', '5p', '6p', '7s', '8s', '9s', '5z', '5z'];
-  assert.ok(t.classifyHumanKan(0).error, 'wait-changing ankan is chombo');
+  assert.equal(t.classifyHumanKan(0).chombo, true, 'wait-changing ankan is a chombo');
 });
 
-test('ankan while riichi with no recorded waits fails closed', () => {
+test('ankan while riichi with no recorded waits is treated as a chombo', () => {
   const t = makeTable();
   const me = t.ctx.players[0];
   me.riichi = true;
-  me.riichiWaits = []; // unknown, so refuse rather than allow a chombo
+  me.riichiWaits = []; // unknown: must not read as unchanged
   me.hand = ['1m', '1m', '1m', '1m', '2p', '3p', '4p', '6s', '7s', '8s', '9s', '1z', '2z', '3z'];
-  assert.ok(t.classifyHumanKan(0).error, 'unknown waits must not read as unchanged');
+  const k = t.classifyHumanKan(0);
+  assert.equal(k.chombo, true, 'unknown waits must not read as unchanged');
+  assert.ok(!k.error, 'still declarable, but penalised');
 });
 
 // ---------------------------------------------------- kakan while in riichi
@@ -360,6 +364,19 @@ test('a wait-preserving ankan in riichi is accepted (the riichi KAN button path)
   assert.equal(r.action.tile, '1m');
 });
 
+test('a declarable chombo ankan passes validation (warning happens in doOwnKan)', () => {
+  const t = makeTable();
+  const me = t.ctx.players[0];
+  me.riichi = true;
+  me.riichiWaits = ['1p', '2p'];
+  me.hand = ['1m', '1m', '1m', '1m', '3p', '4p', '6s', '7s', '8s', '9s', '1z', '2z', '5z', '3z'];
+  const kan = t.classifyHumanKan(0);
+  assert.equal(kan.chombo, true);
+  const r = t.validateAct(0, { type: 'Kan', kan }, {});
+  assert.equal(r.ok, true, 'chombo is a penalty, not a rejection');
+  assert.equal(r.action.kan.chombo, true, 'the flag survives validation');
+});
+
 test('kan is rejected once the four kan slots are used', () => {
   const t = makeTable();
   t.ctx.kanCount = 4;
@@ -526,6 +543,25 @@ test('doOwnKan allows the same kakan when not in riichi', async () => {
   assert.equal(me.hand.length, before - 1, 'the fourth tile moved out of hand');
   assert.equal(me.melds[0].type, 'kakan', 'the meld was upgraded');
   assert.equal(me.melds[0].tiles.length, 4);
+});
+
+test('doOwnKan warns and returns a chombo outcome for a declaration flagged chombo', async () => {
+  const t = makeTable();
+  const me = t.ctx.players[0];
+  const warnings = [];
+  t.sendError = (seat, code, message) => warnings.push({ seat, code, message });
+
+  me.hand = ['1m', '1m', '1m', '1m', '3p', '4p', '6s', '7s', '8s', '9s', '1z', '2z', '5z', '3z'];
+  const before = me.hand.length;
+  const out = await t.doOwnKan(0, me, { kind: 'ankan', tile: '1m', chombo: true });
+
+  assert.deepEqual(out, { end: true, winner: -3, winBy: { type: 'chombo', offender: 0 } });
+  assert.equal(warnings.length, 1, 'the offender is warned');
+  assert.equal(warnings[0].seat, 0);
+  assert.equal(warnings[0].code, 'Chombo');
+  assert.match(warnings[0].message, /mangan penalty/);
+  assert.equal(me.hand.length, before, 'the illegal kan is not applied');
+  assert.equal(me.melds.length, 0, 'no ankan meld is created');
 });
 
 // ------------------------------------------- tsumo gating: yaku vs noten

@@ -140,6 +140,6 @@ It is less reliable as a runtime for us (new stack, own matcher bugs to own).
 - Phase 5: `engine/replay.js` (journal + `verifyJournal` via `core.js`);
   covered in `rules.test.js` incl. tamper rejection. *(No persistence to disk.)*
 - Full suite: `node --test tests/*.test.js` **421 pass / 0 fail** + `game.js --selftest`
-  **48 checks**; server `npm test` **130 pass / 0 fail**; dev scripts `npm run test:scripts`
+  **48 checks**; server `npm test` **133 pass / 0 fail**; dev scripts `npm run test:scripts`
   **6 pass**. (Use the glob form — a bare
   directory argument is rejected by Node 22; see `docs/development.md` §5.)

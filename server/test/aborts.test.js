@@ -197,6 +197,33 @@ test('abortHand: void hand, sticks carry, dealer repeats with +1 honba', async (
   assert.equal(t.sent.length, 1);
 });
 
+test('chomboHand: offender pays a mangan, sticks carry, dealer repeats, honba unchanged', async () => {
+  const t = makeTable();
+  t.kyoku = 3;
+  t.ctx.riichiPool = 2000;
+  const before = sum(t);
+  const outcome = await t.chomboHand(1);
+  assert.deepEqual(outcome, { chombo: true });
+  // Dealer 0: P1 pays 4000 to the dealer and 2000 to each non-dealer.
+  assert.deepEqual(t.scores, [29000, 17000, 27000, 27000]);
+  assert.equal(sum(t), before, 'the penalty only redistributes points');
+  assert.equal(t.ctx.riichiPool, 0);
+  assert.equal(t.riichiCarry, 2000, 'sticks stay on the table for the replay');
+  assert.equal(t.sent.length, 1);
+  assert.match(t.sent[0].RoundDraw.reason, /Chombo/);
+  assert.equal(t.sent[0].RoundDraw.riichi_sticks, 2);
+
+  const keepDealer = t.applyPostSettlementFlow({
+    outcome,
+    winBy: { type: 'chombo', offender: 1 },
+    winner: -3,
+    dealer: 0,
+  });
+  assert.equal(keepDealer, true, 'the dealer repeats');
+  assert.equal(t.honba, 0, 'chombo leaves honba unchanged');
+  assert.equal(t.kyoku, 2, 'kyokuRepeat rewinds so playOneHand replays the same kyoku');
+});
+
 test('suukaikan predicate: split kans abort, solo quad plays on', () => {
   const H = require('../../engine/helpers');
   assert.equal(H.isSuukaikanAbort([2, 1, 1, 0]), true);

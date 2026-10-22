@@ -135,17 +135,20 @@ behaviour-neutral today; it exists so the two sides *can* differ without forking
 `engine/helpers.js` is now the single definition for waits, furiten, bot decisions,
 abort conditions and oka/uma, and `engine/match-flow.js` the single definition for the
 hand outcome (`handOutcome`, with `postHandFlow` as the server adapter), the score
-arithmetic (the win settlement, the nagashi payout and the offline chombo penalty), the
+arithmetic (the win settlement, the nagashi payout and the chombo penalty), the
 abortive-draw switch (`abortEnabled`) and the dead-wall indicator layout
 (`doraIndicatorSlots`). The numeric config is read where it used to be
 hardcoded: `helpers.js canRiichi` uses `RULES.riichiValue`/`minWallForRiichi`, both loops
 use `RULES.maxKan`/`rinshanSlots`, and the offline loop clears temp furiten on a rinshan
 draw as the server already did. The one semantic difference the shared outcome settled is
 nagashi: the dealer now repeats when the dealer is a nagashi seat, matching the server
-(nagashi is a win). What still differs is the **turn loop**: `game.js`'s `main()` and
-`server/table.js`'s `Table` each drive a hand's turn sequence independently — a sync CLI
-versus an async phase machine — and that is not shared. The boundary and the intentional
-divergences are recorded in [`turn-loop-merge.md`](turn-loop-merge.md).
+(nagashi is a win). Chombo is no longer a divergence either: both sides allow the
+wait-changing ankan after riichi, warn, charge the shared mangan penalty and replay (the
+server's `chomboHand`; kakan-in-riichi stays refused on both). What still differs is the
+**turn loop**: `game.js`'s `main()` and `server/table.js`'s `Table` each drive a hand's
+turn sequence independently — a sync CLI versus an async phase machine — and that is not
+shared. The boundary and the intentional divergences are recorded in
+[`turn-loop-merge.md`](turn-loop-merge.md).
 
 ### `rules-config.js` was dead, and is now live
 
@@ -185,7 +188,7 @@ like one task and is not:
   have different control architectures because one is a CLI and the other is a server.
   Merging them means rewriting both, not extracting a shared function — which is why
   item 23 was scoped at 2–3 days. The exact boundary, the intentional rule divergences
-  (chombo, tenhou window, ippatsu, powers) and a phased plan are
+  (tenhou window, ippatsu, powers) and a phased plan are
   in [`docs/turn-loop-merge.md`](turn-loop-merge.md).
 - **Abortive draws.** Both front-ends implement all five (see [KI-25](#ki-25)) and gate
   them through the shared `match-flow.js abortEnabled` switch; `Table`'s kyuushu path keeps
@@ -194,9 +197,9 @@ like one task and is not:
   4th first-lap discard voids it.
 - **Score arithmetic.** No longer duplicated: `match-flow.js winPayments` settles a
   tsumo/ron on both sides, and `manganPayment`/`nagashiPayments` cover the nagashi payout
-  and the game.js-only chombo penalty. What the turn loops still own is *when* to settle,
+  and the chombo penalty. What the turn loops still own is *when* to settle,
   not how the points move.
-- **Agari-yame, enchousen, chombo-as-penalty.** game.js only.
+- **Agari-yame, enchousen.** game.js only.
 - **Oka/uma.** Not a front-end gap any more — the server sends raw scores and the client
   derives final standings with `applyOkaUma`, mirroring `engine/helpers.js`.
 - **Character powers.** `game.js --powers` drives a small inline `powerDraw()` and is
@@ -428,7 +431,7 @@ that hid KI-22. `RULES.serverAborts` is now all-true.
    only fully-quiet discards are checked.
 3. Agari-yame auto-ends for humans too — no renchan prompt on the wire.
 
-Chombo-as-penalty stays prevention-only on both sides, and oka/uma display
+Chombo-as-penalty is now implemented on both sides (register 38), and oka/uma display
 stays offline-only (the wire carries raw scores).
 
 ---
@@ -1014,7 +1017,8 @@ chombo penalty, on either rule path, as human or as CPU.
 **Fixed at all five sites**, plus defence in depth:
 
 - Each kakan branch now refuses explicitly with
-  `'cannot add a kan to a pon while in riichi (chombo)'`.
+  `'cannot add a kan to a pon while in riichi'` (the wait-changing ankan is a separate,
+  declarable chombo — see the follow-up below).
 - `validateAct` re-asserts the rule (covers humans).
 - **`doOwnKan` — the single choke point every kan passes through, whatever its
   origin — refuses a kakan from a riichi hand** before touching the hand or melds.
@@ -1029,7 +1033,17 @@ when the computed side is also empty, so an unknown wait set could read as
 "unchanged" and permit a chombo. Now `[]` is treated as unknown, and a `kanTile` not
 present in the hand is refused rather than silently mishandled.
 
-**Tests:** `server/test/validation.test.js` (37 deterministic tests) pins
+**Follow-up (2026-10): the wait-changing ankan is a chombo, not a refusal.**
+`classifyHumanKan` now returns `{kind:'ankan', tile, chombo:true}` instead of an error, so
+a human can commit the illegal kan. `doOwnKan` warns the offender (`Chombo`), does **not**
+apply the kan, and returns a chombo outcome; `chomboHand` charges a mangan tsumo to every
+other seat (shared `manganPayment`), carries the riichi sticks, repeats the dealer and
+leaves honba unchanged (shared `handOutcome({kind:'chombo'})`). Unknown wait snapshots take
+the same chombo branch, so they still cannot silently legalise the kan. Kakan-in-riichi
+stays refused at every site above. Bots never chombo: the CPU kan offer skips
+wait-changing ankans (`ankanKeepsWaits`), so only a human declaration reaches this path.
+
+**Tests:** `server/test/validation.test.js` (45 deterministic tests) pins
 `classifyHumanKan`, `validateAct`, `botDecision` and `doOwnKan` — ankan/kakan detection,
 both riichi-kan rules, explicit tile-index selection (including index 0, which a `> 0`
 guard used to skip), every `validateAct` rejection path, bot discard sanity over 500
@@ -1618,6 +1632,7 @@ Docs are consistent and CI is green. These are the remaining **code** items:
 | 35 | ~~KI-04: make the remaining numeric config live (`canRiichi` → `RULES.riichiValue`/`minWallForRiichi`; both loops → `RULES.maxKan`/`rinshanSlots`), align rinshan temp-furiten, and record the turn-loop boundary in `docs/turn-loop-merge.md`~~ | ✅ done | KI-04 |
 | 36 | ~~KI-04: canonical `match-flow.js handOutcome` (win/abort/chombo/exhaustive, including nagashi dealer repeat); route the offline settlement through it and make `postHandFlow` delegate, so both front-ends share one transition policy~~ | ✅ done | KI-04 |
 | 37 | ~~KI-04: unify first-lap abort ordering — suufon-renda is checked after the call window on both front-ends (a call on the 4th discard voids it), and `callsMade === 0` keeps a stale accumulator from firing later~~ | ✅ done | KI-04 |
+| 38 | ~~KI-04: chombo-as-penalty on the server — allow the wait-changing ankan after riichi, warn the offender, settle the shared mangan penalty + replay (`chomboHand`); kakan-in-riichi stays refused~~ | ✅ done | KI-04, KI-15 |
 
 Item **23** is now *partly* done — the shared constants live in one place with a parity
 test — but merging the two orchestration loops is still open. **21** was its prerequisite
