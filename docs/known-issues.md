@@ -199,7 +199,9 @@ like one task and is not:
   tsumo/ron on both sides, and `manganPayment`/`nagashiPayments` cover the nagashi payout
   and the chombo penalty. What the turn loops still own is *when* to settle,
   not how the points move.
-- **Agari-yame, enchousen.** game.js only.
+- **Agari-yame, enchousen.** Both sides implement them; only the match-control
+  policy differs (the offline CLI prompts the dealer, the server auto-decides),
+  which is why they remain in the turn-loop divergence table rather than here.
 - **Oka/uma.** Not a front-end gap any more — the server sends raw scores and the client
   derives final standings with `applyOkaUma`, mirroring `engine/helpers.js`.
 - **Character powers.** `game.js --powers` drives a small inline `powerDraw()` and is

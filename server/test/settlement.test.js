@@ -579,6 +579,29 @@ test('the dealer rotation holds for every dealer seat', async () => {
   }
 });
 
+test('playOneHand replays a chombo at all-last without opening enchousen', async () => {
+  const t = makeHandRunner({ dealer: 0, kyoku: 4, winner: -3, winBy: { type: 'chombo', offender: 1 } });
+  t.totalRounds = 4;
+  t.checkKyuushu = () => -1; // isolate the chombo transition from a random deal-time abort
+  await t.playOneHand();
+  assert.equal(t.matchOver, false, 'the match is not over');
+  assert.equal(t.overtime, false, 'a chombo is not a dealer win and must not open enchousen');
+  assert.equal(t.dealer, 0, 'the dealer repeats');
+  assert.equal(t.honba, 0, 'chombo leaves honba unchanged');
+  assert.equal(t.kyoku, 4, 'the all-last hand replays');
+});
+
+test('playOneHand ends the match when the chombo penalty busts the offender', async () => {
+  const t = makeHandRunner({ dealer: 0, kyoku: 2, winner: -3, winBy: { type: 'chombo', offender: 1 } });
+  t.checkKyuushu = () => -1;
+  t.scores = [25000, 5000, 35000, 35000];
+  await t.playOneHand();
+  assert.equal(t.scores[1], -3000, 'the mangan penalty was applied first');
+  assert.equal(t.matchOver, true, 'a negative score after the penalty is a bust-out');
+  assert.equal(t.kyoku, 2, 'bust-out returns before the next-hand transition');
+  assert.equal(t.honba, 0);
+});
+
 // ----------------------------------------------------------- match teardown
 
 // These replace an earlier version that computed the expected redistribution in
