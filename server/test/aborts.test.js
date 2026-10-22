@@ -134,6 +134,17 @@ test('suufon-renda: incomplete accumulator plays on', () => {
   assert.equal(t.ctx.suufonDone, false);
 });
 
+test('suufon-renda: a call on the fourth discard voids the abort', () => {
+  // The rule is "four identical wind opens, no calls". A call on the 4th
+  // discard must therefore suppress the abort — including on a later quiet
+  // discard, where the still-full accumulator would otherwise fire.
+  const t = makeTable();
+  t.ctx.firstLapDiscards = ['1z', '1z', '1z', '1z'];
+  t.ctx.callsMade = 1;
+  assert.equal(t.checkLapAbort(), null);
+  assert.equal(t.ctx.suufonDone, false, 'not consumed; it simply can never fire');
+});
+
 // --------------------------------------------------------------- the switch
 
 // The abort flags were dead config for the whole life of rules-config.js (KI-04).

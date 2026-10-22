@@ -966,20 +966,6 @@ async function main() {
         winBy = { type: 'abort', reason };
         break;
       }
-      if (!suufonDone && firstLapDiscards.length === 4) {
-        suufonDone = true;
-        // Forced: the guard above still has to be satisfied for real, so this reaches
-        // the site through the genuine first-lap accumulator and only overrides the
-        // content test.
-        if (
-          MF.abortEnabled(RULES.aborts, 'suufonRenda') &&
-          (isSuufonRenda(firstLapDiscards) || forced('suufon-renda'))
-        ) {
-          winner = -2;
-          winBy = { type: 'abort', reason: `SUUFON-RENDA (${firstLapDiscards.join(' ')})` };
-          break;
-        }
-      }
       // --- pon / daiminkan / chi (break ippatsu for everyone) ---
       let called = false;
       for (let k = 1; k <= 3 && !called; k++) {
@@ -1141,6 +1127,24 @@ async function main() {
             turn = (nx + 1) % 4;
             continue;
           }
+        }
+      }
+      // Suufon-renda: the first four discards are one wind AND nobody called.
+      // Checked after the whole call window, not before it: a call on the 4th
+      // first-lap discard voids the abort (the accumulator itself only records
+      // while `callsMade === 0`). Ron has already taken precedence above.
+      if (!suufonDone && callsMade === 0 && firstLapDiscards.length === 4) {
+        suufonDone = true;
+        // Forced: the guard above still has to be satisfied for real, so this reaches
+        // the site through the genuine first-lap accumulator and only overrides the
+        // content test.
+        if (
+          MF.abortEnabled(RULES.aborts, 'suufonRenda') &&
+          (isSuufonRenda(firstLapDiscards) || forced('suufon-renda'))
+        ) {
+          winner = -2;
+          winBy = { type: 'abort', reason: `SUUFON-RENDA (${firstLapDiscards.join(' ')})` };
+          break;
         }
       }
       turn = (turn + 1) % 4;

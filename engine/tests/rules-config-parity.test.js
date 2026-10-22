@@ -134,6 +134,21 @@ test('both front-ends route the hand transition through match-flow', () => {
   assert.match(TABLE_JS, /MF\.postHandFlow\(/, 'server/table.js should use MF.postHandFlow');
 });
 
+test('suufon-renda is checked after the call window in both drivers', () => {
+  // The rule is "four identical wind opens, no calls". game.js used to check
+  // before its pon/chi window, so a callable 4th first-lap discard could still
+  // abort. table.js had the right ordering but no `callsMade` guard, so a call
+  // on the 4th discard left the full accumulator armed for a later quiet
+  // discard. Pin both halves.
+  const suufonAt = GAME_JS.indexOf('SUUFON-RENDA');
+  const calledAt = GAME_JS.indexOf('if (called) continue;');
+  const chiAt = GAME_JS.indexOf('CHI ${disc}');
+  assert.ok(suufonAt > 0 && calledAt > 0 && chiAt > 0, 'expected the sites in engine/game.js');
+  assert.ok(suufonAt > calledAt, 'game.js must check suufon after the pon/kan window');
+  assert.ok(suufonAt > chiAt, 'game.js must check suufon after the chi window');
+  assert.match(TABLE_JS, /ctx\.callsMade === 0 && firstLap\.length === 4/);
+});
+
 // --------------------------------------- the duplication does not come back
 
 test('engine/game.js settlement uses RULES, not literals', () => {

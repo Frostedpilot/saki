@@ -728,14 +728,13 @@ class Table {
   // First-lap abort check, called when a discard goes fully unclaimed (no ron,
   // no pon/chi/kan). Suucha-riichi (all four riichi) aborts on that discard;
   // suufon-renda aborts when the accumulated first discards are one wind four
-  // times. Returns the reason or null. Ron precedence is structural: ron wins
-  // return before this is ever consulted.
+  // times AND nobody called. Returns the reason or null. Ron precedence is
+  // structural: ron wins return before this is ever consulted.
   //
-  // Deliberate simplification vs engine/game.js: game.js checks before the
-  // pon/chi loop, so a callable 4th first-lap discard still aborts there. Here
-  // a claimed call returns first and no abort fires — matching the "no calls"
-  // letter of the rule at negligible divergence (the situation is unobserved
-  // in bot play).
+  // The `callsMade === 0` guard is the rule, not a shortcut: a call on the 4th
+  // first-lap discard voids suufon, and without the guard the already-full
+  // accumulator would fire on a later quiet discard. engine/game.js uses the
+  // same ordering (after its call window), so the two front-ends now agree.
   checkLapAbort() {
     const ctx = this.ctx;
     if (ctx.fourRiichiPending) {
@@ -745,7 +744,7 @@ class Table {
     // Defensive: older headless scaffolds (and any future partial ctx) may not
     // carry the first-lap accumulator. Missing means "no information", never abort.
     const firstLap = Array.isArray(ctx.firstLapDiscards) ? ctx.firstLapDiscards : [];
-    if (!ctx.suufonDone && firstLap.length === 4) {
+    if (!ctx.suufonDone && ctx.callsMade === 0 && firstLap.length === 4) {
       ctx.suufonDone = true;
       if (MF.abortEnabled(RULES.serverAborts, 'suufonRenda') && H.isSuufonRenda(firstLap)) {
         return 'SuufonRenda';

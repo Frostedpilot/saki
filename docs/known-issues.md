@@ -169,7 +169,7 @@ Both now read it (`engine/game.js`, `server/table.js`), so these cannot diverge:
 `engine/match-flow.js handOutcome` is the single hand→next-hand transition for both
 drivers (`game.js` calls it directly; `table.js` reaches it through `postHandFlow`).
 
-`engine/tests/rules-config-parity.test.js` (14 tests) keeps it that way. It asserts the
+`engine/tests/rules-config-parity.test.js` (15 tests) keeps it that way. It asserts the
 config is *imported and referenced* — not merely correct, which is the check that let
 the file stay dead — and fails if either front-end reintroduces a literal copy of one of
 the expressions above. Verified to bite: reinstating `+ 300 * honba` in `game.js` fails
@@ -185,11 +185,13 @@ like one task and is not:
   have different control architectures because one is a CLI and the other is a server.
   Merging them means rewriting both, not extracting a shared function — which is why
   item 23 was scoped at 2–3 days. The exact boundary, the intentional rule divergences
-  (abort ordering, chombo, nagashi dealer, tenhou window, powers) and a phased plan are
+  (chombo, tenhou window, ippatsu, powers) and a phased plan are
   in [`docs/turn-loop-merge.md`](turn-loop-merge.md).
 - **Abortive draws.** Both front-ends implement all five (see [KI-25](#ki-25)) and gate
   them through the shared `match-flow.js abortEnabled` switch; `Table`'s kyuushu path keeps
   one documented limitation (no deal-time prompt, so a human 9-kind hand auto-plays on).
+  Suufon-renda is now checked after the call window on both sides, because a call on the
+  4th first-lap discard voids it.
 - **Score arithmetic.** No longer duplicated: `match-flow.js winPayments` settles a
   tsumo/ron on both sides, and `manganPayment`/`nagashiPayments` cover the nagashi payout
   and the game.js-only chombo penalty. What the turn loops still own is *when* to settle,
@@ -403,7 +405,8 @@ agari-yame/enchousen (with overtime ryanhan-shibari via the shared
 
 - `checkKyuushu` (deal time, turn order, CPU 0.8 declare rate mirroring
   `game.js`), `checkLapAbort` (suucha-riichi pending flag + suufon-renda first-lap
-  accumulator, fired on fully-unclaimed discards so ron keeps precedence),
+  accumulator, fired on fully-unclaimed discards so ron keeps precedence, and gated on
+  `callsMade === 0` so a call on the 4th discard voids it),
   suukaikan via the shared `H.isSuukaikanAbort` at both kan sites, and chankan
   triple-ron.
 - One `abortHand(reason)` settlement for all six paths (void hand, sticks
@@ -1614,6 +1617,7 @@ Docs are consistent and CI is green. These are the remaining **code** items:
 | 34 | ~~KI-04 increment: share the dead-wall indicator layout (`match-flow.js doraIndicatorSlots`), replacing the `4 + kanCount * 2` / `5 + kanCount * 2` stride copied into both loops~~ | ✅ done | KI-04 |
 | 35 | ~~KI-04: make the remaining numeric config live (`canRiichi` → `RULES.riichiValue`/`minWallForRiichi`; both loops → `RULES.maxKan`/`rinshanSlots`), align rinshan temp-furiten, and record the turn-loop boundary in `docs/turn-loop-merge.md`~~ | ✅ done | KI-04 |
 | 36 | ~~KI-04: canonical `match-flow.js handOutcome` (win/abort/chombo/exhaustive, including nagashi dealer repeat); route the offline settlement through it and make `postHandFlow` delegate, so both front-ends share one transition policy~~ | ✅ done | KI-04 |
+| 37 | ~~KI-04: unify first-lap abort ordering — suufon-renda is checked after the call window on both front-ends (a call on the 4th discard voids it), and `callsMade === 0` keeps a stale accumulator from firing later~~ | ✅ done | KI-04 |
 
 Item **23** is now *partly* done — the shared constants live in one place with a parity
 test — but merging the two orchestration loops is still open. **21** was its prerequisite

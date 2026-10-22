@@ -45,7 +45,6 @@ sides must agree on one rule first.
 | Area | Offline | Server | Why it exists |
 | --- | --- | --- | --- |
 | Kyuushu prompt | human may abort or play on | humans auto play on (CPU may abort) | no deal-time prompt exists on the wire |
-| Abort ordering | suucha/suufon checked **before** the call window | checked **after** an unclaimed discard | a callable 4th first-lap discard aborts offline but is callable online |
 | Chombo | illegal ankan-after-riichi is a mangan penalty, replay | the kan is refused, hand continues | server cannot "undo" a committed action cleanly |
 | Tenhou window | `drawsThisKyoku <= 4` guard | `isFirstDraw` without that guard | offline guards a dealer-renchan edge |
 | Ippatsu | `ippatsuJustDeclared` survives the declaring discard | only `clearAllIppatsu` on calls | different expiry models |
@@ -62,6 +61,12 @@ The **nagashi dealer** question was resolved in favour of the server's reading: 
 mangan is a win, so the dealer repeats only when the dealer is one of the nagashi seats (a
 tenpai dealer does *not* also repeat if someone else nagashi'd). `handOutcome` now encodes
 that once for both drivers.
+
+The **first-lap aborts** are now ordered identically. Suufon-renda requires that no call
+was made, so both drivers check it after the call window — a call on the 4th first-lap
+discard voids it. Suucha-riichi is unaffected by the ordering: when all four players are in
+riichi, none of them can pon/chi/kan, so the only possible claim is ron, which takes
+precedence in both.
 
 ## If the merge is attempted: required adapter
 
@@ -113,8 +118,8 @@ own branch, and it will almost certainly change at least one rule.
 
 The deterministic layers are merged, including the hand outcome. The interactive drivers
 are deliberately separate: they encode genuinely different control models (blocking CLI vs
-awaited network phases) and a few still-different rules (abort ordering, chombo, powers,
-tenhou/ippatsu). Unifying the scheduling for its own sake would add a third abstraction and
+awaited network phases) and a few still-different rules (chombo, tenhou window, ippatsu,
+powers). Unifying the scheduling for its own sake would add a third abstraction and
 risk rule regressions with no player-visible benefit. If a specific divergence is wrong,
 fix that rule in both front-ends — that is the high-value work, and it is what the parity
 guards in `engine/tests/rules-config-parity.test.js` protect.
