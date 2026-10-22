@@ -1,7 +1,8 @@
 # Turn-loop merge (KI-04, audit item 23)
 
-**Status: deterministic layers merged, and the pure single-turn decisions (own kan, call
-candidates, call priority) are now shared; interactive scheduling is not merged, on purpose.** The
+**Status: deterministic layers merged, and the pure single-turn decisions (turn start,
+discard bookkeeping, own kan, call candidates, call priority) are now shared; interactive
+scheduling is not merged, on purpose.** The
 *rule* layer — including the canonical hand→next-hand outcome — is shared. The *interactive
 turn scheduling* is not. This document records the exact boundary, the divergences that
 make a naive merge unsafe, and the phased plan if it is ever attempted.
@@ -14,7 +15,7 @@ everything below. A change here cannot land in one side only:
 | Layer | Module | Notes |
 | --- | --- | --- |
 | Rule predicates | `engine/helpers.js` | waits, furiten, ron, bot brains, chis, aborts, nagashi, oka/uma, riichi eligibility |
-| Single-turn decisions | `engine/turn-core.js` | own-kan availability, call candidates, call priority; both drivers call it |
+| Single-turn decisions | `engine/turn-core.js` | turn start/tenhou window, discard + ippatsu bookkeeping, own-kan availability, call candidates, call priority |
 | Hand transition | `engine/match-flow.js` | `handOutcome` (canonical) and `postHandFlow` (adapter); dealer repeat, honba, kyoku |
 | Score arithmetic | `engine/match-flow.js` | `winPayments`, `manganPayment`, `nagashiPayments`, `notenPayments` |
 | Abort switch | `engine/match-flow.js` | `abortEnabled` (`RULES.aborts` / `RULES.serverAborts`) |
@@ -48,8 +49,7 @@ sides must agree on one rule first.
 | Area | Offline | Server | Why it exists |
 | --- | --- | --- | --- |
 | Kyuushu prompt | human may abort or play on | humans auto play on (CPU may abort) | no deal-time prompt exists on the wire |
-| Tenhou window | `drawsThisKyoku <= 4` guard | `isFirstDraw` without that guard | offline guards a dealer-renchan edge |
-| Ippatsu | `ippatsuJustDeclared` survives the declaring discard | only `clearAllIppatsu` on calls | different expiry models |
+| Ippatsu expiry | `resolveDiscard('declarer-discard')` | `resolveDiscard('calls-only')` | the server keeps the calls-only model; the policy is explicit in `turn-core` |
 | Agari-yame / enchousen | dealer is prompted; overtime persisted explicitly | auto-end if dealer leads; overtime exits on rotation | human vs bot match control |
 | Powers | inline `powerDraw` rig (kuro/saki/yuuki/koromo/hisa) | `engine/powers` roster + FlowManager | two different feature sets |
 | Draw model | pre-shuffled array, `pop()` | `DynamicPool` weighted sampling | deterministic replay vs weightable draws |
@@ -119,11 +119,11 @@ resolves early on a ron, while the CLI asks them in seat order. The adapter must
    not.
 3. **Single-turn core.** Extract `beginTurn` / `resolveDiscard` / `resolveCalls` as pure
    functions over a canonical state, still driven by each loop. This is where most of the
-   duplication is. *Partly done: `engine/turn-core.js` owns own-kan availability
-   (`kanOptions`), the call window (`callCandidates`) and priority arbitration
-   (`arbitrateCalls`), and both drivers call it. Still to extract: `beginTurn` (turn-start
-   flags and draw bookkeeping) and `resolveDiscard` (first-lap/ippatsu bookkeeping) as a
-   canonical reducer.*
+   duplication is. **Done.** `engine/turn-core.js` owns `beginTurn` (first-draw/tenhou
+   window, last draw, tsumo flags), `resolveDiscard` (first-lap accumulation and the
+   explicit ippatsu policy), `kanOptions` (own kan), `callCandidates` (ron/pon/daiminkan/
+   chi) and `arbitrateCalls` (priority). Both drivers call it. What remains is the
+   scheduling itself: phase 4.
 4. **Shared driver.** Only after 1–3: one `playHand(adapter)` and two thin adapters.
 5. **Delete the old loops** and the parity guards that existed only to keep them honest.
 
@@ -132,9 +132,10 @@ own branch, and it will almost certainly change at least one rule.
 
 ## Decision
 
-The deterministic layers are merged, including the hand outcome. The interactive drivers
+The deterministic layers are merged, including the hand outcome and the single-turn
+decisions. The interactive drivers
 are deliberately separate: they encode genuinely different control models (blocking CLI vs
-awaited network phases) and a few still-different rules (tenhou window, ippatsu, powers).
+awaited network phases) and a few still-different rules (ippatsu, powers).
 Unifying the scheduling for its own sake would add a third abstraction and risk rule
 regressions with no player-visible benefit. If a specific divergence is wrong, fix that
 rule in both front-ends — that is the high-value work, and it is what the parity guards in

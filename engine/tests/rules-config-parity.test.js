@@ -247,14 +247,16 @@ test('the two front-ends settle a riichi declaration identically', () => {
 });
 
 test('both front-ends route single-turn decisions through turn-core', () => {
-  // Phase 3 extraction (KI-04). The call window and own-kan rules used to be
-  // copied into both loops; these asserts fail if either side reintroduces a
-  // local decision instead of calling the shared module.
+  // Phase 3 extraction (KI-04). Turn start, discard bookkeeping, the call window
+  // and own-kan rules used to be copied into both loops; these asserts fail if
+  // either side reintroduces a local decision instead of calling the shared module.
   for (const [name, src] of [
     ['engine/game.js', GAME_SETTLEMENT],
     ['server/table.js', TABLE_JS],
   ]) {
     assert.match(src, /require\(['"][^'"]*turn-core['"]\)/, `${name} should import turn-core`);
+    assert.match(src, /TC\.beginTurn\(/, `${name} should use TC.beginTurn`);
+    assert.match(src, /TC\.resolveDiscard\(/, `${name} should use TC.resolveDiscard`);
     assert.match(src, /TC\.kanOptions\(/, `${name} should use TC.kanOptions`);
     assert.match(src, /TC\.callCandidates\(/, `${name} should use TC.callCandidates`);
   }

@@ -862,7 +862,11 @@ class Table {
 
   isFirstDraw(me) {
     const c = this.ctx;
-    return c.drawsThisKyoku <= 4 && c.callsMade === 0 && me.discards.length === 0 && me.melds.length === 0;
+    return TC.beginTurn(me, {
+      callsMade: c.callsMade,
+      drawsThisKyoku: c.drawsThisKyoku,
+      wallLeft: c.poolTotal(),
+    }).firstDraw;
   }
 
   canRiichiNow(me) {
@@ -942,7 +946,12 @@ class Table {
     const me = players[seat];
     ctx.drawsThisKyoku++;
     H.clearTempFuritenOnDraw(me); // permanent furiten while riichi: never clears
-    const isLastDraw = ctx.poolTotal() === 1;
+    const turnStart = TC.beginTurn(me, {
+      callsMade: ctx.callsMade,
+      drawsThisKyoku: ctx.drawsThisKyoku,
+      wallLeft: ctx.poolTotal(),
+    });
+    const isLastDraw = turnStart.isLastDraw;
 
     // Check turn power tier activation
     this.maybeActivateTurnPower(seat);
@@ -952,8 +961,8 @@ class Table {
     if (drawn === null) return { end: true, winner: -1, winBy: null };
     me.lastDrawn = drawn;
 
-    const firstDraw = this.isFirstDraw(me);
-    const tsumoFlagsThis = { tsumo: true, kan: false, last: isLastDraw, tenhou: firstDraw };
+    const firstDraw = turnStart.firstDraw;
+    const tsumoFlagsThis = turnStart.tsumoFlags;
     const tsumoScore = this.scoreFor(seat, drawn, tsumoFlagsThis);
     const wantTsumo = this.isAWin(tsumoScore) && this.winMeetsFloor(tsumoScore);
     const tsumoReason = wantTsumo ? null : this.tsumoBlockReason(seat, tsumoScore);
@@ -1198,11 +1207,19 @@ class Table {
     me.lastDrawn = null;
     me.discards.push(removed);
     this.assertConserved(`after seat ${seat} discarded ${removed}`);
-    // Suufon-renda accumulator: first discard of each seat while no call has
-    // been made yet. Mirrors engine/game.js firstLapDiscards.
-    if (ctx.callsMade === 0 && me.discards.length === 1 && !ctx.suufonDone) {
-      ctx.firstLapDiscards.push(removed);
-    }
+    // Suufon-renda accumulator and ippatsu expiry: shared bookkeeping.
+    // The server keeps its calls-only ippatsu model (see turn-loop-merge.md).
+    const discard = TC.resolveDiscard({
+      callsMade: ctx.callsMade,
+      suufonDone: ctx.suufonDone,
+      discardsCount: me.discards.length,
+      ippatsu: me.ippatsu,
+      ippatsuJustDeclared: me.ippatsuJustDeclared,
+      ippatsuExpiry: 'calls-only',
+    });
+    me.ippatsu = discard.ippatsu;
+    me.ippatsuJustDeclared = discard.ippatsuJustDeclared;
+    if (discard.firstLap) ctx.firstLapDiscards.push(removed);
     if (ctx.state.flow && typeof ctx.state.flow.onLegalDiscard === 'function') {
       ctx.state.flow.onLegalDiscard(seat);
     }

@@ -91,7 +91,7 @@ saki/
 │   ├── rng.js               deterministic seeded RNG (mulberry32)
 │   ├── rules-config.js      rules as data (shared by game.js and table.js)
 │   ├── match-flow.js        shared hand-transition table (dealer/honba/kyoku/noten/han floor)
-│   ├── turn-core.js         shared single-turn decisions (own kan, call candidates, priority)
+│   ├── turn-core.js         shared single-turn decisions (turn start, discard, kan, calls)
 │   ├── invariants.js        per-turn tile-conservation checks
 │   ├── replay.js            deterministic action journal + verifier
 │   ├── input.js             human discard-index parsing
@@ -146,7 +146,7 @@ via Node's built-in test runner.
 
 ```bash
 npm test              # everything CI runs
-npm run test:engine   # 435 tests + 48 rule checks
+npm run test:engine   # 437 tests + 48 rule checks
 npm run test:server   # 135 server tests
 npm run test:scripts  # 6 dev-script tests
 npm run test:client   # 244 client tests + tsc type-check

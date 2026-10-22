@@ -622,7 +622,9 @@ async function main() {
         );
       }
     };
-    const isFirstTurn = () => callsMade === 0 && drawsThisKyoku <= 4;
+    // Double-riichi eligibility uses the same first-draw window as tenhou
+    // (shared in turn-core.beginTurn), instead of a local calls/draws copy.
+    const isFirstTurn = (pl) => TC.beginTurn(pl, { callsMade, drawsThisKyoku, wallLeft: wallFull.length }).firstDraw;
     // Ron collection: EVERY eligible player wins (double ron), furiten
     // enforced, human prompted per seat, turn-ordered. 3 winners = triple
     // ron (caller handles as abortive draw). flags: {houtei, chankan, label}
@@ -707,13 +709,16 @@ async function main() {
       // remainder of the kyoku, so the flag must NOT clear on their draws.
       // Shared with the server (helpers.js) so the two cannot drift.
       clearTempFuritenOnDraw(me);
+      const turnStart = TC.beginTurn(me, {
+        callsMade,
+        drawsThisKyoku,
+        wallLeft: wallFull.length,
+      });
       ctx.jikaze = jikazeOf(turn);
-      const isLastDraw = wallFull.length === 1;
+      const isLastDraw = turnStart.isLastDraw;
       const t = powerDraw(wallFull, me.hand, me.power, ctx);
       if (!t) break;
       me.hand.push(t);
-      const firstDrawOfKyoku =
-        me.discards.length === 0 && me.melds.length === 0 && callsMade === 0 && drawsThisKyoku <= 4;
 
       // --- kakan (added kan): pon meld + 4th tile in hand ---
       // Shared own-kan rule (turn-core.js): the kan budget and rinshan budget
@@ -878,8 +883,8 @@ async function main() {
         doubleRiichi: me.doubleRiichi,
         ippatsu: me.ippatsu,
         kanFlag: afterKan,
-        lastFlag: isLastDraw && !afterKan,
-        tenhou: firstDrawOfKyoku && !afterKan,
+        lastFlag: turnStart.tsumoFlags.last && !afterKan,
+        tenhou: turnStart.tsumoFlags.tenhou && !afterKan,
       };
       const tr = afterKan ? null : scoreHand(me.hand, me.melds, t, true, tsumoFlags);
       const tsumoOk = tr && tr.isAgari && (tr.yakuman > 0 || tr.han >= minHan);
@@ -922,7 +927,7 @@ async function main() {
           if (q.toLowerCase().startsWith('y') && canRiichi(scores[turn], wallFull.length)) {
             declareRiichi(
               me,
-              isFirstTurn(),
+              isFirstTurn(me),
               me.hand.filter((_, i) => i !== di)
             );
           } else if (q.toLowerCase().startsWith('y')) console.log('  riichi denied (need 1000pts + 4 wall tiles)');
@@ -938,7 +943,7 @@ async function main() {
             if (Math.random() < riichiP)
               declareRiichi(
                 me,
-                isFirstTurn(),
+                isFirstTurn(me),
                 me.hand.filter((_, i) => i !== di)
               );
           }
@@ -948,9 +953,19 @@ async function main() {
       me.discards.push(disc);
       assertConserved(`after ${names[turn]} discarded ${disc}`);
       // Ippatsu survives the declaring discard and expires on the declarer's
-      // next discard (or on any call via clearAllIppatsu).
-      if (me.ippatsuJustDeclared) me.ippatsuJustDeclared = false;
-      else me.ippatsu = false; // one lap over for declarer
+      // next discard (or on any call via clearAllIppatsu); first-lap tracking
+      // is shared with the server. The ippatsu policy is explicit because the
+      // server still uses a calls-only model (see turn-loop-merge.md).
+      const discard = TC.resolveDiscard({
+        callsMade,
+        suufonDone,
+        discardsCount: me.discards.length,
+        ippatsu: me.ippatsu,
+        ippatsuJustDeclared: me.ippatsuJustDeclared,
+        ippatsuExpiry: 'declarer-discard',
+      });
+      me.ippatsu = discard.ippatsu;
+      me.ippatsuJustDeclared = discard.ippatsuJustDeclared;
       const isHoutei = wallFull.length === 0;
       if (draws % 8 === 0 || me.riichi)
         console.log(
@@ -958,7 +973,7 @@ async function main() {
         );
       else console.log(`  ${names[turn]} cut ${disc} (sh=${shantenOf(me.hand)})`);
       // suufon-renda tracking: first discard of each seat while no call made yet
-      if (callsMade === 0 && me.discards.length === 1) firstLapDiscards.push(disc);
+      if (discard.firstLap) firstLapDiscards.push(disc);
 
       // --- ron check: double ron possible, triple ron aborts, furiten enforced ---
       const hits = await collectRon(disc, turn, { houtei: isHoutei, minHan });
@@ -1191,10 +1206,14 @@ async function main() {
     function tsumoWin(pl, seat, r0, rinshan, haitei) {
       // Tenhou/chihou eligibility is a single definition: closed first-draw
       // win with no calls having been made. The payment must use the same
-      // test as the draw-time eligibility (firstDrawOfKyoku), not a looser
+      // test as the draw-time eligibility (turn-core.beginTurn), not a looser
       // copy that tolerates a meld or a call.
       const tenhouEligible =
-        pl.discards.length === 0 && pl.melds.length === 0 && callsMade === 0 && drawsThisKyoku <= 4 && !rinshan;
+        TC.beginTurn(pl, {
+          callsMade,
+          drawsThisKyoku,
+          wallLeft: wallFull.length,
+        }).firstDraw && !rinshan;
       const r = rescore(pl, pl.hand, pl.melds, null, true, {
         bakaze,
         jikaze: jikazeOf(seat),

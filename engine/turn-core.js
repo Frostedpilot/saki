@@ -20,6 +20,54 @@ const { norm, same } = require('./tiles');
 const { tryRon, chiOptions } = require('./helpers');
 const { RULES } = require('./rules-config');
 
+// Turn-start bookkeeping. Both drivers ask the same questions before a draw:
+// may this seat claim tenhou/chihou (the first four uninterrupted draws), is
+// this the last draw of the wall, and what tsumo flags does scoring need?
+//
+// `wallLeft` is the live-wall count *before* the draw. `tenhouWindow` is
+// explicit because it is the one place the two drivers historically differed;
+// both now use four (server `isFirstDraw`, CLI `firstDrawOfKyoku`), so the
+// default is the shared rule, not a per-driver policy.
+function beginTurn(me, opts = {}) {
+  const callsMade = opts.callsMade ?? 0;
+  const drawsThisKyoku = opts.drawsThisKyoku ?? 0;
+  const wallLeft = opts.wallLeft ?? 0;
+  const tenhouWindow = opts.tenhouWindow ?? 4;
+  const firstDraw =
+    !!me &&
+    (me.discards || []).length === 0 &&
+    (me.melds || []).length === 0 &&
+    callsMade === 0 &&
+    drawsThisKyoku <= tenhouWindow;
+  const isLastDraw = wallLeft === 1;
+  return {
+    firstDraw,
+    isLastDraw,
+    tsumoFlags: { tsumo: true, kan: false, last: isLastDraw, tenhou: firstDraw },
+  };
+}
+
+// Discard bookkeeping. The first-lap accumulator feeds suufon-renda: the first
+// discard of each seat, only while no call has been made. The ippatsu expiry is
+// an explicit policy because the two drivers do not agree on it yet:
+//
+//   'declarer-discard' (CLI)  -- the declaring discard does not end ippatsu;
+//                                the declarer's next discard does.
+//   'calls-only' (server)     -- only a call clears ippatsu (documented
+//                                divergence in docs/turn-loop-merge.md).
+//
+// Pure: the caller writes the returned flags back onto its player object.
+function resolveDiscard(input = {}) {
+  const firstLap = (input.callsMade ?? 0) === 0 && (input.discardsCount ?? 0) === 1 && !input.suufonDone;
+  let ippatsu = !!input.ippatsu;
+  let ippatsuJustDeclared = !!input.ippatsuJustDeclared;
+  if (input.ippatsuExpiry === 'declarer-discard') {
+    if (ippatsuJustDeclared) ippatsuJustDeclared = false;
+    else ippatsu = false;
+  }
+  return { firstLap, ippatsu, ippatsuJustDeclared };
+}
+
 // Own-turn kan availability. `me.hand` is the 14-tile hand (the draw included).
 // The kan budget is checked before the hand is inspected because both drivers
 // treat "limit reached" as "no kan offer at all", not as an illegal choice.
@@ -181,6 +229,8 @@ function arbitrateCalls({ from, candidates, responses }) {
 }
 
 module.exports = {
+  beginTurn,
+  resolveDiscard,
   kanOptions,
   ponOptions,
   callCandidates,

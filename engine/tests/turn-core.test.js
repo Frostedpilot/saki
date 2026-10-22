@@ -56,6 +56,51 @@ function call(overrides, extra = {}) {
   });
 }
 
+test('beginTurn: first draw window, last draw, and tsumo flags', () => {
+  const me = pl(['1m']);
+
+  const open = TC.beginTurn(me, { callsMade: 0, drawsThisKyoku: 1, wallLeft: 69 });
+  assert.equal(open.firstDraw, true);
+  assert.equal(open.isLastDraw, false);
+  assert.deepEqual(open.tsumoFlags, { tsumo: true, kan: false, last: false, tenhou: true });
+
+  const last = TC.beginTurn(me, { callsMade: 0, drawsThisKyoku: 4, wallLeft: 1 });
+  assert.equal(last.firstDraw, true);
+  assert.equal(last.isLastDraw, true);
+  assert.deepEqual(last.tsumoFlags, { tsumo: true, kan: false, last: true, tenhou: true });
+
+  const late = TC.beginTurn(me, { callsMade: 0, drawsThisKyoku: 5, wallLeft: 1 });
+  assert.equal(late.firstDraw, false);
+  assert.deepEqual(late.tsumoFlags, { tsumo: true, kan: false, last: true, tenhou: false });
+
+  assert.equal(TC.beginTurn(pl([], { discards: ['1m'] }), { drawsThisKyoku: 1 }).firstDraw, false);
+  assert.equal(TC.beginTurn(pl([], { melds: [{ type: 'pon' }] }), { drawsThisKyoku: 1 }).firstDraw, false);
+  assert.equal(TC.beginTurn(me, { callsMade: 1, drawsThisKyoku: 1 }).firstDraw, false);
+});
+
+test('resolveDiscard: first-lap tracking and the explicit ippatsu policies', () => {
+  assert.equal(TC.resolveDiscard({ callsMade: 0, discardsCount: 1, suufonDone: false }).firstLap, true);
+  assert.equal(TC.resolveDiscard({ callsMade: 1, discardsCount: 1 }).firstLap, false);
+  assert.equal(TC.resolveDiscard({ callsMade: 0, discardsCount: 2 }).firstLap, false);
+  assert.equal(TC.resolveDiscard({ callsMade: 0, discardsCount: 1, suufonDone: true }).firstLap, false);
+
+  // calls-only: the server's model leaves ippatsu alone on a discard.
+  const callsOnly = TC.resolveDiscard({ ippatsu: true, ippatsuJustDeclared: true });
+  assert.equal(callsOnly.ippatsu, true);
+  assert.equal(callsOnly.ippatsuJustDeclared, true);
+
+  // declarer-discard: the declaring discard does not end ippatsu; the next does.
+  const declaring = TC.resolveDiscard({
+    ippatsu: true,
+    ippatsuJustDeclared: true,
+    ippatsuExpiry: 'declarer-discard',
+  });
+  assert.equal(declaring.ippatsu, true);
+  assert.equal(declaring.ippatsuJustDeclared, false);
+  const next = TC.resolveDiscard({ ippatsu: true, ippatsuJustDeclared: false, ippatsuExpiry: 'declarer-discard' });
+  assert.equal(next.ippatsu, false);
+});
+
 test('kanOptions: ankan from four copies, kakan from a pon plus the fourth', () => {
   const ankan = TC.kanOptions(pl(['1m', '1m', '1m', '1m', '2p']), {});
   assert.equal(ankan.ankanTile, '1m');

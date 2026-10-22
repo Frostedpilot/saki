@@ -139,7 +139,7 @@ It is less reliable as a runtime for us (new stack, own matcher bugs to own).
   *(Server and offline turn loops are still separate state machines.)*
 - Phase 5: `engine/replay.js` (journal + `verifyJournal` via `core.js`);
   covered in `rules.test.js` incl. tamper rejection. *(No persistence to disk.)*
-- Full suite: `node --test tests/*.test.js` **435 pass / 0 fail** + `game.js --selftest`
+- Full suite: `node --test tests/*.test.js` **437 pass / 0 fail** + `game.js --selftest`
   **48 checks**; server `npm test` **135 pass / 0 fail**; dev scripts `npm run test:scripts`
   **6 pass**. (Use the glob form — a bare
   directory argument is rejected by Node 22; see `docs/development.md` §5.)
