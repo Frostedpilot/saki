@@ -150,8 +150,9 @@ server's `chomboHand`; kakan-in-riichi stays refused on both). Phase 3 is now do
 availability (`kanOptions`), the call window (`callCandidates`) and call priority
 (`arbitrateCalls`). Both loops call it, so "riichi seats cannot call", "a daiminkan needs
 three copies and kan budget", "chi is shimocha-only" and "ron beats pon/kan beats chi,
-nearest wins" have one definition; the ippatsu-expiry difference is now an explicit policy
-argument rather than a hidden copy. What still differs is the **turn loop**: `game.js`'s
+nearest wins" have one definition; the server's ippatsu expiry now matches the CLI — the
+declaring discard keeps ippatsu, the declarer's next discard clears it, and any call clears
+it earlier. What still differs is the **turn loop**: `game.js`'s
 `main()` and
 `server/table.js`'s `Table` each drive a hand's turn sequence independently — a sync CLI
 versus an async phase machine — and that scheduling is not shared. The boundary and the
@@ -195,8 +196,8 @@ like one task and is not:
   have different control architectures because one is a CLI and the other is a server.
   The *decisions* are now shared (`turn-core`), but the *scheduling* is not, so merging
   the loops still means rewriting both rather than extracting a shared function — which
-  is why item 23 was scoped at 2–3 days. The exact boundary, the intentional rule
-  divergences (tenhou window, ippatsu, powers) and a phased plan are
+  is why item 23 was scoped at 2–3 days. The exact boundary, the remaining intentional
+  divergences (powers, draw model, kyuushu prompt) and a phased plan are
   in [`docs/turn-loop-merge.md`](turn-loop-merge.md).
 - **Abortive draws.** Both front-ends implement all five (see [KI-25](#ki-25)) and gate
   them through the shared `match-flow.js abortEnabled` switch; `Table`'s kyuushu path keeps
@@ -1645,6 +1646,7 @@ Docs are consistent and CI is green. These are the remaining **code** items:
 | 38 | ~~KI-04: chombo-as-penalty on the server — allow the wait-changing ankan after riichi, warn the offender, settle the shared mangan penalty + replay (`chomboHand`); kakan-in-riichi stays refused~~ | ✅ done | KI-04, KI-15 |
 | 39 | ~~KI-04 phase 3a: share the pure single-turn decisions — `engine/turn-core.js` owns own-kan availability (`kanOptions`), call candidates (`callCandidates`) and call priority (`arbitrateCalls`); both `game.js` and `table.js` call it, replacing the inline duplicates~~ | ✅ done | KI-04 |
 | 40 | ~~KI-04 phase 3b: finish the shared single-turn core — `beginTurn` (first-draw/tenhou window, last draw, tsumo flags) and `resolveDiscard` (first-lap accumulation, ippatsu expiry as an explicit policy); both drivers route through them, and the stale tenhou-window divergence entry is removed~~ | ✅ done | KI-04 |
+| 41 | ~~KI-04 rule parity: unify ippatsu expiry — the server now uses the standard declarer-discard model (the declaring discard keeps ippatsu, the next discard clears it, any call clears it earlier), instead of only clearing on calls~~ | ✅ done | KI-04 |
 
 Item **23** is now *partly* done — the shared rules and single-turn decisions live in one
 place with parity tests — but merging the two orchestration loops is still open. **21** was its prerequisite

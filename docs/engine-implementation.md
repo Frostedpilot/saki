@@ -158,12 +158,13 @@ Per turn (`engine/game.js` turn body; `Table.playTurn` in `server/table.js`):
    `engine/tests/furiten-riichi.test.js`. (An earlier revision of this document
    described this as an open bug; it was fixed.)
 2. `ctx.jikaze = jikazeOf(turn)`.
-3. `isLastDraw = wallFull.length == 1`.
+3. `turnStart = TC.beginTurn(me, { callsMade, drawsThisKyoku, wallLeft:
+   wallFull.length })`; `isLastDraw = turnStart.isLastDraw`.
 4. `t = wall.pop()` (offline) or `core.executeDrawStep(seat, state)` (server:
    trajectory → `computeDrawWeights` → `pool.sample` → push to hand →
    `onPostDraw`). Returns `null` when empty → hand ends.
-5. `me.hand.push(t)`; compute `firstDrawOfKyoku` (no discards/melds, no calls,
-   `drawsThisKyoku<=4`).
+5. `me.hand.push(t)`; `firstDrawOfKyoku = turnStart.firstDraw` (closed hand, no
+   calls, `drawsThisKyoku<=4`).
 
 ### 4.1 Kan declaration on the drawn turn (§5 covers resolution)
 
@@ -178,15 +179,16 @@ Per turn (`engine/game.js` turn body; `Table.playTurn` in `server/table.js`):
 
 ### 4.2 Tsumo check — `engine/game.js` `tsumoOk` / `tsumoWin`
 
-Build `tsumoFlags` with `riichi/doubleRiichi/ippatsu`, `kanFlag=afterKan`,
-`lastFlag=isLastDraw && !afterKan`, `tenhou=firstDraw && !afterKan`.
+Build `tsumoFlags` from `turnStart.tsumoFlags`, then set
+`riichi/doubleRiichi/ippatsu`, `kanFlag=afterKan`, `lastFlag=turnStart.tsumoFlags.last
+&& !afterKan`, `tenhou=turnStart.tsumoFlags.tenhou && !afterKan`.
 `scoreHand(hand, melds, t, true, flags)`; win requires
 `isAgari && (yakuman>0 || han>=minHan)` where `minHan` is 2 in overtime
 (ryanhan-shibari) and 1 otherwise, computed once per kyoku. Humans confirm;
 bots always declare (offline) or via `wantTsumo` (server). Win path calls
 `tsumoWin()`, which **rescores** with `finalDoraFor()` (ura added only for riichi
-winners) and corrects `tenhou` to
-`discards==0 && melds<=1 && callsMade<=1 && draws<=4`.
+winners) and re-derives tenhou through the same `TC.beginTurn` call with
+`!rinshan`.
 
 ### 4.3 Discard + riichi
 
@@ -197,10 +199,13 @@ winners) and corrects `tenhou` to
   epsilon-random disagreement): closed hand, some discard leaves 0-shanten,
   `canRiichi(score, wallLeft)` = `score>=1000 && wallLeft>=4`
   (`engine/helpers.js`), probability 0.45 (or 1.0 with `--riichi-always`).
-  Humans confirm; `declareRiichi()` sets `riichi/doubleRiichi(first-turn)/ippatsu`,
-  subtracts 1000 pts to `riichiPool`, snapshots `riichiWaits` via `getWaits`,
-  and arms `fourRiichiPending` when all four are riichi.
-- After the cut: `me.ippatsu=false` for the discarder (one lap over).
+  Humans confirm; `declareRiichi()` sets
+  `riichi/doubleRiichi(first-turn)/ippatsu/ippatsuJustDeclared`, subtracts 1000
+  pts to `riichiPool`, snapshots `riichiWaits` via `getWaits`, and arms
+  `fourRiichiPending` when all four are riichi.
+- After the cut: `turn-core.resolveDiscard` keeps ippatsu on the declaring
+  discard (`ippatsuJustDeclared`) and clears it on the declarer's next
+  discard. The server uses the same reducer.
 - `isHoutei = wallFull.length == 0` is captured for the following ron check.
 - Server validates the same rules in `Table.validateAct`: open hand cannot
   riichi, tenpai discard required, riichi player may only tsumogiri, tile must
@@ -290,14 +295,14 @@ suukaikan check, rinshan draw `dead[rinshanIdx++]`, rinshan tsumo check with
 
 ### 7.1 Riichi extras
 
-- Double riichi: `isFirstTurn()` = `callsMade==0 && drawsThisKyoku<=4`
-  (`engine/game.js`); server `Table.isFirstDraw` also requires no
-  discards/melds.
-- Ippatsu: set on riichi, cleared for everyone on any call (`clearAllIppatsu`),
-  and for the declarer on their next discard. Ura dora revealed only for riichi
-  winners at rescore (`finalDoraFor`).
-- Tenhou/chihou: the `firstDrawOfKyoku` flag flows into the `tenhou` ctx;
-  `tsumoWin` re-derives it strictly.
+- Double riichi and tenhou/chihou share `turn-core.beginTurn`: closed hand, no
+  calls, and `drawsThisKyoku <= 4`. The CLI's double-riichi test and
+  `Table.isFirstDraw` both delegate to it; `tsumoWin` re-derives tenhou through
+  the same call rather than a looser copy.
+- Ippatsu: set on riichi; the declaring discard keeps it, the declarer's next
+  discard clears it (`turn-core.resolveDiscard`), and any call clears it for
+  everyone (`clearAllIppatsu`). The server now uses the same model. Ura dora is
+  revealed only for riichi winners at rescore (`finalDoraFor`).
 
 ### 7.2 Abortive draws
 

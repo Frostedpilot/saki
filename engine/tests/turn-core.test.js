@@ -78,27 +78,22 @@ test('beginTurn: first draw window, last draw, and tsumo flags', () => {
   assert.equal(TC.beginTurn(me, { callsMade: 1, drawsThisKyoku: 1 }).firstDraw, false);
 });
 
-test('resolveDiscard: first-lap tracking and the explicit ippatsu policies', () => {
+test('resolveDiscard: first-lap tracking and ippatsu expiry', () => {
   assert.equal(TC.resolveDiscard({ callsMade: 0, discardsCount: 1, suufonDone: false }).firstLap, true);
   assert.equal(TC.resolveDiscard({ callsMade: 1, discardsCount: 1 }).firstLap, false);
   assert.equal(TC.resolveDiscard({ callsMade: 0, discardsCount: 2 }).firstLap, false);
   assert.equal(TC.resolveDiscard({ callsMade: 0, discardsCount: 1, suufonDone: true }).firstLap, false);
 
-  // calls-only: the server's model leaves ippatsu alone on a discard.
-  const callsOnly = TC.resolveDiscard({ ippatsu: true, ippatsuJustDeclared: true });
-  assert.equal(callsOnly.ippatsu, true);
-  assert.equal(callsOnly.ippatsuJustDeclared, true);
-
-  // declarer-discard: the declaring discard does not end ippatsu; the next does.
-  const declaring = TC.resolveDiscard({
-    ippatsu: true,
-    ippatsuJustDeclared: true,
-    ippatsuExpiry: 'declarer-discard',
-  });
+  // The declaring discard keeps ippatsu; the declarer's next discard clears it.
+  const declaring = TC.resolveDiscard({ ippatsu: true, ippatsuJustDeclared: true });
   assert.equal(declaring.ippatsu, true);
   assert.equal(declaring.ippatsuJustDeclared, false);
-  const next = TC.resolveDiscard({ ippatsu: true, ippatsuJustDeclared: false, ippatsuExpiry: 'declarer-discard' });
+  const next = TC.resolveDiscard({ ippatsu: true, ippatsuJustDeclared: false });
   assert.equal(next.ippatsu, false);
+
+  // A call already cleared it; a later discard must not resurrect it.
+  const afterCall = TC.resolveDiscard({ ippatsu: false, ippatsuJustDeclared: false });
+  assert.equal(afterCall.ippatsu, false);
 });
 
 test('kanOptions: ankan from four copies, kakan from a pon plus the fourth', () => {

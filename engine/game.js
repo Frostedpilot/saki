@@ -962,7 +962,6 @@ async function main() {
         discardsCount: me.discards.length,
         ippatsu: me.ippatsu,
         ippatsuJustDeclared: me.ippatsuJustDeclared,
-        ippatsuExpiry: 'declarer-discard',
       });
       me.ippatsu = discard.ippatsu;
       me.ippatsuJustDeclared = discard.ippatsuJustDeclared;

@@ -1145,6 +1145,9 @@ class Table {
     me.riichi = true;
     me.doubleRiichi = !!riichiFirst;
     me.ippatsu = true;
+    // The declaring discard itself must not clear ippatsu; the next discard
+    // does (shared resolveDiscard). Any call in between clears both.
+    me.ippatsuJustDeclared = true;
     this.scores[seat] -= RULES.riichiValue;
     ctx.riichiPool += RULES.riichiValue;
     if (ctx.players.every((p) => p.riichi)) {
@@ -1208,14 +1211,12 @@ class Table {
     me.discards.push(removed);
     this.assertConserved(`after seat ${seat} discarded ${removed}`);
     // Suufon-renda accumulator and ippatsu expiry: shared bookkeeping.
-    // The server keeps its calls-only ippatsu model (see turn-loop-merge.md).
     const discard = TC.resolveDiscard({
       callsMade: ctx.callsMade,
       suufonDone: ctx.suufonDone,
       discardsCount: me.discards.length,
       ippatsu: me.ippatsu,
       ippatsuJustDeclared: me.ippatsuJustDeclared,
-      ippatsuExpiry: 'calls-only',
     });
     me.ippatsu = discard.ippatsu;
     me.ippatsuJustDeclared = discard.ippatsuJustDeclared;

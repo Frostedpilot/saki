@@ -48,24 +48,20 @@ function beginTurn(me, opts = {}) {
 }
 
 // Discard bookkeeping. The first-lap accumulator feeds suufon-renda: the first
-// discard of each seat, only while no call has been made. The ippatsu expiry is
-// an explicit policy because the two drivers do not agree on it yet:
-//
-//   'declarer-discard' (CLI)  -- the declaring discard does not end ippatsu;
-//                                the declarer's next discard does.
-//   'calls-only' (server)     -- only a call clears ippatsu (documented
-//                                divergence in docs/turn-loop-merge.md).
+// discard of each seat, only while no call has been made. Ippatsu expires on
+// the declarer's first discard *after* the declaring discard: the declaring
+// discard itself must not clear it (`ippatsuJustDeclared`), and any call clears
+// it earlier through `clearAllIppatsu`.
 //
 // Pure: the caller writes the returned flags back onto its player object.
 function resolveDiscard(input = {}) {
   const firstLap = (input.callsMade ?? 0) === 0 && (input.discardsCount ?? 0) === 1 && !input.suufonDone;
-  let ippatsu = !!input.ippatsu;
-  let ippatsuJustDeclared = !!input.ippatsuJustDeclared;
-  if (input.ippatsuExpiry === 'declarer-discard') {
-    if (ippatsuJustDeclared) ippatsuJustDeclared = false;
-    else ippatsu = false;
-  }
-  return { firstLap, ippatsu, ippatsuJustDeclared };
+  const justDeclared = !!input.ippatsuJustDeclared;
+  return {
+    firstLap,
+    ippatsu: justDeclared ? !!input.ippatsu : false,
+    ippatsuJustDeclared: false,
+  };
 }
 
 // Own-turn kan availability. `me.hand` is the 14-tile hand (the draw included).

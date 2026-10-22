@@ -199,7 +199,10 @@ function roundLabel(kyoku) {
 }
 
 function clearAllIppatsu(P) {
-  for (const p of P) p.ippatsu = false;
+  for (const p of P) {
+    p.ippatsu = false;
+    p.ippatsuJustDeclared = false;
+  }
 }
 
 // Ankan after riichi changes waits → chombo; only legal if waits unchanged.

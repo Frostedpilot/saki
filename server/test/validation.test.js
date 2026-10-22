@@ -63,6 +63,8 @@ function makeTable() {
     kansBy: [0, 0, 0, 0],
     callsMade: 0,
     drawsThisKyoku: 1,
+    firstLapDiscards: [],
+    suufonDone: false,
     riichiPool: 0,
     poolTotal: () => 40,
     baseDora: () => [],
@@ -652,6 +654,33 @@ test('doOpenChi accepts a CPU claim that carries bare ranks, not codes', async (
   assert.equal(qp.melds.length, 1);
   assert.equal(qp.melds[0].type, 'chi');
   assert.equal(qp.melds[0].tiles.length, 3);
+});
+
+// ---------------------------------------------------------------- ippatsu expiry
+
+test('ippatsu survives the declaring discard and expires on the declarer next discard', async () => {
+  const t = makeTable();
+  t.assertConserved = () => {};
+  const me = t.ctx.players[0];
+  me.hand = ['1m', '2m', '3m', '4m', '5m', '6m', '7m', '8m', '9m', '1p', '1p', '2p', '3p', '4p'];
+  me.lastDrawn = '4p';
+  me.riichi = true;
+  me.ippatsu = true;
+  me.ippatsuJustDeclared = true;
+
+  await t.executeDiscard(0, '4p');
+  assert.equal(me.ippatsu, true, 'the declaring discard itself must not clear ippatsu');
+  assert.equal(me.ippatsuJustDeclared, false);
+
+  me.hand.push('5p');
+  me.lastDrawn = '5p';
+  await t.executeDiscard(0, '5p');
+  assert.equal(me.ippatsu, false, 'the declarer next discard clears ippatsu');
+
+  me.hand.push('6p');
+  me.lastDrawn = '6p';
+  await t.executeDiscard(0, '6p');
+  assert.equal(me.ippatsu, false, 'a later discard does not resurrect it');
 });
 
 // ---------------------------------------------------------------- turn clock
