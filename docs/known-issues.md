@@ -134,15 +134,18 @@ behaviour-neutral today; it exists so the two sides *can* differ without forking
 **Reduced, not closed.** The *shared rule functions* are no longer duplicated —
 `engine/helpers.js` is now the single definition for waits, furiten, bot decisions,
 abort conditions and oka/uma, and `engine/match-flow.js` the single definition for the
-hand-transition table, the score arithmetic (the win settlement, the nagashi payout and
-the offline chombo penalty), the abortive-draw switch (`abortEnabled`) and the dead-wall
-indicator layout (`doraIndicatorSlots`). The numeric config is read where it used to be
+hand outcome (`handOutcome`, with `postHandFlow` as the server adapter), the score
+arithmetic (the win settlement, the nagashi payout and the offline chombo penalty), the
+abortive-draw switch (`abortEnabled`) and the dead-wall indicator layout
+(`doraIndicatorSlots`). The numeric config is read where it used to be
 hardcoded: `helpers.js canRiichi` uses `RULES.riichiValue`/`minWallForRiichi`, both loops
 use `RULES.maxKan`/`rinshanSlots`, and the offline loop clears temp furiten on a rinshan
-draw as the server already did. What still differs is the **turn loop**: `game.js`'s
-`main()` and `server/table.js`'s `Table` each drive a hand's turn sequence independently — a
-sync CLI versus an async phase machine — and that is not shared. The boundary and the
-intentional divergences are recorded in [`turn-loop-merge.md`](turn-loop-merge.md).
+draw as the server already did. The one semantic difference the shared outcome settled is
+nagashi: the dealer now repeats when the dealer is a nagashi seat, matching the server
+(nagashi is a win). What still differs is the **turn loop**: `game.js`'s `main()` and
+`server/table.js`'s `Table` each drive a hand's turn sequence independently — a sync CLI
+versus an async phase machine — and that is not shared. The boundary and the intentional
+divergences are recorded in [`turn-loop-merge.md`](turn-loop-merge.md).
 
 ### `rules-config.js` was dead, and is now live
 
@@ -163,7 +166,10 @@ Both now read it (`engine/game.js`, `server/table.js`), so these cannot diverge:
 | riichi eligibility | `1000` / `4` in `helpers.js` | `RULES.riichiValue` / `RULES.minWallForRiichi` |
 | kan caps | `4` in both loops | `RULES.maxKan` / `RULES.rinshanSlots` |
 
-`engine/tests/rules-config-parity.test.js` (13 tests) keeps it that way. It asserts the
+`engine/match-flow.js handOutcome` is the single hand→next-hand transition for both
+drivers (`game.js` calls it directly; `table.js` reaches it through `postHandFlow`).
+
+`engine/tests/rules-config-parity.test.js` (14 tests) keeps it that way. It asserts the
 config is *imported and referenced* — not merely correct, which is the check that let
 the file stay dead — and fails if either front-end reintroduces a literal copy of one of
 the expressions above. Verified to bite: reinstating `+ 300 * honba` in `game.js` fails
@@ -1607,6 +1613,7 @@ Docs are consistent and CI is green. These are the remaining **code** items:
 | 33 | ~~KI-04: make the abort switches live (`match-flow.js abortEnabled`), so `RULES.aborts` / `RULES.serverAborts` gate the five detections on both front-ends~~ | ✅ done | KI-04 |
 | 34 | ~~KI-04 increment: share the dead-wall indicator layout (`match-flow.js doraIndicatorSlots`), replacing the `4 + kanCount * 2` / `5 + kanCount * 2` stride copied into both loops~~ | ✅ done | KI-04 |
 | 35 | ~~KI-04: make the remaining numeric config live (`canRiichi` → `RULES.riichiValue`/`minWallForRiichi`; both loops → `RULES.maxKan`/`rinshanSlots`), align rinshan temp-furiten, and record the turn-loop boundary in `docs/turn-loop-merge.md`~~ | ✅ done | KI-04 |
+| 36 | ~~KI-04: canonical `match-flow.js handOutcome` (win/abort/chombo/exhaustive, including nagashi dealer repeat); route the offline settlement through it and make `postHandFlow` delegate, so both front-ends share one transition policy~~ | ✅ done | KI-04 |
 
 Item **23** is now *partly* done — the shared constants live in one place with a parity
 test — but merging the two orchestration loops is still open. **21** was its prerequisite

@@ -209,3 +209,54 @@ test('doraIndicatorSlots: initial pair, kan pairs, and the wall bound', () => {
   assert.equal(F.doraIndicatorSlots(0).dora, RULES.rinshanSlots);
   assert.ok(F.doraIndicatorSlots(4).ura < RULES.deadWallLength);
 });
+
+// The canonical transition both front-ends now share. game.js used to inline
+// every one of these cases; table.js had its own copy in postHandFlow.
+test('handOutcome: the four outcome kinds', () => {
+  assert.deepEqual(F.handOutcome({ kind: 'abort', dealer: 1 }), {
+    honba: 'increment',
+    keepDealer: true,
+    kyokuRepeat: true,
+  });
+  assert.deepEqual(F.handOutcome({ kind: 'chombo', dealer: 1 }), {
+    honba: 'keep',
+    keepDealer: true,
+    kyokuRepeat: true,
+  });
+  assert.deepEqual(F.handOutcome({ kind: 'win', winnerSeats: [1], dealer: 1 }), {
+    honba: 'increment',
+    keepDealer: true,
+    kyokuRepeat: true,
+  });
+  assert.deepEqual(F.handOutcome({ kind: 'win', winnerSeats: [0], dealer: 1 }), {
+    honba: 'reset',
+    keepDealer: false,
+    kyokuRepeat: false,
+  });
+  assert.deepEqual(F.handOutcome({ kind: 'exhaustive', tenpaiSeats: [1], dealer: 1 }), {
+    honba: 'increment',
+    keepDealer: true,
+    kyokuRepeat: true,
+  });
+  assert.deepEqual(F.handOutcome({ kind: 'exhaustive', tenpaiSeats: [0], dealer: 1 }), {
+    honba: 'increment',
+    keepDealer: false,
+    kyokuRepeat: false,
+  });
+});
+
+// Nagashi mangan is a win, so the dealer repeats only when the dealer is one of
+// the nagashi seats. A tenpai dealer does not also repeat if someone else
+// nagashi'd. This is the server's reading, now used by both front-ends.
+test('handOutcome: nagashi takes precedence over tenpai for the dealer', () => {
+  assert.deepEqual(F.handOutcome({ kind: 'exhaustive', tenpaiSeats: [0], nagashiSeats: [1], dealer: 1 }), {
+    honba: 'increment',
+    keepDealer: true,
+    kyokuRepeat: true,
+  });
+  assert.deepEqual(F.handOutcome({ kind: 'exhaustive', tenpaiSeats: [1], nagashiSeats: [0], dealer: 1 }), {
+    honba: 'increment',
+    keepDealer: false,
+    kyokuRepeat: false,
+  });
+});

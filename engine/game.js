@@ -1225,6 +1225,16 @@ async function main() {
 
     let keepDealer = false;
     let matchOver = false;
+    // Apply a shared hand transition (match-flow.js handOutcome), which is pure
+    // policy: it returns the next honba/kyoku/dealer movement and never mutates
+    // counters itself. Match-END policy (tobi/agari-yame/overtime) stays below.
+    const applyFlow = (flow) => {
+      if (flow.honba === 'increment') honba++;
+      else if (flow.honba === 'reset') honba = 0;
+      // 'keep' (chombo) leaves honba unchanged.
+      if (flow.kyokuRepeat) kyoku--;
+      keepDealer = flow.keepDealer;
+    };
     if (winBy && winBy.type === 'chombo') {
       const o = winBy.offender;
       console.log(`\n*** CHOMBO ${names[o]} (illegal ankan after riichi) - mangan penalty, replay ***`);
@@ -1238,15 +1248,12 @@ async function main() {
         }
       riichiCarry = ctx.riichiPool; // sticks stay on the table
       console.log(`scores: ${scores.join('/')} (honba ${honba}, carry ${riichiCarry})`);
-      kyoku--;
-      keepDealer = true; // replay same kyoku, honba unchanged
+      applyFlow(MF.handOutcome({ kind: 'chombo', dealer }));
     } else if (winBy && winBy.type === 'abort') {
       console.log(`\n*** ABORTIVE DRAW (${winBy.reason}) ***`);
-      honba++;
       riichiCarry = ctx.riichiPool;
+      applyFlow(MF.handOutcome({ kind: 'abort', dealer }));
       console.log(`scores: ${scores.join('/')} (honba ${honba}, carry ${riichiCarry}) - redeal, same dealer`);
-      kyoku--; // replay same kyoku number
-      keepDealer = true;
     } else if (winner >= 0) {
       const winnerSeats = winBy.type === 'tsumo' ? [winner] : winBy.wins.map((w) => w.seat);
       const dealerWon = MF.dealerWonOnWin(winBy.type, winnerSeats, dealer);
@@ -1282,6 +1289,9 @@ async function main() {
         ctx.riichiPool = 0;
       }
       console.log(`scores: ${scores.join('/')}`);
+      // Base transition first; match-END policy (tobi / agari-yame / overtime)
+      // is applied on top and must NOT re-increment honba or kyoku.
+      applyFlow(MF.handOutcome({ kind: 'win', winnerSeats, dealer }));
       const bust = MF.bustOutSeat(scores);
       if (bust >= 0) {
         console.log(`TOBI BUST-OUT (${names[bust]}) - match over`);
@@ -1301,20 +1311,14 @@ async function main() {
         } else {
           overtime = true;
           console.log('ENCHOUSEN (overtime): dealer continues');
-          honba++;
-          kyoku--;
-          keepDealer = true;
         }
       } else if (dealerWon) {
         console.log('dealer renchan');
-        honba++;
-        kyoku--;
-        keepDealer = true;
         if (allLast) {
           overtime = true;
           console.log('ENCHOUSEN (overtime): dealer continues');
         }
-      } else honba = 0;
+      }
     } else {
       console.log('\n*** EXHAUSTIVE DRAW ***');
       // ryukyoku tenpai payments
@@ -1347,7 +1351,13 @@ async function main() {
         for (let i = 0; i < 4; i++) scores[i] += tenpai[i] ? give : -take;
         console.log(`noten payments (ten ${nTen}: +${give}/-${take})`);
       }
-      honba++;
+      const flow = MF.handOutcome({
+        kind: 'exhaustive',
+        tenpaiSeats: [0, 1, 2, 3].filter((i) => tenpai[i]),
+        nagashiSeats: nagashi,
+        dealer,
+      });
+      if (flow.honba === 'increment') honba++;
       riichiCarry = ctx.riichiPool;
       console.log(`scores: ${scores.join('/')} (honba ${honba}, carry ${riichiCarry})`);
       const bust2 = MF.bustOutSeat(scores);
@@ -1355,12 +1365,12 @@ async function main() {
         console.log(`TOBI BUST-OUT (${names[bust2]}) - match over`);
         matchOver = true;
       } else {
-        keepDealer = tenpai[dealer]; // dealer repeats when tenpai at exhaustive
-        console.log(keepDealer ? 'dealer tenpai renchan' : 'dealer noten, rotates');
-        if (keepDealer) kyoku--; // replay same kyoku number
-        if (keepDealer && allLast && !matchOver) {
+        if (flow.kyokuRepeat) kyoku--; // replay same kyoku number
+        keepDealer = flow.keepDealer;
+        console.log(keepDealer ? 'dealer renchan' : 'dealer rotates');
+        if (keepDealer && allLast) {
           overtime = true;
-          console.log('ENCHOUSEN (overtime): dealer tenpai at all-last');
+          console.log('ENCHOUSEN (overtime): dealer continues at all-last');
         }
       }
     }

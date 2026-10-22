@@ -815,7 +815,8 @@ class Table {
       dealer,
     });
     if (flow.honba === 'increment') this.honba++;
-    else this.honba = 0;
+    else if (flow.honba === 'reset') this.honba = 0;
+    // 'keep' (chombo) leaves honba unchanged.
     if (flow.kyokuRepeat) this.kyoku--;
     // Exhaustive draw. The riichi carry is NOT touched here: finishHand has already
     // moved ctx.riichiPool onto this.riichiCarry. Re-deriving it would overwrite a

@@ -1,8 +1,9 @@
 # Turn-loop merge (KI-04, audit item 23)
 
-**Status: not merged, on purpose.** The *rule* layer is shared; the *interactive turn
-scheduling* is not. This document records the exact boundary, the divergences that make a
-naive merge unsafe, and the phased plan if it is ever attempted.
+**Status: deterministic layers merged; interactive scheduling not merged, on purpose.** The
+*rule* layer — including the canonical hand→next-hand outcome — is shared. The *interactive
+turn scheduling* is not. This document records the exact boundary, the divergences that
+make a naive merge unsafe, and the phased plan if it is ever attempted.
 
 ## What "shared" means today
 
@@ -12,7 +13,7 @@ everything below. A change here cannot land in one side only:
 | Layer | Module | Notes |
 | --- | --- | --- |
 | Rule predicates | `engine/helpers.js` | waits, furiten, ron, bot brains, chis, aborts, nagashi, oka/uma, riichi eligibility |
-| Hand transition | `engine/match-flow.js` | dealer repeat, honba, kyoku, noten schedule, han floor |
+| Hand transition | `engine/match-flow.js` | `handOutcome` (canonical) and `postHandFlow` (adapter); dealer repeat, honba, kyoku |
 | Score arithmetic | `engine/match-flow.js` | `winPayments`, `manganPayment`, `nagashiPayments`, `notenPayments` |
 | Abort switch | `engine/match-flow.js` | `abortEnabled` (`RULES.aborts` / `RULES.serverAborts`) |
 | Dead-wall layout | `engine/match-flow.js` | `doraIndicatorSlots` |
@@ -46,7 +47,6 @@ sides must agree on one rule first.
 | Kyuushu prompt | human may abort or play on | humans auto play on (CPU may abort) | no deal-time prompt exists on the wire |
 | Abort ordering | suucha/suufon checked **before** the call window | checked **after** an unclaimed discard | a callable 4th first-lap discard aborts offline but is callable online |
 | Chombo | illegal ankan-after-riichi is a mangan penalty, replay | the kan is refused, hand continues | server cannot "undo" a committed action cleanly |
-| Nagashi dealer | dealer rotates | dealer repeats if dealer is a nagashi seat (nagashi normalised as a win) | two readings of "nagashi is a win" |
 | Tenhou window | `drawsThisKyoku <= 4` guard | `isFirstDraw` without that guard | offline guards a dealer-renchan edge |
 | Ippatsu | `ippatsuJustDeclared` survives the declaring discard | only `clearAllIppatsu` on calls | different expiry models |
 | Agari-yame / enchousen | dealer is prompted; overtime persisted explicitly | auto-end if dealer leads; overtime exits on rotation | human vs bot match control |
@@ -57,6 +57,11 @@ sides must agree on one rule first.
 | Invariants | `assertConserved` after deal/discard | `assertConserved` behind `SAKI_INVARIANTS` | test-time only online |
 
 Anything in that table that changes is a **rules change**, and should be reviewed as one.
+
+The **nagashi dealer** question was resolved in favour of the server's reading: nagashi
+mangan is a win, so the dealer repeats only when the dealer is one of the nagashi seats (a
+tenpai dealer does *not* also repeat if someone else nagashi'd). `handOutcome` now encodes
+that once for both drivers.
 
 ## If the merge is attempted: required adapter
 
@@ -87,10 +92,14 @@ resolves early on a ron, while the CLI asks them in seat order. The adapter must
 
 1. **Rule parity first.** Make the two sides agree on every divergence in the table above,
    or mark each as an explicit config policy (`RULES.*`). *Done for the numeric ones:
-   `minWallForRiichi`, `maxKan`, `rinshanSlots`; and the rinshan temp-furiten clear.*
-2. **Canonical outcome.** One `handOutcome({kind, winnerSeats, tenpaiSeats, dealer})`
-   returning `{honba, keepDealer, kyokuRepeat}`, used by both drivers. *Not done:* the
-   nagashi and chombo policies still differ, so this waits on phase 1.
+   `minWallForRiichi`, `maxKan`, `rinshanSlots`; the rinshan temp-furiten clear; and the
+   agari-yame test (`dealerLeads`).*
+2. **Canonical outcome.** `handOutcome({kind, winnerSeats, tenpaiSeats, nagashiSeats,
+   dealer})` returns `{honba, keepDealer, kyokuRepeat}`. **Done.** `game.js` calls it directly
+   for chombo/abort/win/exhaustive; `server/table.js` keeps its `postHandFlow` call, which
+   now delegates to `handOutcome`, so there is one policy. Match-END policy (tobi,
+   agari-yame, enchousen) stays at the driver because the CLI prompts and the server does
+   not.
 3. **Single-turn core.** Extract `beginTurn` / `resolveDiscard` / `resolveCalls` as pure
    functions over a canonical state, still driven by each loop. This is where most of the
    duplication is.
@@ -102,9 +111,10 @@ own branch, and it will almost certainly change at least one rule.
 
 ## Decision
 
-The deterministic layers are merged. The interactive drivers are deliberately separate:
-they encode genuinely different control models (blocking CLI vs awaited network phases) and
-currently different rules. Unifying them for its own sake would add a third abstraction and
+The deterministic layers are merged, including the hand outcome. The interactive drivers
+are deliberately separate: they encode genuinely different control models (blocking CLI vs
+awaited network phases) and a few still-different rules (abort ordering, chombo, powers,
+tenhou/ippatsu). Unifying the scheduling for its own sake would add a third abstraction and
 risk rule regressions with no player-visible benefit. If a specific divergence is wrong,
 fix that rule in both front-ends — that is the high-value work, and it is what the parity
 guards in `engine/tests/rules-config-parity.test.js` protect.

@@ -127,6 +127,13 @@ test('both front-ends read the kan caps from RULES, not literals', () => {
   }
 });
 
+test('both front-ends route the hand transition through match-flow', () => {
+  // game.js used to inline the whole post-hand transition and drifted from the
+  // server on nagashi; handOutcome is now the single definition.
+  assert.match(GAME_JS, /MF\.handOutcome\(/, 'engine/game.js should use MF.handOutcome');
+  assert.match(TABLE_JS, /MF\.postHandFlow\(/, 'server/table.js should use MF.postHandFlow');
+});
+
 // --------------------------------------- the duplication does not come back
 
 test('engine/game.js settlement uses RULES, not literals', () => {

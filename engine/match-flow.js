@@ -36,6 +36,43 @@ function dealerWonOnWin(winType, winnerSeats, dealer) {
   return winnerSeats.includes(dealer);
 }
 
+// The hand -> next-hand transition, shared by both drivers. This is the
+// deterministic half of the orchestration: given what happened, it says how the
+// next hand's counters move. Match-END policy (tobi, agari-yame, enchousen) stays
+// at the driver, because the CLI prompts a human and the server decides silently.
+//
+//   kind: 'win' | 'abort' | 'chombo' | 'exhaustive'
+//   winnerSeats: winners (kind 'win')
+//   tenpaiSeats: seats in tenpai (kind 'exhaustive')
+//   nagashiSeats: seats with nagashi mangan (kind 'exhaustive')
+//
+// Returns { honba: 'increment' | 'reset' | 'keep', keepDealer, kyokuRepeat }.
+// Callers apply honba/kyoku themselves so each front-end keeps owning its counters.
+//
+// Exhaustive: a nagashi mangan is a win, so the dealer repeats only when the
+// dealer is among the nagashi seats (a tenpai dealer does NOT also repeat when
+// someone else nagashi'd). Without nagashi, the dealer repeats iff tenpai.
+function handOutcome({ kind, winnerSeats = [], tenpaiSeats = [], nagashiSeats = [], dealer }) {
+  switch (kind) {
+    case 'chombo':
+      // Penalty, honba unchanged, replay the same kyoku.
+      return { honba: 'keep', keepDealer: true, kyokuRepeat: true };
+    case 'abort':
+      return { honba: 'increment', keepDealer: true, kyokuRepeat: true };
+    case 'win':
+      return dealerWonOnWin('', winnerSeats, dealer)
+        ? { honba: 'increment', keepDealer: true, kyokuRepeat: true }
+        : { honba: 'reset', keepDealer: false, kyokuRepeat: false };
+    case 'exhaustive': {
+      const keySeats = nagashiSeats.length ? nagashiSeats : tenpaiSeats;
+      const keep = keySeats.includes(dealer);
+      return { honba: 'increment', keepDealer: keep, kyokuRepeat: keep };
+    }
+    default:
+      throw new Error(`handOutcome: unknown kind ${kind}`);
+  }
+}
+
 // The shared transition. Inputs are already-normalized seats:
 //   outcome: { aborted: boolean } | null
 //   win: null (exhaustive draw) or { winnerSeats: number[] }
@@ -43,20 +80,11 @@ function dealerWonOnWin(winType, winnerSeats, dealer) {
 // Returns { keepDealer, honba: 'increment' | 'reset', kyokuRepeat: boolean }.
 // Callers apply honba++/honba=0 and kyoku-- themselves so each front-end keeps
 // owning its own counters (no hidden mutation across the CLI/server boundary).
-function postHandFlow({ aborted, win, tenpaiSeats, dealer }) {
-  if (aborted) {
-    // Abortive draw (incl. triple ron): void hand, same dealer redeals.
-    return { keepDealer: true, honba: 'increment', kyokuRepeat: true };
-  }
-  if (win) {
-    if (dealerWonOnWin(win.type, win.winnerSeats, dealer)) {
-      return { keepDealer: true, honba: 'increment', kyokuRepeat: true };
-    }
-    return { keepDealer: false, honba: 'reset', kyokuRepeat: false };
-  }
-  // Exhaustive draw: honba always grows; dealer repeats iff tenpai.
-  const keepDealer = Array.isArray(tenpaiSeats) && tenpaiSeats.includes(dealer);
-  return { keepDealer, honba: 'increment', kyokuRepeat: keepDealer };
+function postHandFlow({ aborted, chombo, win, tenpaiSeats, nagashiSeats, dealer }) {
+  if (chombo) return handOutcome({ kind: 'chombo', dealer });
+  if (aborted) return handOutcome({ kind: 'abort', dealer });
+  if (win) return handOutcome({ kind: 'win', winnerSeats: win.winnerSeats, dealer });
+  return handOutcome({ kind: 'exhaustive', tenpaiSeats, nagashiSeats, dealer });
 }
 
 // Standard noten exchange for nTenpai tenpai seats (1..3). Returns per-seat
@@ -179,6 +207,7 @@ function dealerLeads(scores, dealer) {
 
 module.exports = {
   dealerWonOnWin,
+  handOutcome,
   postHandFlow,
   notenPayments,
   minHan,
