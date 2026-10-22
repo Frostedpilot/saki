@@ -28,6 +28,7 @@ const { ROSTERS } = require('./rosters');
 const { RULES } = require('../engine/rules-config');
 const MF = require('../engine/match-flow');
 const TC = require('../engine/turn-core');
+const HD = require('../engine/hand-driver');
 
 // A character hook that throws must not break the match, but it must not be
 // silent either: a power that is quietly inert looks identical to a power that
@@ -612,33 +613,23 @@ class Table {
     let winBy = null;
     let outcome;
     const playedKyoku = kyoku;
-    const kyuushuSeat = this.checkKyuushu();
-    if (kyuushuSeat >= 0) {
-      outcome = await this.abortHand('KyuushuKyuuhai', { declarer: kyuushuSeat });
-    } else {
-      let turn = dealer;
-      let guard = 0;
-      while (ctx.poolTotal() > 0) {
-        if (++guard > 400) {
-          console.error('[bridge] turn safety stop');
-          break;
-        }
-        const out = await this.playTurn(turn);
-        if (out.end) {
-          winner = out.winner;
-          winBy = out.winBy;
-          break;
-        }
-        turn = out.next;
-      }
-
-      outcome =
-        winBy && winBy.type === 'abort'
-          ? await this.abortHand(winBy.reason, {})
-          : winBy && winBy.type === 'chombo'
-            ? await this.chomboHand(winBy.offender)
-            : await this.finishHand(winner, winBy);
-    }
+    // Hand-level turn order is shared with the CLI (engine/hand-driver.js).
+    // The adapter still owns this table's per-turn work and settlement.
+    outcome = await HD.playHand({
+      checkKyuushu: () => this.checkKyuushu(),
+      abortKyuushu: (seat) => this.abortHand('KyuushuKyuuhai', { declarer: seat }),
+      dealer: () => dealer,
+      wallLeft: () => ctx.poolTotal(),
+      playTurn: (turn) => this.playTurn(turn),
+      settle: (w, wb) => {
+        winner = w;
+        winBy = wb;
+        if (wb && wb.type === 'abort') return this.abortHand(wb.reason, {});
+        if (wb && wb.type === 'chombo') return this.chomboHand(wb.offender);
+        return this.finishHand(w, wb);
+      },
+      onSafetyStop: () => console.error('[bridge] turn safety stop'),
+    });
 
     // Carry flow over to the next hand (Spec §6). Settlement hooks
     // (e.g. Saki rinshan burn) and tier consumes already mutated
