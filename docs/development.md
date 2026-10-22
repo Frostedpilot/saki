@@ -45,7 +45,7 @@ If you only want the offline engine: `npm ci && npm run test:engine`.
 | Command | What it does |
 |---|---|
 | `npm test` | everything CI runs: engine + server + dev scripts + client build |
-| `npm run test:engine` | 415 engine unit tests + the 48-check rule selftest |
+| `npm run test:engine` | 417 engine unit tests + the 48-check rule selftest |
 | `npm run test:server` | 129 server tests: protocol codec, handshake, full bridge matches, yaku translation, settlement, validation, call-window |
 | `npm run test:scripts` | 6 tests for the dev scripts (`check-links.mjs`) |
 | `npm run test:client` | 244 client tests (Vitest + jsdom) + `tsc` type-check + production build |
@@ -222,7 +222,7 @@ built-in runner (`node:test` + `node:assert/strict`) — no Jest/Mocha/Vitest de
 
 ```bash
 npm test              # everything CI runs
-npm run test:engine   # 415 unit tests + 48 selftest checks
+npm run test:engine   # 417 unit tests + 48 selftest checks
 npm run test:server   # 129 server tests
 npm run test:scripts  # 6 dev-script tests
 npm run test:client   # 244 client tests + tsc + production build
@@ -246,7 +246,7 @@ Raw invocations, if you need them: `node --test tests/*.test.js` (engine),
 
 | Layer | Command | Scope |
 | --- | --- | --- |
-| Engine unit tests | `npm run test:engine` | 29 files, 415 tests. Per-character rosters, `dynamicPool`, `trajectoryPlanner`, `flowManager`, `nodokaEval`, `core` phases, scoring/tiles/rng, `invariants`, `replay`, plus `crossCharacter` (multi-seat power interaction), `edge` (bug-hunting), and **`offline-rules`** (the `game.js`-only layer: CLI arg parsing plus its bare-flag guards, `buildWall`, `countVisible`, `powerDraw`, bot decision injection). **`main-orchestration`** characterises `main()` itself — the 630-line turn loop that had no direct coverage: per-hand terminal shape, conservation including the table carry, abort-settlement rules, exhaustive-draw exchange, dealer continuation, and final standings. **`rules-config-parity`** asserts `rules-config.js` is imported *and referenced* — it was dead documentation for its whole life — and fails if either front-end reintroduces a literal copy of the start score, riichi stake, honba math or noten schedule. |
+| Engine unit tests | `npm run test:engine` | 29 files, 417 tests. Per-character rosters, `dynamicPool`, `trajectoryPlanner`, `flowManager`, `nodokaEval`, `core` phases, scoring/tiles/rng, `invariants`, `replay`, plus `crossCharacter` (multi-seat power interaction), `edge` (bug-hunting), and **`offline-rules`** (the `game.js`-only layer: CLI arg parsing plus its bare-flag guards, `buildWall`, `countVisible`, `powerDraw`, bot decision injection). **`main-orchestration`** characterises `main()` itself — the 630-line turn loop that had no direct coverage: per-hand terminal shape, conservation including the table carry, abort-settlement rules, exhaustive-draw exchange, dealer continuation, and final standings. **`rules-config-parity`** asserts `rules-config.js` is imported *and referenced* — it was dead documentation for its whole life — and fails if either front-end reintroduces a literal copy of the start score, riichi stake, honba math or noten schedule. |
 | Engine rule selftest | `node engine/game.js --selftest=1` | 48 in-engine checks covering yaku, fu, dora, aborts, kuikae, oka/uma, invariants. |
 | Server E2E | `npm run test:server` | Six files. `bridge.test.js` spawns the real server, connects a mock protocol-v6 client over `ws`, and plays full matches to `GameOver`; also covers the handshake (including `VersionMismatch` rejection), the red-dora tile codec, the turn clock, and **score conservation** on every `RoundWon` snapshot and the final total. `yaku-map.test.js` covers the riichi-lib → protocol `Kind` translation, cross-checked against the enums recovered from the vendored WASM client. `settlement.test.js` drives `finishHand` headlessly and deterministically over exhaustive draws (0/2/3/4 tenpai), tsumo, single and double ron, and match teardown — the layer where riichi sticks were being lost. `validation.test.js` pins `classifyHumanKan`, `validateAct`, `botDecision`, `doOwnKan` and `turnClockFor`: ankan/kakan detection, both riichi-kan rules, every action rejection path, and the kan choke point that refuses kakan from a riichi hand. `call-window.test.js` scripts out-of-order human responses to pin pon/ron priority and riichi-stick collection to turn order rather than arrival order. `aborts.test.js` covers the abortive draws. |
 | Client | `npm run test:client` | 244 Vitest tests under jsdom: `tile-utils` (wire index ↔ face, sorting, kuikae, dora cycle, shanten), `svg-tiles` (markup, state classes, sprite injection), `store` (RoomState, GameStarted, errors, reconnect, GameOver, calls, the turn clock), the render layer (`melds`, `discards`, `hand`, `action-bar`, `center-info`, `game-log`, `power-badge`, `saki-card`) and `socket` (connect, dispatch, send, reconnect). Then `tsc` with `strict: true` and a production build. `board.ts`, `round-modal.ts` and `lobby-view.ts` remain untested — see [`known-issues.md`](known-issues.md#ki-23). |

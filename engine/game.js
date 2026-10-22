@@ -41,6 +41,7 @@ const {
   hairiOf,
   getWaits,
   isDiscardFuriten,
+  clearTempFuritenOnDraw,
   tryRon,
   botDiscard,
   botWantsCall,
@@ -685,7 +686,8 @@ async function main() {
       const me = P[turn];
       // Permanent riichi furiten: a riichi passer stays furiten for the
       // remainder of the kyoku, so the flag must NOT clear on their draws.
-      if (!me.riichi && !me.doubleRiichi) me.tempFuriten = false;
+      // Shared with the server (helpers.js) so the two cannot drift.
+      clearTempFuritenOnDraw(me);
       ctx.jikaze = jikazeOf(turn);
       const isLastDraw = wallFull.length === 1;
       const t = powerDraw(wallFull, me.hand, me.power, ctx);
@@ -703,7 +705,7 @@ async function main() {
       });
       const ankanTile = Object.keys(cnt).find((k) => cnt[k] === 4);
       let kanChoice = null; // {kind:'ankan'|'kakan', tile}
-      if (kanCount < 4 && rinshanIdx < 4) {
+      if (kanCount < RULES.maxKan && rinshanIdx < RULES.rinshanSlots) {
         if (me.id === HUMAN) {
           if (ankanTile || ponUp) {
             console.log(`  YOUR hand: ${me.hand.join(' ')} melds=${JSON.stringify(me.melds.map(meldStr))}`);
@@ -816,13 +818,14 @@ async function main() {
           winBy = { type: 'abort', reason: `SUUKAIKAN (four kans: ${kansBy.join('/')})` };
           break;
         }
-        if (kanCount >= 4) console.log('  four kans by one player - play continues');
-        if (rinshanIdx >= 4) {
+        if (kanCount >= RULES.maxKan) console.log('  four kans by one player - play continues');
+        if (rinshanIdx >= RULES.rinshanSlots) {
           console.log('  no rinshan tiles left');
           continue;
         }
         const rt = dead[rinshanIdx++];
         me.hand.push(rt);
+        clearTempFuritenOnDraw(me); // a rinshan draw is still your own draw
         console.log(`  ${names[turn]} rinshan draw ${rt}`);
         afterKan = true;
         // fall through to tsumo check on rinshan tile
@@ -983,7 +986,7 @@ async function main() {
         const q = (turn + k) % 4;
         if (P[q].riichi) continue;
         const nSame = P[q].hand.filter((t) => same(t, disc)).length;
-        const canDaimin = nSame >= 3 && kanCount < 4 && rinshanIdx < 4 && !CLOSED_ONLY;
+        const canDaimin = nSame >= 3 && kanCount < RULES.maxKan && rinshanIdx < RULES.rinshanSlots && !CLOSED_ONLY;
         if (nSame >= 2) {
           let removed = 0;
           const tmp = [...P[q].hand];
@@ -1030,9 +1033,10 @@ async function main() {
             revealKanDora();
             ctx.dora = baseDora();
             console.log(`  new dora=${ctx.dora}`);
-            if (rinshanIdx < 4) {
+            if (rinshanIdx < RULES.rinshanSlots) {
               const rt = dead[rinshanIdx++];
               P[q].hand.push(rt);
+              clearTempFuritenOnDraw(P[q]); // a rinshan draw is still your own draw
               console.log(`  ${names[q]} rinshan draw ${rt}`);
               ctx.jikaze = jikazeOf(q);
               const trs = scoreHand(P[q].hand, P[q].melds, rt, true, {
@@ -1282,7 +1286,7 @@ async function main() {
       if (bust >= 0) {
         console.log(`TOBI BUST-OUT (${names[bust]}) - match over`);
         matchOver = true;
-      } else if (allLast && dealerWon && scores[dealer] > Math.max(...scores.filter((_, i) => i !== dealer))) {
+      } else if (allLast && dealerWon && MF.dealerLeads(scores, dealer)) {
         // agari-yame: leading dealer at all-last may end the match
         let end = true;
         if (P[dealer].id === HUMAN) {

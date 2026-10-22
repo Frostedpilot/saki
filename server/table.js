@@ -970,7 +970,7 @@ class Table {
     const ankanTile = Object.keys(cnt).find((k) => cnt[k] === 4);
     const ponUp = me.melds.find((m) => m.type === 'pon' && me.hand.some((h) => same(h, m.tiles[0])));
     let kanChoice = null;
-    if (ctx.kanCount < 4 && ctx.rinshanIdx < 4) {
+    if (ctx.kanCount < RULES.maxKan && ctx.rinshanIdx < RULES.rinshanSlots) {
       if (me.isCpu) {
         const r1 = this.decide.next();
         if (ankanTile && r1 < 0.5) {
@@ -998,7 +998,8 @@ class Table {
         if (a.type === 'Kan' && !kanChoice) {
           const classified = this.classifyHumanKan(seat, a.tile_index);
           if (classified) {
-            const kanTimeout = ctx.kanCount < 4 && ctx.rinshanIdx < 4 ? null : 'kan limit reached';
+            const kanTimeout =
+              ctx.kanCount < RULES.maxKan && ctx.rinshanIdx < RULES.rinshanSlots ? null : 'kan limit reached';
             if (kanTimeout) {
               this.sendError(seat, 'InvalidAction', kanTimeout);
               continue;
@@ -1272,7 +1273,8 @@ class Table {
       if (k.kind === 'kakan' && me.riichi) {
         return { ok: false, reason: 'cannot add a kan to a pon while in riichi (chombo)' };
       }
-      if (this.ctx.kanCount >= 4 || this.ctx.rinshanIdx >= 4) return { ok: false, reason: 'no kan slots left' };
+      if (this.ctx.kanCount >= RULES.maxKan || this.ctx.rinshanIdx >= RULES.rinshanSlots)
+        return { ok: false, reason: 'no kan slots left' };
       return {
         ok: true,
         action: { type: 'Kan', kan: k, tile: k.tile },
@@ -1638,7 +1640,13 @@ class Table {
       // Saki tiers now deterministically pin the on-deck slot (win if live,
       // else best ukeire). Only fall back to weighted sampling when the hook
       // did NOT pin — never overwrite a guaranteed slot.
-      if (r && !r.pinned && r.weightOf && typeof core.sampleRinshan === 'function' && this.ctx.rinshanIdx < 4) {
+      if (
+        r &&
+        !r.pinned &&
+        r.weightOf &&
+        typeof core.sampleRinshan === 'function' &&
+        this.ctx.rinshanIdx < RULES.rinshanSlots
+      ) {
         core.sampleRinshan(this.ctx.state, this.ctx.rinshanIdx, r.weightOf);
       }
       console.log(`[bridge] ${power} tier ${tier} activated (kan ${kanCount})`);
@@ -1775,7 +1783,7 @@ class Table {
         const nSame = qp.hand.filter((x) => same(x, tile)).length;
         if (nSame >= 2) {
           ponOpts = this.ponOptions(qp, tile);
-          if (nSame >= 3 && ctx.kanCount < 4 && ctx.rinshanIdx < 4) {
+          if (nSame >= 3 && ctx.kanCount < RULES.maxKan && ctx.rinshanIdx < RULES.rinshanSlots) {
             canDaimin = true;
           }
         }

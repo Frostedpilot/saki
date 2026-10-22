@@ -111,7 +111,7 @@ It is less reliable as a runtime for us (new stack, own matcher bugs to own).
     `RULES.serverAborts` through `engine/match-flow.js abortEnabled`, and all five abort
     handlers now exist on both sides. Both sets enable all five, so the switch is
     behaviour-neutral today. See KI-04.
-  - Still open: `Table.playTurn` and the `engine/game.js` turn dispatch are separate state machines.
+  - Still open: `Table.playTurn` and the `engine/game.js` turn dispatch are separate state machines. The boundary, the intentional divergences and a phased plan are in [`turn-loop-merge.md`](turn-loop-merge.md).
 - **Per-Turn Invariant Assertions**: ✅ done — `engine/invariants.js` (conservation via `DynamicPool.audit`, dead wall length, hand size, zero-sum scores).
 
 ### Phase 5: Deterministic Replay & Audit Journaling
@@ -139,7 +139,7 @@ It is less reliable as a runtime for us (new stack, own matcher bugs to own).
   *(Server and offline turn loops are still separate state machines.)*
 - Phase 5: `engine/replay.js` (journal + `verifyJournal` via `core.js`);
   covered in `rules.test.js` incl. tamper rejection. *(No persistence to disk.)*
-- Full suite: `node --test tests/*.test.js` **415 pass / 0 fail** + `game.js --selftest`
+- Full suite: `node --test tests/*.test.js` **417 pass / 0 fail** + `game.js --selftest`
   **48 checks**; server `npm test` **129 pass / 0 fail**; dev scripts `npm run test:scripts`
   **6 pass**. (Use the glob form — a bare
   directory argument is rejected by Node 22; see `docs/development.md` §5.)

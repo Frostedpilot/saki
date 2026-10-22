@@ -27,6 +27,7 @@ const { RULES } = require('../rules-config');
 const ROOT = path.join(__dirname, '..', '..');
 const GAME_JS = fs.readFileSync(path.join(ROOT, 'engine', 'game.js'), 'utf8');
 const TABLE_JS = fs.readFileSync(path.join(ROOT, 'server', 'table.js'), 'utf8');
+const HELPERS_JS = fs.readFileSync(path.join(ROOT, 'engine', 'helpers.js'), 'utf8');
 
 // These snippets are regex metacharacter soup (`+`, `*`, `[`, `.`), so they must be
 // escaped wholesale rather than searched for literally.
@@ -104,6 +105,25 @@ test('each shared constant is actually referenced, not merely imported', () => {
       const direct = new RegExp(`RULES\\.${key}\\b`).test(src);
       assert.ok(direct || viaFlow.test(src), `${name} should consume ${key} directly or via match-flow`);
     }
+  }
+});
+
+test('canRiichi reads the configured stake and wall minimum', () => {
+  // helpers.js hardcoded 1000/4, which left RULES.riichiValue and
+  // RULES.minWallForRiichi as dead config — the exact KI-04 pattern.
+  assert.match(HELPERS_JS, /RULES\.riichiValue/, 'helpers.js should use RULES.riichiValue');
+  assert.match(HELPERS_JS, /RULES\.minWallForRiichi/, 'helpers.js should use RULES.minWallForRiichi');
+  assert.doesNotMatch(HELPERS_JS, /score >= 1000/, 'helpers.js hardcodes the riichi stake again');
+});
+
+test('both front-ends read the kan caps from RULES, not literals', () => {
+  // `maxKan` and `rinshanSlots` were dead config; both loops used literal 4s.
+  for (const [name, src] of [
+    ['engine/game.js', GAME_JS],
+    ['server/table.js', TABLE_JS],
+  ]) {
+    assert.match(src, /RULES\.maxKan/, `${name} should use RULES.maxKan`);
+    assert.match(src, /RULES\.rinshanSlots/, `${name} should use RULES.rinshanSlots`);
   }
 });
 

@@ -12,6 +12,7 @@
 const syanten = require('syanten');
 const { KINDS, norm, same, toCounts } = require('./tiles');
 const { scoreHand } = require('./scoring');
+const { RULES } = require('./rules-config');
 
 // ---------------------------------------------------------------- shanten
 const shantenOf = (h) => {
@@ -187,7 +188,7 @@ function distinctYaochuu(hand) {
 }
 
 function canRiichi(score, wallLeft) {
-  return score >= 1000 && wallLeft >= 4;
+  return score >= RULES.riichiValue && wallLeft >= RULES.minWallForRiichi;
 }
 
 function bakazeOf(kyoku) {

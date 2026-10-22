@@ -136,9 +136,13 @@ behaviour-neutral today; it exists so the two sides *can* differ without forking
 abort conditions and oka/uma, and `engine/match-flow.js` the single definition for the
 hand-transition table, the score arithmetic (the win settlement, the nagashi payout and
 the offline chombo penalty), the abortive-draw switch (`abortEnabled`) and the dead-wall
-indicator layout (`doraIndicatorSlots`). What still differs is the **turn loop**: `game.js`'s
+indicator layout (`doraIndicatorSlots`). The numeric config is read where it used to be
+hardcoded: `helpers.js canRiichi` uses `RULES.riichiValue`/`minWallForRiichi`, both loops
+use `RULES.maxKan`/`rinshanSlots`, and the offline loop clears temp furiten on a rinshan
+draw as the server already did. What still differs is the **turn loop**: `game.js`'s
 `main()` and `server/table.js`'s `Table` each drive a hand's turn sequence independently — a
-sync CLI versus an async phase machine — and that is not shared.
+sync CLI versus an async phase machine — and that is not shared. The boundary and the
+intentional divergences are recorded in [`turn-loop-merge.md`](turn-loop-merge.md).
 
 ### `rules-config.js` was dead, and is now live
 
@@ -156,8 +160,10 @@ Both now read it (`engine/game.js`, `server/table.js`), so these cannot diverge:
 | honba per payer (tsumo) | `+ 100 * honba` in both | `RULES.honbaTsumo` |
 | honba per win (ron) | `+ 300 * honba` in both | `RULES.honbaRon` |
 | noten schedule | `[0, 3000, 1500, 1000][n]` inline | `RULES.notenTotal` |
+| riichi eligibility | `1000` / `4` in `helpers.js` | `RULES.riichiValue` / `RULES.minWallForRiichi` |
+| kan caps | `4` in both loops | `RULES.maxKan` / `RULES.rinshanSlots` |
 
-`engine/tests/rules-config-parity.test.js` (11 tests) keeps it that way. It asserts the
+`engine/tests/rules-config-parity.test.js` (13 tests) keeps it that way. It asserts the
 config is *imported and referenced* — not merely correct, which is the check that let
 the file stay dead — and fails if either front-end reintroduces a literal copy of one of
 the expressions above. Verified to bite: reinstating `+ 300 * honba` in `game.js` fails
@@ -172,7 +178,9 @@ like one task and is not:
   `Table` is an async phase machine that awaits a WebSocket reply per decision. They
   have different control architectures because one is a CLI and the other is a server.
   Merging them means rewriting both, not extracting a shared function — which is why
-  item 23 was scoped at 2–3 days.
+  item 23 was scoped at 2–3 days. The exact boundary, the intentional rule divergences
+  (abort ordering, chombo, nagashi dealer, tenhou window, powers) and a phased plan are
+  in [`docs/turn-loop-merge.md`](turn-loop-merge.md).
 - **Abortive draws.** Both front-ends implement all five (see [KI-25](#ki-25)) and gate
   them through the shared `match-flow.js abortEnabled` switch; `Table`'s kyuushu path keeps
   one documented limitation (no deal-time prompt, so a human 9-kind hand auto-plays on).
@@ -1598,6 +1606,7 @@ Docs are consistent and CI is green. These are the remaining **code** items:
 | 32 | ~~KI-04 increment: share the win-settlement arithmetic (`winPayments`) in `match-flow.js`~~ | ✅ done | KI-04 |
 | 33 | ~~KI-04: make the abort switches live (`match-flow.js abortEnabled`), so `RULES.aborts` / `RULES.serverAborts` gate the five detections on both front-ends~~ | ✅ done | KI-04 |
 | 34 | ~~KI-04 increment: share the dead-wall indicator layout (`match-flow.js doraIndicatorSlots`), replacing the `4 + kanCount * 2` / `5 + kanCount * 2` stride copied into both loops~~ | ✅ done | KI-04 |
+| 35 | ~~KI-04: make the remaining numeric config live (`canRiichi` → `RULES.riichiValue`/`minWallForRiichi`; both loops → `RULES.maxKan`/`rinshanSlots`), align rinshan temp-furiten, and record the turn-loop boundary in `docs/turn-loop-merge.md`~~ | ✅ done | KI-04 |
 
 Item **23** is now *partly* done — the shared constants live in one place with a parity
 test — but merging the two orchestration loops is still open. **21** was its prerequisite
