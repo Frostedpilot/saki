@@ -166,19 +166,20 @@ const tripleRonAbort = (hits) =>
 const suukaikanAbort = (kansBy) =>
   MF.abortEnabled(RULES.aborts, 'suukaikan') && (isSuukaikanAbort(kansBy) || forced('suukaikan'));
 const rawSeed = flagValue('seed', '--seed 42');
+let seed; // undefined -> a Math.random-backed RNG, i.e. the old default
 if (rawSeed !== undefined) {
   // deterministic RNG for tests (mulberry32 via engine/rng.js)
-  const seed = parseInt(rawSeed, 10);
+  seed = parseInt(rawSeed, 10);
   if (!Number.isFinite(seed)) {
     console.error(`--seed must be an integer (got ${JSON.stringify(args.seed)})`);
     process.exit(1);
   }
-  const rng = createRNG(seed);
-  Math.random = () => rng.next();
 }
 
 // ---------- tiles (shared: engine/tiles.js) ----------
-function buildWall() {
+// `rng` is passed in rather than replacing global Math.random: the caller owns
+// the seed, so reproducibility is a property of the match, not the process.
+function buildWall(rng = createRNG()) {
   const w = [];
   for (const k of KINDS) for (let i = 0; i < 4; i++) w.push(k);
   for (const [five, aka] of [
@@ -188,7 +189,7 @@ function buildWall() {
   ])
     w[w.indexOf(five)] = aka;
   for (let i = w.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
+    const j = Math.floor(rng.next() * (i + 1));
     [w[i], w[j]] = [w[j], w[i]];
   }
   return w;
@@ -218,6 +219,7 @@ function countVisible(tile, players, dead) {
 
 // ---------- Saki power draw hook (per seat) ----------
 function powerDraw(wall, hand, power, ctx) {
+  const rand = ctx.rng || createRNG(); // tests may pass a bare ctx
   const drawOne = () => wall.pop();
   if (!wall.length) return null;
   if (power === 'none') return drawOne();
@@ -225,20 +227,20 @@ function powerDraw(wall, hand, power, ctx) {
   if (power === 'kuro') {
     const win = wall.slice(-8);
     const i = win.findIndex((t) => ctx.dora.includes(norm(t)));
-    if (i >= 0 && Math.random() < 0.7) return wall.splice(wall.length - 8 + i, 1)[0];
+    if (i >= 0 && rand.next() < 0.7) return wall.splice(wall.length - 8 + i, 1)[0];
     return drawOne();
   }
   if (power === 'saki' || power === 'yuuki') {
     if (power === 'yuuki' && ctx.roundWind !== 'E') return drawOne();
     const t = drawOne();
-    if (base <= 1 && wall.length && shantenOf([...hand, t].slice(-14)) >= base && Math.random() < 0.55) {
+    if (base <= 1 && wall.length && shantenOf([...hand, t].slice(-14)) >= base && rand.next() < 0.55) {
       wall.unshift(t);
       return drawOne();
     }
     return t;
   }
   if (power === 'koromo') {
-    if (wall.length <= 10 && base <= 0 && Math.random() < 0.5) {
+    if (wall.length <= 10 && base <= 0 && rand.next() < 0.5) {
       const h = hairiOf(hand);
       const waits = h && h.wait ? Object.keys(h.wait) : [];
       const i = wall.findIndex((t) => waits.includes(norm(t)));
@@ -246,7 +248,7 @@ function powerDraw(wall, hand, power, ctx) {
     }
     return drawOne();
   }
-  if (power === 'hisa' && base === 0 && wall.length && Math.random() < 0.25) {
+  if (power === 'hisa' && base === 0 && wall.length && rand.next() < 0.25) {
     const h = hairiOf(hand);
     const waits = h && h.wait ? Object.keys(h.wait) : [];
     if (waits.length <= 2) {
@@ -271,6 +273,11 @@ function powerDraw(wall, hand, power, ctx) {
 async function main() {
   if (args.selftest !== undefined && args.selftest !== false && (args.selftest === true || args.selftest === '1'))
     return selftest();
+  // One seeded RNG for the whole match. It reaches the wall shuffle, the power
+  // draw rig and the bot brains through the kyoku ctx, so determinism is a
+  // property of the match state rather than of the process's Math.random.
+  const rng = createRNG(seed);
+  const rand = () => rng.next();
   const readline =
     HUMAN >= 0 ? require('readline').createInterface({ input: process.stdin, output: process.stdout }) : null;
   const ask = (q) => new Promise((res) => readline.question(q, res));
@@ -290,7 +297,7 @@ async function main() {
     }
     const bakaze = bakazeOf(kyoku),
       jikazeOf = (p) => ((p - dealer + 4) % 4) + 1;
-    const wallFull = buildWall();
+    const wallFull = buildWall(rng);
     // dead wall layout: [0..3] rinshan, dora ind dead[4,6,8,10,12], ura dead[5,7,9,11,13]
     const dead = wallFull.splice(0, 14);
     let rinshanIdx = 0,
@@ -320,6 +327,7 @@ async function main() {
       riichi: false,
       roundWind: bakaze === 1 ? 'E' : 'S',
       riichiPool: riichiCarry,
+      rng,
     };
     riichiCarry = 0;
     const P = [0, 1, 2, 3].map((i) => ({
@@ -402,7 +410,7 @@ async function main() {
           // Reaching this branch means the declaration is legal; now it is only a
           // question of whether the bot wants it. Kept at the original 0.8 — bot
           // policy is a judgement call, and the bug here was legality, not taste.
-          declare = Math.random() < 0.8;
+          declare = rand() < 0.8;
         }
         if (declare) {
           console.log(`  ${names[q]} declares KYUUSHU-KYUUHAI (${terms} distinct yaochuuhai) - abortive draw`);
@@ -568,11 +576,11 @@ async function main() {
         // single discard choice reused for the riichi test AND the cut
         // (two separate botDiscard calls could disagree under epsilon-random
         // and declare riichi on a non-tenpai hand)
-        di = botDiscard(me.hand, me.riichi);
+        di = botDiscard(me.hand, me.riichi, [], rand);
         if (!me.riichi && me.melds.every((m) => !m.open)) {
           if (shantenOf(me.hand.filter((_, i) => i !== di)) === 0 && canRiichi(scores[seat], wallFull.length)) {
             const riichiP = RIICHI_ALWAYS ? 1 : 0.45;
-            if (Math.random() < riichiP) {
+            if (rand() < riichiP) {
               declare = true;
               riichiFirst = isFirstTurn(me);
               pendingRiichiLocked13 = me.hand.filter((_, i) => i !== di);
@@ -682,11 +690,11 @@ async function main() {
               }
             }
           } else {
-            if (ankanTile && Math.random() < 0.5) {
+            if (ankanTile && rand() < 0.5) {
               // bots never chombo: skip ankans that change riichi waits
               if (!me.riichi || ankanKeepsWaits(me, ankanTile)) kanChoice = { kind: 'ankan', tile: ankanTile };
               else console.log(`  ${names[me.id]} skips ANKAN ${ankanTile} (would change riichi waits)`);
-            } else if (ponUp && Math.random() < 0.35) {
+            } else if (ponUp && rand() < 0.35) {
               // bots never chombo: no kakan while in riichi (see above)
               if (me.riichi) console.log(`  ${names[me.id]} skips KAKAN (illegal while in riichi)`);
               else kanChoice = { kind: 'kakan', tile: norm(ponUp.tiles[0]) };
@@ -950,9 +958,9 @@ async function main() {
               : (await ask(`  ${disc} PON? (y/n): `)).trim().toLowerCase();
             choice =
               (a === 'k' || a === 'kan') && c.daiminkan ? 'kan' : a === 'y' || a === 'p' || a === 'pon' ? 'pon' : null;
-          } else if (c.daiminkan && Math.random() < 0.25) {
+          } else if (c.daiminkan && rand() < 0.25) {
             choice = 'kan';
-          } else if (botWantsCall(gain, CLOSED_ONLY)) {
+          } else if (botWantsCall(gain, CLOSED_ONLY, rand)) {
             choice = 'pon';
           }
           if (choice === 'kan') {
@@ -1044,13 +1052,13 @@ async function main() {
         const chiCand = callOptions.find((c) => c.seat === nx && c.chi);
         if (chiCand) {
           const opts = chiCand.chi;
-          let doIt = P[nx].id === HUMAN ? null : !CLOSED_ONLY && Math.random() < 0.35;
+          let doIt = P[nx].id === HUMAN ? null : !CLOSED_ONLY && rand() < 0.35;
           if (P[nx].id === HUMAN) {
             const a = (await ask(`  ${disc} CHI ${opts.map((o) => o.join('+')).join('/')}? (y/n): `)).trim();
             doIt = a.toLowerCase().startsWith('y');
           }
           if (doIt) {
-            const o = opts[Math.floor(Math.random() * opts.length)];
+            const o = opts[Math.floor(rand() * opts.length)];
             const tiles = [disc];
             for (const nn of o) {
               const i = P[nx].hand.findIndex((x) => norm(x) === nn + norm(disc)[1]);
@@ -1183,7 +1191,7 @@ async function main() {
           break;
         }
       } else {
-        const d2 = botDiscard(pl.hand, false, banned);
+        const d2 = botDiscard(pl.hand, false, banned, rand);
         dc = pl.hand.splice(d2, 1)[0];
       }
       pl.discards.push(dc);

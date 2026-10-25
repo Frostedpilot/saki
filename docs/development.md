@@ -45,7 +45,7 @@ If you only want the offline engine: `npm ci && npm run test:engine`.
 | Command | What it does |
 |---|---|
 | `npm test` | everything CI runs: engine + server + dev scripts + client build |
-| `npm run test:engine` | 446 engine unit tests + the 48-check rule selftest |
+| `npm run test:engine` | 449 engine unit tests + the 48-check rule selftest |
 | `npm run test:server` | 144 server tests: protocol codec, handshake, full bridge matches, static HTTP handler, yaku translation, settlement, validation, call-window |
 | `npm run test:scripts` | 10 tests for the dev scripts (`check-links.mjs`, `release-check.mjs`) |
 | `npm run test:client` | 244 client tests (Vitest + jsdom) + `tsc` type-check + production build |
@@ -121,7 +121,7 @@ node engine/game.js        # 4 CPU bots, full hanchan (8 rounds), no powers
 | --- | --- | --- |
 | `--powers a,b,c,d` | `none,none,none,none` | Per-seat power keys (see caveat) |
 | `--human -1\|0..3` | `-1` | `-1` = all bots; `0..3` = human at that seat |
-| `--seed N` | random | Seeded mulberry32 RNG; also makes `Math.random` deterministic |
+| `--seed N` | random | Seeded mulberry32 RNG threaded through the match (wall, powers, bots) |
 | `--kyoku N` | `8` | `4` = tonpuusen, `8` = full hanchan |
 | `--selftest=1` | off | Run 48 deterministic rule checks and exit |
 | `--closed-only=1` | off | Demo: bots never pon/chi |
@@ -222,7 +222,7 @@ built-in runner (`node:test` + `node:assert/strict`) — no Jest/Mocha/Vitest de
 
 ```bash
 npm test              # everything CI runs
-npm run test:engine   # 446 unit tests + 48 selftest checks
+npm run test:engine   # 449 unit tests + 48 selftest checks
 npm run test:server   # 144 server tests
 npm run test:scripts  # 10 dev-script tests
 npm run test:client   # 244 client tests + tsc + production build
@@ -247,7 +247,7 @@ Raw invocations, if you need them: `node --test tests/*.test.js` (engine),
 
 | Layer | Command | Scope |
 | --- | --- | --- |
-| Engine unit tests | `npm run test:engine` | 31 files, 446 tests. Per-character rosters, `dynamicPool`, `trajectoryPlanner`, `flowManager`, `nodokaEval`, `core` phases, scoring/tiles/rng, `invariants`, `replay`, plus `crossCharacter` (multi-seat power interaction), `edge` (bug-hunting), and **`offline-rules`** (the `game.js`-only layer: CLI arg parsing plus its bare-flag guards, `buildWall`, `countVisible`, `powerDraw`, bot decision injection). **`main-orchestration`** characterises `main()` itself — the match setup, the CLI adapter over the shared turn driver, and the output shape that had no direct coverage: per-hand terminal shape, conservation including the table carry, abort-settlement rules, exhaustive-draw exchange, dealer continuation, and final standings. **`turn-core`** pins the shared single-turn decisions (turn start and tenhou window, discard/first-lap/ippatsu bookkeeping, own-kan availability, call candidates, call priority). **`hand-driver`** pins the shared hand-level turn order and per-turn skeleton (`playHand` / `playTurn`). **`rules-config-parity`** asserts `rules-config.js` is imported *and referenced* — it was dead documentation for its whole life — and fails if either front-end reintroduces a literal copy of the start score, riichi stake, honba math or noten schedule. |
+| Engine unit tests | `npm run test:engine` | 31 files, 449 tests. Per-character rosters, `dynamicPool`, `trajectoryPlanner`, `flowManager`, `nodokaEval`, `core` phases, scoring/tiles/rng, `invariants`, `replay`, plus `crossCharacter` (multi-seat power interaction), `edge` (bug-hunting), and **`offline-rules`** (the `game.js`-only layer: CLI arg parsing plus its bare-flag guards, `buildWall`, `countVisible`, `powerDraw`, bot decision injection). **`main-orchestration`** characterises `main()` itself — the match setup, the CLI adapter over the shared turn driver, and the output shape that had no direct coverage: per-hand terminal shape, conservation including the table carry, abort-settlement rules, exhaustive-draw exchange, dealer continuation, and final standings. **`turn-core`** pins the shared single-turn decisions (turn start and tenhou window, discard/first-lap/ippatsu bookkeeping, own-kan availability, call candidates, call priority). **`hand-driver`** pins the shared hand-level turn order and per-turn skeleton (`playHand` / `playTurn`). **`rules-config-parity`** asserts `rules-config.js` is imported *and referenced* — it was dead documentation for its whole life — and fails if either front-end reintroduces a literal copy of the start score, riichi stake, honba math or noten schedule. |
 | Engine rule selftest | `node engine/game.js --selftest=1` | 48 in-engine checks covering yaku, fu, dora, aborts, kuikae, oka/uma, invariants. |
 | Server E2E | `npm run test:server` | Six files. `bridge.test.js` spawns the real server, connects a mock protocol-v6 client over `ws`, and plays full matches to `GameOver`; also covers the handshake (including `VersionMismatch` rejection), the red-dora tile codec, the turn clock, and **score conservation** on every `RoundWon` snapshot and the final total. `yaku-map.test.js` covers the riichi-lib → protocol `Kind` translation, cross-checked against the enums recovered from the vendored WASM client. `settlement.test.js` drives `finishHand` headlessly and deterministically over exhaustive draws (0/2/3/4 tenpai), tsumo, single and double ron, and match teardown — the layer where riichi sticks were being lost. `validation.test.js` pins `classifyHumanKan`, `validateAct`, `botDecision`, `doOwnKan` and `turnClockFor`: ankan/kakan detection, both riichi-kan rules, every action rejection path, and the kan choke point that refuses kakan from a riichi hand. `call-window.test.js` scripts out-of-order human responses to pin pon/ron priority and riichi-stick collection to turn order rather than arrival order. `aborts.test.js` covers the abortive draws. |
 | Client | `npm run test:client` | 244 Vitest tests under jsdom: `tile-utils` (wire index ↔ face, sorting, kuikae, dora cycle, shanten), `svg-tiles` (markup, state classes, sprite injection), `store` (RoomState, GameStarted, errors, reconnect, GameOver, calls, the turn clock), the render layer (`melds`, `discards`, `hand`, `action-bar`, `center-info`, `game-log`, `power-badge`, `saki-card`) and `socket` (connect, dispatch, send, reconnect). Then `tsc` with `strict: true` and a production build. `board.ts`, `round-modal.ts` and `lobby-view.ts` remain untested — see [`known-issues.md`](known-issues.md#ki-23). |

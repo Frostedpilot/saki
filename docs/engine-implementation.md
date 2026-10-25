@@ -48,8 +48,10 @@ keeps no copy of them: it is a 38-line `eval`-only wrapper around `riichi`.
 - `RNG` wrapper with `next() / int(n) / fork(salt)` and a call counter.
 - `createRNG(seed)`: seeded `RNG`, or a `Math.random` shim when seed is null.
 - `core.createMatchState({seed})` threads one `RNG` through the whole hand, so
-  same seed + same inputs = same deal and draws. `engine/game.js` has an older
-  equivalent: the `--seed N` flag monkey-patches `Math.random`.
+  same seed + same inputs = same deal and draws. `engine/game.js` now does the
+  same: `--seed N` creates one RNG per match, reachable as `ctx.rng` and passed
+  to `buildWall`, `powerDraw` and the bot brains. It no longer replaces
+  `Math.random`.
 
 ### 1.3 Scoring wrapper — `engine/scoring.js`
 
