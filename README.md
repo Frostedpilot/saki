@@ -156,8 +156,8 @@ via Node's built-in test runner.
 
 ```bash
 npm test              # everything CI runs
-npm run test:engine   # 449 tests + 48 rule checks
-npm run test:server   # 144 server tests
+npm run test:engine   # 473 tests + 48 rule checks
+npm run test:server   # 145 server tests
 npm run test:scripts  # 10 dev-script tests
 npm run test:client   # 244 client tests + tsc type-check
 npm run release:check # version + changelog consistency
