@@ -43,28 +43,83 @@ node -e "const c=require('node:crypto'),f=require('node:fs');for(const n of f.re
 and references `favicon.png`. The `.wasm` is fetched from the bundle at runtime, not from
 a `<script>` tag.
 
-### What is **unknown**
+### Upstream snapshot
 
-- **The upstream commit.** The filename suffixes (`aa938046`, `382096af`, …) are
-  content hashes emitted by the upstream bundler. They are **not** a documented commit
-  reference and nothing in the artefacts maps them to one.
-- **Any version string.** Verified absent: the bundles contain no version or commit
-  literal (searched for `aa938046`, `382096af`, `protocol_version`, `version`), and
-  `index.html` is a plain static shell titled `Riichi Mahjong RS`.
-- **The upstream licence and redistribution terms** — see [`known-issues.md`](known-issues.md#ki-12).
+Pinned to upstream **`h1g0/riichi_mahjong_rs`** at commit
+[`3af1e3bd181b08c1de8edb4a54465c82919f6527`](https://github.com/h1g0/riichi_mahjong_rs/tree/3af1e3bd181b08c1de8edb4a54465c82919f6527)
+(2026-09-06, the merge of #388; tree `44f3caae1d4c3f2928caab7ecdfd8d9e3ef852a5`).
 
-Because no version marker is embedded, **a protocol upgrade upstream cannot currently be
-tracked**. `server/protocol.js` speaks `PROTOCOL_VERSION = 6`; this build's compatibility
-with v6 is *believed* (it is what the server is developed against) but is **not proven by
-anything in the repo**.
+The filenames are **not** the evidence; the contents are. At that commit:
+
+| Vendored file | Evidence |
+| --- | --- |
+| `ws.596d430a.js` | byte-identical to `crates/mahjong-client/js/ws.js`; SHA-1 matches the suffix and the upstream blob (`596d430a…`) |
+| `storage.c489e133.js` | same test: `c489e133…` |
+| `loading.32d3b0bf.js` | same test: `32d3b0bf…` |
+| `favicon.png` | byte-identical to `assets/web/favicon.png` (SHA-1 `09158718…`) |
+| `index.html` | byte-identical to `assets/web/index.html` after re-applying the build's content-hash renames, except one line — see below |
+| `mq_js_bundle.382096af.js` | generated in the same build run (index.html references its hash); not independently comparable |
+| `mahjong-client.aa938046.wasm` | compiled in that same run (index.html references its hash); not independently comparable |
+
+`scripts/vercel-build.sh` at that commit is what assigns the names
+(`sha1sum public/<file> | cut -c1-8`), which is why every suffix is reproducible with
+`sha1sum` / `Get-FileHash`. The one difference in `index.html` is the deliberate
+`window.MAHJONG_SERVER_URL` substitution:
+
+```text
+upstream: // window.MAHJONG_SERVER_URL = "wss://example.com/ws";
+ours:         window.MAHJONG_SERVER_URL = "ws://127.0.0.1:24141/ws";
+```
+
+`24141` is this repo's bridge default (`server/index.js`), so this was a **local build
+aimed at this server**, not the published itch.io bundle.
+
+The date closes the window from both sides: `assets/web/index.html` was last changed by
+`4e19e27df1` (2026-09-06, merged as `3af1e3bd18`), and these files entered this repo on
+2026-09-09. Upstream `main` had no commits between those dates — the next one is
+2026-09-14.
+
+### What is proven, and what is not
+
+- **Proven:** the source snapshot is `3af1e3bd18`. Three of the four bundles and the
+  favicon are byte-identical to that tree, and `index.html` matches it after the
+  documented rename plus the server-URL substitution.
+- **Not proven:** a bit-exact rebuild of the `.wasm`. The binary's name is its own SHA-1,
+  so it is internally consistent, and `index.html` references its hash in the same run as
+  the verified files — but nothing upstream can be compared without compiling. Its
+  `producers` custom section records the toolchain: **rustc 1.96.0
+  (`ac68faa20` 2026-05-25)**, and embedded paths (`/home/laffey/.cargo/registry/…`) show
+  a Linux local build. A rebuild on a different rustc or home directory will produce
+  different bytes and therefore different filenames.
+- **The upstream licence and redistribution terms remain unknown** — see
+  [`known-issues.md`](known-issues.md#ki-12).
+
+### Protocol version
+
+Given the snapshot above, this is now evidence rather than belief. At `3af1e3bd18`
+upstream declares `PROTOCOL_VERSION: u32 = 6` in
+`crates/mahjong-server/src/protocol/net.rs`, and the client sends that constant in its
+`Hello` (`crates/mahjong-client/src/adapter/remote.rs`). `server/protocol.js` also speaks
+version 6, so the vendored build matches the bridge it is served from.
 
 ### If you need to update it
 
-There is no scripted path — this was the substance of [KI-08](known-issues.md#ki-08).
-Manually: build the client from upstream `riichi_mahjong_rs`, drop the output into
-`server/public/`, update the four `<script src>` names in `index.html` to match, then
-update the inventory table above with the new sizes and hashes. If you do this, **record
-the upstream commit in this file** — that is the whole point of the exercise.
+From the upstream commit, on Linux (WSL works) with the toolchain recorded above:
+
+```bash
+git clone https://github.com/h1g0/riichi_mahjong_rs
+cd riichi_mahjong_rs
+git checkout 3af1e3bd181b08c1de8edb4a54465c82919f6527
+rustup toolchain install 1.96.0          # the toolchain recorded in the vendored wasm
+rustup override set 1.96.0
+rustup target add wasm32-unknown-unknown
+MAHJONG_SERVER_URL=ws://127.0.0.1:24141/ws bash scripts/vercel-build.sh
+```
+
+Then copy `public/*` into `server/public/`, update the four `<script src>` names and the
+wasm loader in `index.html` to the new hashes, and refresh the inventory table above.
+**Record the new upstream commit in this file** — that is the whole point of the exercise.
+If you build on a different toolchain, expect different content hashes.
 
 ---
 
@@ -128,12 +183,12 @@ checkout passes `lfs: true` for the same reason.
 
 ## Summary of what is *not* recorded anywhere in git
 
-1. the upstream commit for `server/public/`
-2. the upstream revision for `fluffy-stuff.svg`
-3. the source and terms for `sakicardsv13.png`
-4. any licence for the repo as a whole
+1. the upstream revision for `fluffy-stuff.svg`
+2. the source and terms for `sakicardsv13.png`
+3. any licence for the repo as a whole
 
-Items 1–3 are recoverable by re-deriving from upstream and re-recording here. Item 4 is a
-deliberate decision, not an open item: the repo carries **no LICENSE** — see
-[KI-12](known-issues.md#ki-12), which also explains why the vendored art makes a code
-license only a partial answer.
+The prebuilt WASM client used to be item 1; it is now pinned to
+`3af1e3bd18` in §1. Items 1–2 are recoverable by re-deriving from upstream and
+re-recording here. Item 3 is a deliberate decision, not an open item: the repo carries
+**no LICENSE** — see [KI-12](known-issues.md#ki-12), which also explains why the vendored
+art makes a code license only a partial answer.

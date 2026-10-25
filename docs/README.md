@@ -28,7 +28,7 @@ When two documents disagree, resolve it in this order:
 | [`protocol.md`](protocol.md) | — | current | Protocol v6 wire contract |
 | [`conventions.md`](conventions.md) | — | current | Code style, module boundaries, how to add a character |
 | [`known-issues.md`](known-issues.md) | — | current | Structural fragility register + doc rot |
-| [`provenance.md`](provenance.md) | — | current | The vendored prebuilt WASM client and third-party art: what is verified, what is unknown |
+| [`provenance.md`](provenance.md) | — | current | The pinned upstream build of the prebuilt WASM client, and the third-party art whose source is still unknown |
 | [`engine-implementation.md`](engine-implementation.md) | 384 | mostly current | How a game runs end to end. **`file:line` citations are 30–100 lines stale.** |
 | [`engine-design.md`](engine-design.md) | 269 | design | The 6 primitives, Flow economy, lifecycle. Some numbers and the roster tree are wrong. |
 | [`architecture-comparison.md`](architecture-comparison.md) | 127 | current | Ours vs upstream `riichi_advanced`. Best-maintained doc here. |

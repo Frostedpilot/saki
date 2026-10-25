@@ -19,7 +19,8 @@ power framework); the 2026-10 audit is closed.
   checking and a CLI smoke test.
 - Deterministic action journal and verifier (`engine/replay.js`).
 - Seeded RNG (`--seed`) with reproducible matches and a golden CLI fingerprint test.
-- Provenance records for the vendored assets and forward-only Git LFS tracking for the
+- Provenance records for the vendored assets — including the pinned upstream commit and
+  protocol version for the prebuilt client — and forward-only Git LFS tracking for the
   two large binaries.
 - The missing server rules: all five abortive draws, nagashi mangan, agari-yame and the
   chombo-as-penalty flow.

@@ -360,7 +360,7 @@ Three things the suite deliberately does **not** claim:
 
 ---
 
-## <a id="ki-08"></a>KI-08 🟡 A 12 MB vendored binary with no recorded provenance — now recorded, upstream commit still unknown
+## <a id="ki-08"></a>KI-08 ✅ FIXED — a 12 MB vendored binary with no recorded provenance
 
 `server/public/` contains a **prebuilt WASM client from upstream `riichi_mahjong_rs`**,
 committed to git:
@@ -376,27 +376,37 @@ from or how to regenerate it**. The content-hashed filenames were the only prove
 signal. If upstream ships a protocol change, there was no documented way to update this
 build, and `web-client/README.md` did not even mention that it exists.
 
-**Fixed by [`provenance.md`](provenance.md)**, which records the full inventory with
-SHA-256s, a re-verification command, and the manual update procedure. Two things worth
-recording about how that was done:
+**Fixed by [`provenance.md`](provenance.md)**, in two passes. The first recorded the full
+inventory with SHA-256s, a re-verification command and the manual update procedure — and
+said plainly that the upstream commit was unknown rather than inferring one from a
+filename. The commit has since been pinned **from the artefacts themselves**:
 
-- **The upstream commit is still unknown, and the new doc says so rather than guessing.**
-  The filename suffixes are bundler content hashes; nothing in the artefacts maps them to
-  a commit. The bundles were searched for version/commit literals (`aa938046`,
-  `382096af`, `protocol_version`, `version`) and **contain none**. So "which commit?" is
-  only answerable by rebuilding upstream and re-recording — the doc is honest about that
-  instead of inferring an answer from a filename.
-- **The doc also records a confusion worth naming: there are two clients.** `server/public/`
-  is the prebuilt upstream one; `web-client/` is the separate Vite + lit client under
-  development. They are independent, and conflating them is easy.
+- **Snapshot: `h1g0/riichi_mahjong_rs` @ `3af1e3bd18`** (2026-09-06, merge of #388; tree
+  `44f3caae…`). `ws.js`, `storage.js` and `loading.js` are unmodified copies — their
+  SHA-1s *are* the filename suffixes — the favicon is byte-identical, and `index.html`
+  matches after re-applying the build's content-hash renames. The one difference is the
+  deliberate `MAHJONG_SERVER_URL` line, which points at this repo's bridge
+  (`ws://127.0.0.1:24141/ws`), not upstream's deployment.
+- **The date window closes both ends.** `assets/web/index.html` was last changed on
+  2026-09-06 (merged in the same commit), these files entered this repo on 2026-09-09,
+  and upstream `main` had no commits in between — the next is 2026-09-14.
+- **Protocol v6 is now evidence, not belief.** At that commit upstream declares
+  `PROTOCOL_VERSION: u32 = 6` in `mahjong-server/src/protocol/net.rs` and the client
+  sends it in `Hello`; `server/protocol.js` speaks the same version.
+- **What is deliberately not claimed:** a bit-exact rebuild of the `.wasm`. Its name is
+  its own SHA-1 and it was produced in the same run as the verified companions, but the
+  binary's `producers` section records **rustc 1.96.0** and embedded `/home/laffey/…`
+  paths show a Linux local build. Rebuilding on another toolchain or home directory
+  changes the bytes — and therefore the filenames.
 
-What remains genuinely open is that `server/protocol.js` speaks `PROTOCOL_VERSION = 6`
-and **nothing in the repo proves this build is v6-compatible** — it is the build the
-server was developed against, which is belief, not evidence.
+The doc also records a confusion worth naming: **there are two clients.** `server/public/`
+is the prebuilt upstream one; `web-client/` is the separate Vite + lit client under
+development. They are independent, and conflating them is easy.
 
-Still unrecorded, and now listed as such in `provenance.md`: the upstream revision behind
+Still unrecorded, and listed as such in `provenance.md`: the upstream revision behind
 `web-client/src/assets/fluffy-stuff.svg` (218 KB tile sheet) and the source plus
 redistribution terms for `web-client/public/images/sakicardsv13.png` (23 MB card sheet).
+The upstream licence stays unknown — [KI-12](#ki-12).
 
 ---
 
@@ -1659,7 +1669,7 @@ Docs are consistent and CI is green. These are the remaining **code** items:
 | 14 | ~~Cover `yaku-map.js`; fix the dropped Toitoi/Sanankou~~ | ✅ done | KI-13 |
 | 15 | ~~Assert score conservation; fix riichi sticks lost at an exhaustive draw~~ | ✅ done | KI-14 |
 | 16 | ~~Log 500s distinctly from 404s in the static handler~~ | ✅ done | KI-09 |
-| 17 | ~~Record `server/public/` provenance~~ (LICENSE: owner decision, none — KI-12) | ✅ done | KI-08, KI-12 |
+| 17 | ~~Record `server/public/` provenance~~ (LICENSE: owner decision, none — KI-12); upstream commit now pinned too | ✅ done | KI-08, KI-12 |
 | 17a | ~~Sweep `resolveCallWindow` and the scoring path~~ | ✅ done | KI-16 |
 | 17b | ~~Guard bare value-taking CLI flags (`--powers` crashed on `true.split`)~~ | ✅ done | KI-17 |
 | 18 | ~~Add an `.nvmrc`~~ | ✅ done | KI-06 |
@@ -1697,6 +1707,7 @@ Docs are consistent and CI is green. These are the remaining **code** items:
 | 50 | ~~KI-11: extract the client wire-event reducer to `state/events.ts`; close the item~~ | ✅ done | KI-11 |
 | 51 | ~~KI-06: one workspace version + `CHANGELOG.md` + `scripts/release-check.mjs` (version/section/tag consistency, tested); close the CI/version gap~~ | ✅ done | KI-06 |
 | 52 | ~~KI-06: tag-driven release workflow (`.github/workflows/release.yml`), changelog notes and the release/commit conventions in `development.md` §8 / `conventions.md` §9~~ | ✅ done | KI-06 |
+| 53 | ~~KI-08: pin `server/public/` to upstream `3af1e3bd18` from byte-identical companion files, prove protocol v6 from the upstream source, and record the exact rebuild recipe~~ | ✅ done | KI-08 |
 
 Item **23** is **done** — the shared rules and single-turn decisions live in one place with
 parity tests, and the two orchestration loops were merged onto `engine/hand-driver.js` in
