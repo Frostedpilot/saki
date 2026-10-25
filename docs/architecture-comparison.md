@@ -94,9 +94,10 @@ It is less reliable as a runtime for us (new stack, own matcher bugs to own).
 - **Eliminate Tile/Wall Duplicate Code**: ✅ done for `game.js`, ⚠️ open for `cli.js`
   - Removed the redundant `KINDS`, `norm`, `same`, `toCounts`, `toHandStr`, and `DORA_NEXT` from `engine/game.js`; it now imports from `engine/tiles.js`.
   - Still open: `engine/cli.js` re-declares `KINDS` and its own `buildWall`.
-- **Harmonize Rule Helpers**: ⚠️ partly done
-  - Canonical copies of the abort/nagashi helpers live in `engine/helpers.js`.
-  - Still open: wait generation, kuikae checking, and call arbitration are still separate implementations in `engine/game.js` and `server/table.js`.
+- **Harmonize Rule Helpers**: ✅ done
+  - Canonical copies of the abort/nagashi/waits/kuikae helpers live in `engine/helpers.js`.
+  - Call candidacy and priority are shared in `engine/turn-core.js`
+    (`callCandidates` / `arbitrateCalls`); both front-ends call them.
 
 ### Phase 3: Exact Pinning & Comprehensive Scoring Test Corpus
 - **Pin Dependencies**: ✅ done — exact versions (`riichi` `1.2.0`, `syanten` `1.6.0`) in both `engine/package.json` and `server/package.json`.

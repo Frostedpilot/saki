@@ -59,8 +59,9 @@ const {
   applyOkaUma,
 } = require('./helpers');
 // Shared hand-transition table with server/table.js (KI-04): dealer repeat,
-// honba, noten schedule, han floor. The hand-level turn order is shared through
-// hand-driver.playHand; the CLI still supplies its per-turn body inline.
+// honba, noten schedule, han floor. Turn order and the per-turn skeleton come
+// from hand-driver; this file supplies the CLI adapter (prompts, powerDraw,
+// printing).
 const MF = require('./match-flow');
 // Phase 3 of the turn-loop merge: the pure single-turn rules (own-kan
 // availability, call candidates, call priority) shared with server/table.js.

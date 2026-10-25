@@ -134,7 +134,10 @@ resolves early on a ron, while the CLI asks them in seat order. The adapter must
    front-ends use `playHand` *and* `playTurn`. `game.js` supplies `cliAdapter` (prompts,
    `powerDraw`, printing, settlement shape) and `Table` supplies the server adapter
    (events, timers, power hooks, wire settlement). What remains is phase 5 cleanup.
-5. **Delete the old loops** and the parity guards that existed only to keep them honest.
+5. **Clean up the old shape.** The inline loops are already gone — phase 4d replaced
+   the CLI turn body with `cliAdapter`. The source-scan guards stay, but their job has
+   narrowed: they pin each adapter to `turn-core` / `hand-driver` instead of checking
+   two copies against each other.
 
 Phases 1–3 are incremental and reviewable. Phase 4 is the 2–3 day rewrite; it should be its
 own branch, and it will almost certainly change at least one rule.

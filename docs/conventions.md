@@ -130,12 +130,12 @@ logic lives in `engine/tiles.js`, `engine/scoring.js`, `engine/rng.js` and
 > `game.js` kept private copies annotated "keep in sync" — that arrangement let the
 > engine's own tests reach into `server/`, and it has been undone.
 
-**What is still duplicated** is the per-hand *orchestration*: `game.js`'s `main()` and
-`table.js`'s `Table` each drive a hand independently (`declareRiichi`, `collectRon`,
-call-window arbitration, settlement). They are now covered by
-`engine/tests/main-orchestration.test.js`, which is characterisation rather than a spec: it pins
-current behaviour so a consolidation has something to fail against. See
-[`known-issues.md`](known-issues.md#ki-04) before touching them.
+**What used to be duplicated** was the per-hand *orchestration*: `game.js`'s `main()`
+and `table.js`'s `Table` each drove a hand independently. That shared skeleton now
+lives in `engine/hand-driver.js` (`playHand` / `playTurn`), and each front-end is an
+adapter that owns only I/O, powers and settlement shape. They are still covered by
+`engine/tests/main-orchestration.test.js`, which pins the CLI's observable behaviour.
+See [`known-issues.md`](known-issues.md#ki-04) before changing the adapter boundary.
 
 ### 4.4 Rules are data
 
