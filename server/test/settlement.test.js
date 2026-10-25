@@ -333,6 +333,35 @@ test('two claimants is still a legal, fully paid double ron', async () => {
   assert.equal(t.scores[3] - before[3], 1300);
 });
 
+test('double ron with honba and riichi sticks pays each winner and the pot once', async () => {
+  // Both winners collect their own hand value plus their own honba (300 each,
+  // per payer, and a ron has exactly one payer). The riichi pot is a table
+  // asset, not a per-winner bonus: only the nearest winner in turn order takes
+  // it, so a double ron must not duplicate it.
+  const t = makeTable();
+  t.honba = 2;
+  t.ctx.players[1].hand = RON_HAND.slice();
+  t.ctx.players[3].hand = RON_HAND.slice();
+  declareRiichi(t, 0, 2); // 2000 on the table, declared by a non-winner
+
+  const before = t.scores.slice();
+  await t.finishHand(1, {
+    type: 'ron',
+    from: 2,
+    tile: '2p',
+    flags: { chankan: false, houtei: false },
+    hits: [{ seat: 1 }, { seat: 3 }],
+  });
+
+  const hand = 1300;
+  const honba = 2 * 300;
+  assert.equal(t.scores[1] - before[1], hand + honba + 2000, 'first winner also takes the pot');
+  assert.equal(t.scores[3] - before[3], hand + honba, 'second winner gets no pot');
+  assert.equal(t.scores[2] - before[2], -(hand + honba) * 2, 'discarder funds both hands and both honba');
+  assert.equal(sum(t), TOTAL, 'points are conserved, including the awarded pot');
+  assert.equal(t.ctx.riichiPool, 0, 'the pot is emptied');
+});
+
 test('a triple ron of one tile is order-independent', async () => {
   // The claim order must not change the outcome — it is a void hand either way.
   for (const hits of [

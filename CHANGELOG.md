@@ -19,6 +19,9 @@ power framework); the 2026-10 audit is closed.
   checking and a CLI smoke test.
 - Deterministic action journal and verifier (`engine/replay.js`).
 - Seeded RNG (`--seed`) with reproducible matches and a golden CLI fingerprint test.
+- A table-driven scoring corpus (24 fixtures) pinning every standard yaku, yakuman
+  stacking and the 20/30/40/50/60-fu boundaries, plus a double-ron settlement case
+  covering honba and carried riichi sticks.
 - Provenance records for the vendored assets — including the pinned upstream commit and
   protocol version for the prebuilt client — and forward-only Git LFS tracking for the
   two large binaries.
