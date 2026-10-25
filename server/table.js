@@ -31,30 +31,10 @@ const TC = require('../engine/turn-core');
 const HD = require('../engine/hand-driver');
 
 // A character hook that throws must not break the match, but it must not be
-// silent either: a power that is quietly inert looks identical to a power that
-// simply has no effect this hand. Warn once per call site so a per-tick hook
-// cannot flood the log.
-const warnedSites = new Set();
-function warnOnce(site, e) {
-  if (warnedSites.has(site)) return;
-  warnedSites.add(site);
-  const msg = e && e.message ? e.message : String(e);
-  console.warn(`[power] '${site}' threw and was ignored: ${msg}`);
-}
-
-// Invoke a character hook defensively. A bug in a power must not break the
-// match — but it must not be silent, and (because the hand driver is one big
-// async chain) an unguarded throw also rejected run() and bricked the room.
-// Every hook call goes through here so there is exactly one policy.
-function callHook(hooks, name, ...args) {
-  if (!hooks || typeof hooks[name] !== 'function') return null;
-  try {
-    return hooks[name].call(hooks, ...args);
-  } catch (e) {
-    warnOnce(name, e);
-    return null;
-  }
-}
+// silent either. The diagnostics policy and the power subsystem live next to
+// the Table in `hook-utils.js` / `table-powers.js` (KI-11).
+const { warnOnce } = require('./hook-utils');
+const Powers = require('./table-powers');
 
 const KIND_ORDER = {};
 KINDS.forEach((k, i) => {
@@ -136,16 +116,7 @@ class Table {
   }
 
   setArmedTier(seat, tier) {
-    if (seat >= 0 && seat < 4) {
-      // Normal-type powers are fully automatic — nothing to arm, no cost.
-      if (this.ctx && this.ctx.state && this.ctx.state.powers && this.ctx.state.powers.powerTypeOf(seat) === 'normal') {
-        console.log(`[bridge] seat ${seat} power is normal-type — tier selection ignored`);
-        return;
-      }
-      this.armedTiers[seat] = typeof tier === 'number' ? Math.max(0, Math.min(4, Math.floor(tier))) : 0;
-      console.log(`[bridge] seat ${seat} armed power tier ${this.armedTiers[seat]}`);
-      this.broadcastPowerStatus();
-    }
+    Powers.setArmedTier(this, seat, tier);
   }
 
   // ------------------------------------------------------------ plumbing
@@ -187,93 +158,7 @@ class Table {
   }
 
   broadcastPowerStatus() {
-    if (!this.ctx || !this.ctx.state) return;
-    const { state } = this.ctx;
-    for (let s = 0; s < 4; s++) {
-      const power = this.powerOf(s);
-      if (power === 'none') continue;
-      const hooks = state.powers ? state.powers.hooksFor(s) : null;
-      const type = state.powers ? state.powers.powerTypeOf(s) : 'flow';
-
-      // Normal-type powers: passive pill, no meter, no tiers, no arming.
-      if (type === 'normal') {
-        let isActive = false;
-        if (hooks && typeof hooks.isPowerActive === 'function') {
-          try {
-            isActive = !!hooks.isPowerActive(state);
-          } catch (e) {
-            warnOnce('isPowerActive', e);
-          }
-        }
-        let desc = '';
-        if (hooks && hooks.meta && hooks.meta.passiveName) desc = hooks.meta.passiveName;
-        if (hooks && typeof hooks.getHudAdvice === 'function') {
-          try {
-            desc = hooks.getHudAdvice(state) || desc;
-          } catch (e) {
-            warnOnce('getHudAdvice', e);
-          }
-        }
-        this.broadcast(
-          P.evSuperpowerIndicator({
-            seat: s,
-            active: isActive,
-            type: 'normal',
-            gauge: null,
-            power,
-            description: desc,
-            armedTier: 0,
-            availableTiers: [],
-          })
-        );
-        continue;
-      }
-
-      const flowVal = state.flow ? Math.round(state.flow.get(s)) : 50;
-      const gauge = Math.min(100, Math.max(0, Math.round((flowVal / 150) * 100)));
-      let isActive = false;
-      let desc = `Flow: ${flowVal} / 150`;
-      const hs = callHook(hooks, '_state');
-      if (hs && typeof hs === 'object') {
-        for (const val of Object.values(hs)) {
-          if (typeof val === 'number' && val > 0) isActive = true;
-          if (typeof val === 'boolean' && val) isActive = true;
-        }
-      }
-      if (power === 'nodoka') {
-        if (hooks && typeof hooks.getHudAdvice === 'function') {
-          desc = callHook(hooks, 'getHudAdvice', state) || desc;
-        } else if (flowVal >= 50) {
-          desc = `Nodocchi Mode (${flowVal}/150)`;
-        }
-        if (flowVal >= 50) isActive = true;
-      } else if (power === 'yuuki' && (!this.ctx.bakaze || this.ctx.bakaze === 1)) {
-        isActive = true;
-        desc = `East Round Burst (${flowVal}/150)`;
-      } else if (power === 'koromo' && flowVal >= 50) {
-        isActive = true;
-        desc = `Full Moon Aura (${flowVal}/150)`;
-      } else if (isActive) {
-        desc = `Active Power (${flowVal}/150)`;
-      }
-      const armedTier = this.armedTiers ? this.armedTiers[s] || 0 : 0;
-      let availableTiers = [];
-      if (hooks && typeof hooks.getTierInfo === 'function') {
-        const tiers = callHook(hooks, 'getTierInfo', state);
-        availableTiers = Array.isArray(tiers) ? tiers : [];
-      }
-      this.broadcast(
-        P.evSuperpowerIndicator({
-          seat: s,
-          active: isActive,
-          gauge,
-          power,
-          description: desc,
-          armedTier,
-          availableTiers,
-        })
-      );
-    }
+    Powers.broadcastPowerStatus(this);
   }
 
   broadcastRoomState() {
@@ -1537,201 +1422,15 @@ class Table {
   }
 
   maybeActivateTurnPower(seat) {
-    const power = this.powerOf(seat);
-    if (power === 'none') return;
-    const hooks = this.ctx.state.powers ? this.ctx.state.powers.hooksFor(seat) : null;
-    if (!hooks) return;
-    const ctx = this.ctx;
-    const state = ctx.state;
-    const type = state.powers ? state.powers.powerTypeOf(seat) : 'flow';
-
-    // Normal-type powers are fully automatic: no armed tier, no cost, always
-    // at full strength. Fire the onTurnStart condition if it exists.
-    if (type === 'normal') {
-      const activation = callHook(hooks, 'onTurnStart', state, { type: 'normal', armedTier: 0 });
-      if (activation && activation.activated) {
-        const eventType =
-          (activation.event && activation.event.type) ||
-          (activation.result && activation.result.event && activation.result.event.type) ||
-          'NORMAL_TRIGGER';
-        console.log(`[bridge] normal power ${power} triggered ${eventType} for seat ${seat}`);
-        this.broadcast(
-          P.evPowerActivated({
-            player: P.seatWind(seat, ctx.dealer),
-            power,
-            tier: 0,
-            eventType,
-          })
-        );
-        this.broadcastPowerStatus();
-      }
-      return;
-    }
-
-    if (power === 'saki') return; // flow Saki is kan-only
-
-    // Human player uses explicitly armed tier (0 = conserve/off); CPU defaults to 'auto'
-    const armedTier = this.isCpuSeat(seat) ? 'auto' : this.armedTiers[seat] || 0;
-    if (armedTier === 0) return;
-
-    let activation = null;
-    if (typeof hooks.onTurnStart === 'function') {
-      activation = callHook(hooks, 'onTurnStart', state, { armedTier });
-    } else {
-      const order = armedTier === 'auto' ? [4, 3, 2, 1] : [armedTier];
-      for (const t of order) {
-        const fnName = `tryActivateTier${t}`;
-        if (typeof hooks[fnName] === 'function') {
-          try {
-            const r = hooks[fnName].call(hooks, state);
-            if (r && r.ok) {
-              activation = { activated: true, tier: t, result: r };
-              break;
-            }
-          } catch (e) {
-            warnOnce(`tryActivateTier${t}`, e);
-          }
-        }
-      }
-    }
-
-    if (activation && activation.activated) {
-      const tier = activation.tier;
-      const eventType =
-        (activation.result && activation.result.event && activation.result.event.type) || `TIER_${tier}`;
-      console.log(`[bridge] ${power} activated ${eventType} (Tier ${tier}) for seat ${seat}`);
-      this.broadcast(
-        P.evPowerActivated({
-          player: P.seatWind(seat, ctx.dealer),
-          power,
-          tier,
-          eventType,
-        })
-      );
-      if (!this.isCpuSeat(seat)) {
-        this.armedTiers[seat] = 0; // Reset after one-shot activation
-      }
-      this.broadcastPowerStatus();
-    }
+    Powers.maybeActivateTurnPower(this, seat);
   }
 
   maybeActivateTier(seat, kanCount) {
-    const power = this.powerOf(seat);
-    const hooks = this.ctx.state.powers ? this.ctx.state.powers.hooksFor(seat) : null;
-    if (!hooks) return;
-    const ctx = this.ctx;
-    const state = ctx.state;
-    const type = state.powers ? state.powers.powerTypeOf(seat) : 'flow';
-    // Power hooks score with state.bakaze/state.doraIndicators/p.wind, but the
-    // bridge keeps those on ctx (ctx.bakaze/ctx.doraInd/dealer). Sync them so
-    // winningWaits sees the real round wind, seat wind and dora (matters for
-    // the overtime ryanhan floor, and avoids wind-yakuhai skew).
-    try {
-      state.bakaze = ctx.bakaze;
-      state.doraIndicators = [...ctx.doraInd];
-      if (state.players && state.players[seat]) state.players[seat].wind = P.jikazeOf(seat, ctx.dealer);
-    } catch (e) {
-      warnOnce('kan-ctx-sync', e);
-    }
-
-    // Normal-type powers need no arming and spend nothing: the hook evaluates
-    // its own condition and pins the on-deck replacement slot when it fires.
-    if (type === 'normal') {
-      const activation = callHook(hooks, 'onKanDeclared', state, {
-        kanCount,
-        rinshanIdx: ctx.rinshanIdx,
-        armedTier: 0,
-      });
-      if (activation && activation.activated) {
-        const eventType =
-          (activation.event && activation.event.type) ||
-          (activation.result && activation.result.event && activation.result.event.type) ||
-          'NORMAL_KAN';
-        console.log(`[bridge] normal power ${power} triggered ${eventType} (kan ${kanCount})`);
-        this.broadcast(
-          P.evPowerActivated({
-            player: P.seatWind(seat, ctx.dealer),
-            power,
-            tier: 0,
-            eventType,
-          })
-        );
-        this.broadcastPowerStatus();
-      }
-      return;
-    }
-
-    // Human player uses explicitly armed tier (or 'auto' if CPU)
-    const armedTier = this.isCpuSeat(seat) ? 'auto' : this.armedTiers[seat] || 0;
-    if (armedTier === 0) return; // Conserve meter on Kan!
-
-    let activation = null;
-    if (typeof hooks.onKanDeclared === 'function') {
-      activation = callHook(hooks, 'onKanDeclared', this.ctx.state, {
-        armedTier,
-        kanCount,
-        rinshanIdx: this.ctx.rinshanIdx,
-      });
-    } else {
-      const order = armedTier === 'auto' ? [4, 3, 2, 1] : [armedTier];
-      for (const t of order) {
-        const name = `tryActivateTier${t}`;
-        if (typeof hooks[name] === 'function') {
-          try {
-            const r = hooks[name].call(hooks, this.ctx.state, kanCount, this.ctx.rinshanIdx);
-            if (r && r.ok) {
-              activation = { activated: true, tier: t, result: r };
-              break;
-            }
-          } catch (e) {
-            warnOnce(`${power}:onKanDeclared`, e);
-          }
-        }
-      }
-    }
-
-    if (activation && activation.activated) {
-      const r = activation.result;
-      const tier = activation.tier;
-      // Saki tiers now deterministically pin the on-deck slot (win if live,
-      // else best ukeire). Only fall back to weighted sampling when the hook
-      // did NOT pin — never overwrite a guaranteed slot.
-      if (
-        r &&
-        !r.pinned &&
-        r.weightOf &&
-        typeof core.sampleRinshan === 'function' &&
-        this.ctx.rinshanIdx < RULES.rinshanSlots
-      ) {
-        core.sampleRinshan(this.ctx.state, this.ctx.rinshanIdx, r.weightOf);
-      }
-      console.log(`[bridge] ${power} tier ${tier} activated (kan ${kanCount})`);
-      const eventType = (r && r.event && r.event.type) || `TIER_${tier}`;
-      this.broadcast(
-        P.evPowerActivated({
-          player: P.seatWind(seat, this.ctx.dealer),
-          power,
-          tier,
-          eventType,
-        })
-      );
-      if (!this.isCpuSeat(seat)) {
-        this.armedTiers[seat] = 0;
-      }
-      this.broadcastPowerStatus();
-    }
+    Powers.maybeActivateTier(this, seat, kanCount);
   }
 
-  // Repeats the placement step that a real engine loops for the Saki
-  // settlement hook. Called for wins so powers can react (flow burn etc.).
   settlePowerHook(result) {
-    try {
-      if (typeof this.ctx.state.powers.onSettlement === 'function') {
-        this.ctx.state.powers.onSettlement(result, this.ctx.state);
-      }
-    } catch (e) {
-      warnOnce('onSettlement', e);
-    }
+    Powers.settlePowerHook(this, result);
   }
 
   // Discard right after a call/kan. Returns {tile,...} or null.
