@@ -312,3 +312,21 @@ table if the character uses a new primitive.
 - **Do not add a client test framework without also wiring it into CI.**
   `npm run test:client` runs Vitest and `tsc`, and `npm test` at the root includes
   it. A test runner that CI does not call is not a test runner.
+
+---
+
+## 9. Commits and PRs
+
+- **Prefix the subject with the change type**: `feat:`, `fix:`, `docs:`, `test:`,
+  `refactor:`, `chore:`. Audit work may use the issue id (`KI-04: …`), but keep the
+  conventional prefix when there is no issue. Avoid subjects like `update` — they make
+  the changelog and `git log` useless.
+- **One logical change per commit.** A refactor and a behaviour change do not share a
+  commit, because the refactor's "no behaviour change" claim is only checkable alone.
+- **State the verification in the body** when the change is not obvious: which suite
+  ran, and for output-affecting changes the seeds/fixtures compared.
+- **Do not rewrite published history.** Add a follow-up commit instead of amending or
+  force-pushing. Unpublished work may still be corrected.
+- **A version bump must include a `CHANGELOG.md` section** for that version and keep
+  all four `package.json` files in step; `npm run release:check` enforces both. See
+  [`development.md` §8](development.md#8-releasing).

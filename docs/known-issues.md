@@ -51,7 +51,8 @@ literally for Node to expand — so this also works under bash and zsh):
 | `cd engine && npm test` | 310 pass + 43 selftest checks | **0** |
 | `cd server && npm test` | 3 pass | **0** |
 
-The remaining problem is that **nothing runs these tests automatically** — see KI-06.
+At the time, the remaining problem was that **nothing ran these tests automatically**; that
+gap is now closed by CI and the release workflow (see [KI-06](#ki-06)).
 
 ---
 
@@ -283,24 +284,36 @@ roster. The Flow gauge, tiers, `PowerDispatcher`, `dynamicPool` reservations and
 
 ---
 
-## <a id="ki-06"></a>KI-06 🟡 CI added; no linter, no release process
+## <a id="ki-06"></a>KI-06 ✅ FIXED — CI, linting, formatting, Node pin and a release process
 
-- **CI: ✅ fixed.** `.github/workflows/ci.yml` runs on push and PR: `npm ci`, ESLint +
-  Prettier `format:check`, engine tests, server E2E, client type-check + build, a CLI smoke
-  check, and the markdown link checker. The full test suite (engine, server, dev scripts,
-  client) plus the 48-check selftest now run automatically.
+- **CI: ✅ added.** `.github/workflows/ci.yml` runs on push and PR: `npm ci`, ESLint +
+  Prettier `format:check`, release metadata, engine tests, server E2E, client
+  type-check + build, a CLI smoke check, and the markdown link checker. The full test
+  suite (engine, server, dev scripts, client) plus the 48-check selftest now run
+  automatically.
 - **Markdown link checking: ✅ added.** `scripts/check-links.mjs` (`npm run links`)
   verifies every relative link in every `.md` resolves. It caught real breakage during
   this work and is cheap to run locally.
 - **Linter and formatter: ✅ added.** ESLint (`eslint.config.mjs`) and Prettier, wired into
   `npm run lint` / `npm run format` / `npm run format:check`. `npm run check` runs all of
   them before the tests (the format step was added after it let `table.js` drift — see
-  [A-12](#a-12)). No `.editorconfig`; Prettier owns whitespace.
+  [A-12](#a-12)). A root `.editorconfig` pins the basics; Prettier owns whitespace.
 - **Node version: ✅ pinned.** `"engines": { "node": ">=22" }` in all three
   `package.json`s plus the root, CI runs Node 22 explicitly, and a root `.nvmrc`
   pins `22` for version managers.
-- **Three unrelated versions**: `engine@1.0.0`, `server@0.1.0`, `web-client@1.0.0`,
-  with no release process, no changelog, and commit messages like `update`.
+- **Versions and releases: ✅ added.** All four manifests share one version (`1.0.0`),
+  `CHANGELOG.md` is Keep-a-Changelog, and `scripts/release-check.mjs`
+  (`npm run release:check`) fails if the versions disagree or the changelog has no
+  section for the current version. `.github/workflows/release.yml` runs on a `vX.Y.Z`
+  tag, re-runs the full check, verifies the tag against the package version, and
+  publishes a GitHub Release from the changelog section. The flow is documented in
+  [`development.md` §8](development.md#8-releasing).
+- **Commit messages: ✅ convention recorded.** Subjects use `feat:` / `fix:` / `docs:` /
+  `test:` / `refactor:` / `chore:` (or an audit id), one logical change per commit, and
+  no rewriting of published history — see
+  [`conventions.md` §9](conventions.md#commits-and-prs). Enforcement is social plus the
+  changelog gate, not a commit hook: a hook is easy to bypass and adds a dependency for
+  little value at this team size.
 
 ---
 
@@ -1682,6 +1695,8 @@ Docs are consistent and CI is green. These are the remaining **code** items:
 | 48 | ~~KI-11: extract the server power subsystem to `server/table-powers.js` and the defensive hook policy to `server/hook-utils.js`~~ | ✅ done | KI-11 |
 | 49 | ~~KI-11: extract the server call window to `server/table-calls.js` and the phase names to `server/phases.js`; re-pin the parity guards~~ | ✅ done | KI-11 |
 | 50 | ~~KI-11: extract the client wire-event reducer to `state/events.ts`; close the item~~ | ✅ done | KI-11 |
+| 51 | ~~KI-06: one workspace version + `CHANGELOG.md` + `scripts/release-check.mjs` (version/section/tag consistency, tested); close the CI/version gap~~ | ✅ done | KI-06 |
+| 52 | ~~KI-06: tag-driven release workflow (`.github/workflows/release.yml`), changelog notes and the release/commit conventions in `development.md` §8 / `conventions.md` §9~~ | ✅ done | KI-06 |
 
 Item **23** is **done** — the shared rules and single-turn decisions live in one place with
 parity tests, and the two orchestration loops were merged onto `engine/hand-driver.js` in

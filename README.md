@@ -109,9 +109,12 @@ saki/
 │   └── tests/               31 *.test.js, node:test
 │
 ├── scripts/
-│   └── check-links.mjs      markdown link checker (npm run links)
+│   ├── check-links.mjs      markdown link checker (npm run links)
+│   └── release-check.mjs    version + changelog gate (npm run release:check)
 │
-├── .github/workflows/ci.yml  engine + server + client build + link check
+├── .github/workflows/       ci.yml (every push) + release.yml (v* tags)
+│
+├── CHANGELOG.md             Keep a Changelog, one entry per release
 │
 ├── server/                  WebSocket bridge (node:http + ws)
 │   ├── index.js             static host for public/ + WebSocketServer at /ws
@@ -155,8 +158,9 @@ via Node's built-in test runner.
 npm test              # everything CI runs
 npm run test:engine   # 446 tests + 48 rule checks
 npm run test:server   # 136 server tests
-npm run test:scripts  # 6 dev-script tests
+npm run test:scripts  # 10 dev-script tests
 npm run test:client   # 244 client tests + tsc type-check
+npm run release:check # version + changelog consistency
 npm run links         # markdown link check
 npm run smoke         # one short deterministic hand
 ```
@@ -165,6 +169,16 @@ npm run smoke         # one short deterministic hand
 > works, `node --test tests/` throws `Cannot find module` on Node 22. The `npm test`
 > scripts are set up correctly. History in
 > [`docs/known-issues.md`](docs/known-issues.md#ki-01).
+
+---
+
+## Releases
+
+One version across the workspace. A release is a `vX.Y.Z` tag with a matching
+[`CHANGELOG.md`](CHANGELOG.md) section; `npm run release:check` fails if the manifests
+disagree or the section is missing. Pushing the tag runs the full check and publishes a
+GitHub Release (`.github/workflows/release.yml`). The step-by-step flow is in
+[`docs/development.md` §8](docs/development.md#8-releasing).
 
 ---
 
