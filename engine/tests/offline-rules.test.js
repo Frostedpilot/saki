@@ -22,6 +22,7 @@ const assert = require('node:assert/strict');
 const game = require('../game.js');
 const { botDiscard, botWantsCall, getWaits, isSuufonRenda, isSuukaikanAbort } = require('../helpers');
 const { norm, fullCounts, same } = require('../tiles');
+const { createRNG } = require('../rng');
 
 const { parseArgs, buildWall, countVisible, powerDraw, POWERS } = game;
 
@@ -159,6 +160,18 @@ test('buildWall: shuffles — two builds differ', () => {
   assert.notDeepEqual(buildWall(), buildWall());
 });
 
+test('buildWall: a passed RNG makes the shuffle reproducible', () => {
+  assert.deepEqual(buildWall(createRNG(42)), buildWall(createRNG(42)));
+  assert.notDeepEqual(buildWall(createRNG(42)), buildWall(createRNG(43)));
+});
+
+test('buildWall: consumes the passed RNG instead of global Math.random', () => {
+  const rng = createRNG(7);
+  const calls = rng.calls;
+  buildWall(rng);
+  assert.ok(rng.calls > calls, 'the shuffle must draw from the match RNG');
+});
+
 // ------------------------------------------------------------- countVisible
 // countVisible returns how many copies of a kind are already VISIBLE (hand,
 // melds, discards, dead wall). It is used to decide whether a wait is karaten.
@@ -205,6 +218,18 @@ test('powerDraw: "none" just pops the wall', () => {
 test('powerDraw: returns null on an exhausted wall instead of throwing', () => {
   assert.equal(powerDraw([], HAND, 'saki', ctxFor()), null);
   assert.equal(powerDraw([], HAND, 'kuro', ctxFor()), null);
+});
+
+test('powerDraw: ctx.rng drives the choice', () => {
+  // kuro takes the dora in the tail window only when the roll is under 0.7.
+  // Same wall, opposite rolls: the outcome must follow ctx.rng, not Math.random.
+  const tailWithDora = () => {
+    const w = Array.from({ length: 20 }, () => '9s');
+    w[w.length - 8] = '5m'; // in the 8-tile window, but not the next pop()
+    return w;
+  };
+  assert.equal(powerDraw(tailWithDora(), HAND, 'kuro', ctxFor({ rng: { next: () => 0.1 } })), '5m');
+  assert.equal(powerDraw(tailWithDora(), HAND, 'kuro', ctxFor({ rng: { next: () => 0.9 } })), '9s');
 });
 
 test('powerDraw: never invents a tile — conservation holds for every power', () => {

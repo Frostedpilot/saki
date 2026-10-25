@@ -35,6 +35,8 @@ power framework); the 2026-10 audit is closed.
   hand-transition and score arithmetic in `engine/match-flow.js`.
 - Rule constants and switches are data (`engine/rules-config.js`) instead of duplicated
   literals; a parity test fails if either front-end reintroduces a copy.
+- `--seed` now creates one match-scoped RNG threaded through the wall shuffle, the
+  offline power rig and the bot brains instead of replacing global `Math.random`.
 - The oversized modules were split: the CLI selftest, server powers, call window and
   client event reducer moved to their own files.
 - Bot pacing, turn timers and lifecycle hooks (`onPreDeal`, `onWallSetup`,

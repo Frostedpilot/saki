@@ -67,11 +67,12 @@ Status tags: **[FIXED]** landed — see §5. **[OPEN]** still true.
    `clearTempFuritenOnDraw` on the server side. Pinned by
    `engine/tests/furiten-riichi.test.js` (5 tests). Reference behaviour is in
    `furiten.majs`.
-4. **Documented gaps.** **[OPEN]** No open-riichi, no pao (see the `game.js` header);
-   the offline turn loop does not thread an `RNG` through `--seed` (it backs
-   `Math.random` via `createRNG`), so offline and online determinism are separate
-   mechanisms. Both front-ends now implement and gate all five abortive draws
-   (`RULES.aborts` / `RULES.serverAborts` via `MF.abortEnabled`).
+4. **Documented gaps.** **[OPEN]** No open-riichi, no pao (see the `game.js` header).
+   Both front-ends now implement and gate all five abortive draws
+   (`RULES.aborts` / `RULES.serverAborts` via `MF.abortEnabled`). `--seed` no longer
+   replaces global `Math.random`: the match owns one `RNG`, passed to the wall
+   shuffle, the offline power rig (`ctx.rng`) and the bot brains, the same way
+   `core.createMatchState` threads one through state.
 5. **No replay log.** *Partly fixed.* `engine/replay.js` implements the journal and
    verifier, but matches are not persisted — nothing writes a journal to disk, so real
    disputes are still not reproducible. Reference has log/supervision
@@ -87,9 +88,9 @@ It is less reliable as a runtime for us (new stack, own matcher bugs to own).
 - **Fix Riichi Furiten Leak**: ✅ done
   - Guarded `me.tempFuriten = false` in `engine/game.js` so it never resets if `me.riichi || me.doubleRiichi`; added `engine/helpers.js` `clearTempFuritenOnDraw`, called from `Table.playTurn`.
   - Regression tests in `engine/tests/furiten-riichi.test.js` assert that passing a winning discard under riichi prevents all subsequent ron attempts for that kyoku, while still allowing valid tsumo.
-- **RNG Determinism Unification**: ⚠️ partly done
-  - The global `Math.random` monkey-patching in `engine/game.js` now backs onto `createRNG(seed)` (mulberry32) from `engine/rng.js`.
-  - Still open: the offline turn loop does not thread an `RNG` through state the way `core.createMatchState` does, so the two layers still derive reproducibility differently.
+- **RNG Determinism Unification**: ✅ done
+  - `engine/game.js` creates one `createRNG(seed)` per match and threads it through the kyoku `ctx`: the wall shuffle, `powerDraw`, bot discards/calls and the inline bot choices all draw from it.
+  - Global `Math.random` is no longer replaced, so two matches in one process cannot share or leak RNG state; unseeded runs fall back to a `Math.random`-backed wrapper exactly as before.
 
 ### Phase 2: Deduplication & Single Source of Truth
 - **Eliminate Tile/Wall Duplicate Code**: ✅ done
@@ -128,9 +129,10 @@ It is less reliable as a runtime for us (new stack, own matcher bugs to own).
 - Phase 1: gate in `engine/game.js` (own-draw clear) + `engine/helpers.js`
   `clearTempFuritenOnDraw` used by `Table.playTurn`; regression in
   `engine/tests/furiten-riichi.test.js` (5 tests).
-- Phase 1 RNG: `--seed` now backs `Math.random` with `createRNG` (mulberry32);
-  `seed=7/kyoku=1` reproduces byte-identical results. *(Offline loop still does not
-  thread an `RNG` through state like `core.js` does — see §3.4.)*
+- Phase 1 RNG: `--seed` creates one `createRNG` (mulberry32) per match, threaded
+  through the kyoku `ctx` to the wall, powers and bots; global `Math.random` is left
+  alone. `seed=7/kyoku=1` still reproduces byte-identical results (the golden
+  fingerprint is unchanged).
 - Phase 2: `game.js` tile/scoring helpers deleted, imported from
   `engine/tiles.js` + `engine/scoring.js`; abort helpers canonical in
   `engine/helpers.js` (`isSuufonRenda`, `isSuukaikanAbort`, `isNagashi`
@@ -145,7 +147,7 @@ It is less reliable as a runtime for us (new stack, own matcher bugs to own).
   front-ends adapt.
 - Phase 5: `engine/replay.js` (journal + `verifyJournal` via `core.js`);
   covered in `rules.test.js` incl. tamper rejection. *(No persistence to disk.)*
-- Full suite: `node --test tests/*.test.js` **446 pass / 0 fail** + `game.js --selftest`
+- Full suite: `node --test tests/*.test.js` **449 pass / 0 fail** + `game.js --selftest`
   **48 checks**; server `npm test` **144 pass / 0 fail**; dev scripts `npm run test:scripts`
   **10 pass**. (Use the glob form — a bare
   directory argument is rejected by Node 22; see `docs/development.md` §5.)
