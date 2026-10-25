@@ -27,6 +27,7 @@ const { RULES } = require('../rules-config');
 const ROOT = path.join(__dirname, '..', '..');
 const GAME_JS = fs.readFileSync(path.join(ROOT, 'engine', 'game.js'), 'utf8');
 const TABLE_JS = fs.readFileSync(path.join(ROOT, 'server', 'table.js'), 'utf8');
+const TABLE_CALLS_JS = fs.readFileSync(path.join(ROOT, 'server', 'table-calls.js'), 'utf8');
 const HAND_DRIVER_JS = fs.readFileSync(path.join(ROOT, 'engine', 'hand-driver.js'), 'utf8');
 const HELPERS_JS = fs.readFileSync(path.join(ROOT, 'engine', 'helpers.js'), 'utf8');
 
@@ -255,8 +256,11 @@ test('both front-ends route single-turn decisions through turn-core', () => {
     assert.match(src, /require\(['"][^'"]*turn-core['"]\)/, `${name} should import turn-core`);
     assert.match(src, /TC\.beginTurn\(/, `${name} should use TC.beginTurn`);
     assert.match(src, /TC\.resolveDiscard\(/, `${name} should use TC.resolveDiscard`);
-    assert.match(src, /TC\.callCandidates\(/, `${name} should use TC.callCandidates`);
   }
+  // The call window moved to server/table-calls.js (KI-11), so its candidates
+  // and arbitration are pinned there rather than in the Table class.
+  assert.match(TABLE_CALLS_JS, /require\(['"][^'"]*turn-core['"]\)/, 'table-calls.js should import turn-core');
+  assert.match(TABLE_CALLS_JS, /TC\.callCandidates\(/, 'table-calls.js should use TC.callCandidates');
   // Own-kan and the turn skeleton live in hand-driver now; both front-ends
   // reach TC.kanOptions through HD.playTurn.
   assert.match(HAND_DRIVER_JS, /TC\.kanOptions\(/, 'engine/hand-driver.js should use TC.kanOptions');
@@ -265,6 +269,6 @@ test('both front-ends route single-turn decisions through turn-core', () => {
   assert.match(GAME_JS, /require\(['"][^'"]*hand-driver['"]\)/, 'engine/game.js should use hand-driver');
   assert.match(GAME_JS, /HD\.playHand\(/, 'engine/game.js should use HD.playHand');
   assert.match(TABLE_JS, /HD\.playHand\(/, 'server/table.js should use HD.playHand');
-  assert.match(TABLE_JS, /TC\.arbitrateCalls\(/, 'server/table.js should use TC.arbitrateCalls');
+  assert.match(TABLE_CALLS_JS, /TC\.arbitrateCalls\(/, 'server/table-calls.js should use TC.arbitrateCalls');
   assert.doesNotMatch(TABLE_JS, /this\.ponOptions\s*\(/, 'server/table.js must not keep a local ponOptions');
 });
