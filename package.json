@@ -21,9 +21,10 @@
     "links": "node scripts/check-links.mjs",
     "smoke": "node engine/game.js --seed 42 --kyoku 1",
     "lint": "eslint engine server scripts web-client/src eslint.config.mjs",
-    "format": "prettier --write engine server scripts web-client/src web-client/*.ts web-client/*.html .github/workflows/ci.yml eslint.config.mjs",
-    "format:check": "prettier --check engine server scripts web-client/src web-client/*.ts web-client/*.html .github/workflows/ci.yml eslint.config.mjs",
-    "check": "npm run format:check && npm run lint && npm run test && npm run links"
+    "format": "prettier --write engine server scripts web-client/src web-client/*.ts web-client/*.html .github/workflows/*.yml eslint.config.mjs",
+    "format:check": "prettier --check engine server scripts web-client/src web-client/*.ts web-client/*.html .github/workflows/*.yml eslint.config.mjs",
+    "release:check": "node scripts/release-check.mjs",
+    "check": "npm run format:check && npm run lint && npm run test && npm run release:check && npm run links"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

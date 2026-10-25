@@ -1,6 +1,6 @@
 {
   "name": "saki-bridge-server",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "private": true,
   "description": "WebSocket bridge: riichi_mahjong_rs protocol v6 client <-> the saki engine (powers included)",
   "main": "index.js",
