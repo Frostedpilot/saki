@@ -142,7 +142,7 @@ test('suufon-renda is checked after the call window in both drivers', () => {
   // on the 4th discard left the full accumulator armed for a later quiet
   // discard. Pin both halves.
   const suufonAt = GAME_JS.indexOf('SUUFON-RENDA');
-  const calledAt = GAME_JS.indexOf('if (called) continue;');
+  const calledAt = GAME_JS.indexOf('if (called)');
   const chiAt = GAME_JS.indexOf('CHI ${disc}');
   assert.ok(suufonAt > 0 && calledAt > 0 && chiAt > 0, 'expected the sites in engine/game.js');
   assert.ok(suufonAt > calledAt, 'game.js must check suufon after the pon/kan window');
@@ -265,6 +265,9 @@ test('both front-ends route single-turn decisions through turn-core', () => {
   assert.match(GAME_SETTLEMENT, /TC\.kanOptions\(/, 'engine/game.js should use TC.kanOptions');
   assert.match(HAND_DRIVER_JS, /TC\.kanOptions\(/, 'engine/hand-driver.js should use TC.kanOptions');
   assert.match(TABLE_JS, /require\(['"][^'"]*hand-driver['"]\)/, 'server/table.js should use hand-driver');
+  assert.match(GAME_JS, /require\(['"][^'"]*hand-driver['"]\)/, 'engine/game.js should use hand-driver');
+  assert.match(GAME_JS, /HD\.playHand\(/, 'engine/game.js should use HD.playHand');
+  assert.match(TABLE_JS, /HD\.playHand\(/, 'server/table.js should use HD.playHand');
   assert.match(TABLE_JS, /TC\.arbitrateCalls\(/, 'server/table.js should use TC.arbitrateCalls');
   assert.doesNotMatch(TABLE_JS, /this\.ponOptions\s*\(/, 'server/table.js must not keep a local ponOptions');
 });
