@@ -152,12 +152,14 @@ availability (`kanOptions`), the call window (`callCandidates`) and call priorit
 three copies and kan budget", "chi is shimocha-only" and "ron beats pon/kan beats chi,
 nearest wins" have one definition; the server's ippatsu expiry now matches the CLI — the
 declaring discard keeps ippatsu, the declarer's next discard clears it, and any call clears
-it earlier. Phase 4 is partly merged: both front-ends use
-`engine/hand-driver.js` `playHand` for the hand-level loop, and the server also uses the
-shared per-turn skeleton (`playTurn`). The CLI still supplies its per-turn body inline
-through `cliPlayTurn`; moving that onto `playTurn` is the remaining phase-4 work. The
-boundary and the intentional divergences are recorded in
-[`turn-loop-merge.md`](turn-loop-merge.md).
+it earlier. Phase 4 is merged: both front-ends are adapters over
+`engine/hand-driver.js` — `game.js`'s `cliAdapter` and `Table` both use
+`playHand` and `playTurn`, so turn order, the draw → tsumo/kan/riichi/discard →
+call-window skeleton and the settlement hand-off have one definition. The CLI still
+owns its prompts, `powerDraw` and printing; the server owns its events, timers and
+power hooks. Phase 5 is now cleanup: retire the source-scan guards that only existed
+to keep the two inline loops honest. The boundary and the intentional divergences are
+recorded in [`turn-loop-merge.md`](turn-loop-merge.md).
 
 ### `rules-config.js` was dead, and is now live
 
@@ -192,14 +194,14 @@ it.
 Being precise about the remaining scope, because "consolidate the front-ends" reads
 like one task and is not:
 
-- **The turn loop itself.** `game.js main()` is a `while` loop with decisions inline;
-  `Table` is an async phase machine that awaits a WebSocket reply per decision. They
-  have different control architectures because one is a CLI and the other is a server.
-  The *decisions* are now shared (`turn-core`), but the *scheduling* is not, so merging
-  the loops still means rewriting both rather than extracting a shared function — which
-  is why item 23 was scoped at 2–3 days. The exact boundary, the remaining intentional
-  divergences (powers, draw model, kyuushu prompt) and a phased plan are
-  in [`docs/turn-loop-merge.md`](turn-loop-merge.md).
+- **The turn loop itself.** `engine/hand-driver.js` now owns both the hand-level
+  order (`playHand`) and the per-turn skeleton (`playTurn`), and both front-ends are
+  adapters over it. What each driver still owns is I/O, the draw model, character
+  powers and the settlement shape — `Table` awaits a WebSocket reply per decision
+  while the CLI reads stdin, so the adapters cannot collapse further without
+  pretending one is the other. The exact boundary and the remaining intentional
+  divergences (powers, draw model, kyuushu prompt) are in
+  [`docs/turn-loop-merge.md`](turn-loop-merge.md).
 - **Abortive draws.** Both front-ends implement all five (see [KI-25](#ki-25)) and gate
   them through the shared `match-flow.js abortEnabled` switch; `Table`'s kyuushu path keeps
   one documented limitation (no deal-time prompt, so a human 9-kind hand auto-plays on).
@@ -1651,6 +1653,7 @@ Docs are consistent and CI is green. These are the remaining **code** items:
 | 42 | ~~KI-04 phase 4a: start the shared hand driver — `engine/hand-driver.js playHand(adapter)` owns hand-level turn order and the safety stop; `Table.playOneHand` uses it, with per-turn migration still open~~ | ✅ done | KI-04 |
 | 43 | ~~KI-04 phase 4b: share the per-turn skeleton — `hand-driver.playTurn` owns draw → tsumo/kan/riichi/discard → call window; `Table.playTurn` is now a thin adapter, and the server's diagnostic/power hooks moved behind it~~ | ✅ done | KI-04 |
 | 44 | ~~KI-04 phase 4c: wire the CLI onto the shared hand loop — `game.js` wraps its turn body in `cliPlayTurn` and calls `hand-driver.playHand`, so both front-ends use the same hand-level adapter contract~~ | ✅ done | KI-04 |
+| 45 | ~~KI-04 phase 4d: port the CLI per-turn body onto `hand-driver.playTurn` — `game.js` implements the adapter surface (draw, scoring, turn action, kan, discard, call window), so both front-ends share the full turn skeleton; the CLI output is byte-identical across seeds~~ | ✅ done | KI-04 |
 
 Item **23** is now *partly* done — the shared rules and single-turn decisions live in one
 place with parity tests — but merging the two orchestration loops is still open. **21** was its prerequisite

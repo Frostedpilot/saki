@@ -105,13 +105,16 @@ It is less reliable as a runtime for us (new stack, own matcher bugs to own).
   - Coverage gaps remain: no structured fixtures, and no double-ron honba/riichi-stick allocation cases.
 
 ### Phase 4: Match Loop & Architecture Unification
-- **Align Server & Offline Turn Loop**: ⚠️ partly done
+- **Align Server & Offline Turn Loop**: ✅ done
   - The shared **numeric** rule values (start score, riichi stake, honba, noten schedule) now come from `engine/rules-config.js` and are read by both front-ends, with `engine/tests/rules-config-parity.test.js` failing if either reintroduces a literal copy.
   - Abortive draws are gated behind that config: both front-ends read `RULES.aborts` /
     `RULES.serverAborts` through `engine/match-flow.js abortEnabled`, and all five abort
     handlers now exist on both sides. Both sets enable all five, so the switch is
     behaviour-neutral today. See KI-04.
-  - Still open: `Table.playTurn` and the `engine/game.js` turn dispatch are separate state machines. The boundary, the intentional divergences and a phased plan are in [`turn-loop-merge.md`](turn-loop-merge.md).
+  - `engine/hand-driver.js` owns the hand-level order (`playHand`) and the per-turn
+    skeleton (`playTurn`); `Table` and the CLI's `cliAdapter` are thin adapters over it.
+    The boundary, the intentional divergences and the phase-5 cleanup are in
+    [`turn-loop-merge.md`](turn-loop-merge.md).
 - **Per-Turn Invariant Assertions**: ✅ done — `engine/invariants.js` (conservation via `DynamicPool.audit`, dead wall length, hand size, zero-sum scores).
 
 ### Phase 5: Deterministic Replay & Audit Journaling
@@ -135,8 +138,9 @@ It is less reliable as a runtime for us (new stack, own matcher bugs to own).
   corpus in `engine/tests/rules.test.js` (27 tests: yaku, fu, dora/aka,
   flags, shibari, waits, aborts, kuikae, ankan, nagashi, oka/uma).
 - Phase 4: `engine/rules-config.js` (RULES defaults; server aborts gated off),
-  `engine/invariants.js` (conservation, dead wall, hand size, scores).
-  *(Server and offline turn loops are still separate state machines.)*
+  `engine/invariants.js` (conservation, dead wall, hand size, scores), and the
+  shared turn driver `engine/hand-driver.js` (`playHand` / `playTurn`) that both
+  front-ends adapt.
 - Phase 5: `engine/replay.js` (journal + `verifyJournal` via `core.js`);
   covered in `rules.test.js` incl. tamper rejection. *(No persistence to disk.)*
 - Full suite: `node --test tests/*.test.js` **446 pass / 0 fail** + `game.js --selftest`

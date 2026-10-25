@@ -142,10 +142,10 @@ test('suufon-renda is checked after the call window in both drivers', () => {
   // on the 4th discard left the full accumulator armed for a later quiet
   // discard. Pin both halves.
   const suufonAt = GAME_JS.indexOf('SUUFON-RENDA');
-  const calledAt = GAME_JS.indexOf('if (called)');
   const chiAt = GAME_JS.indexOf('CHI ${disc}');
-  assert.ok(suufonAt > 0 && calledAt > 0 && chiAt > 0, 'expected the sites in engine/game.js');
-  assert.ok(suufonAt > calledAt, 'game.js must check suufon after the pon/kan window');
+  const callWindowAt = GAME_JS.indexOf('async resolveCallWindow(');
+  assert.ok(suufonAt > 0 && chiAt > 0 && callWindowAt > 0, 'expected the sites in engine/game.js');
+  assert.ok(suufonAt > callWindowAt, 'game.js must check suufon inside the shared call window');
   assert.ok(suufonAt > chiAt, 'game.js must check suufon after the chi window');
   assert.match(TABLE_JS, /ctx\.callsMade === 0 && firstLap\.length === 4/);
 });
@@ -260,10 +260,10 @@ test('both front-ends route single-turn decisions through turn-core', () => {
     assert.match(src, /TC\.resolveDiscard\(/, `${name} should use TC.resolveDiscard`);
     assert.match(src, /TC\.callCandidates\(/, `${name} should use TC.callCandidates`);
   }
-  // Own-kan moved into the shared per-turn skeleton with phase 4, so the
-  // remaining direct call is in game.js; the server reaches it via hand-driver.
-  assert.match(GAME_SETTLEMENT, /TC\.kanOptions\(/, 'engine/game.js should use TC.kanOptions');
+  // Own-kan and the turn skeleton live in hand-driver now; both front-ends
+  // reach TC.kanOptions through HD.playTurn.
   assert.match(HAND_DRIVER_JS, /TC\.kanOptions\(/, 'engine/hand-driver.js should use TC.kanOptions');
+  assert.match(GAME_JS, /HD\.playTurn\(/, 'engine/game.js should use the shared HD.playTurn');
   assert.match(TABLE_JS, /require\(['"][^'"]*hand-driver['"]\)/, 'server/table.js should use hand-driver');
   assert.match(GAME_JS, /require\(['"][^'"]*hand-driver['"]\)/, 'engine/game.js should use hand-driver');
   assert.match(GAME_JS, /HD\.playHand\(/, 'engine/game.js should use HD.playHand');

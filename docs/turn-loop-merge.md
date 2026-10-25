@@ -16,7 +16,7 @@ everything below. A change here cannot land in one side only:
 | --- | --- | --- |
 | Rule predicates | `engine/helpers.js` | waits, furiten, ron, bot brains, chis, aborts, nagashi, oka/uma, riichi eligibility |
 | Single-turn decisions | `engine/turn-core.js` | turn start/tenhou window, discard + ippatsu bookkeeping, own-kan availability, call candidates, call priority |
-| Hand-level driver | `engine/hand-driver.js` | `playHand` / `playTurn` own turn order and the draw→tsumo/kan/riichi/discard→call skeleton; both front-ends use `playHand`, the server also uses `playTurn`, and the CLI's per-turn body is still inline |
+| Hand-level driver | `engine/hand-driver.js` | `playHand` / `playTurn` own turn order and the draw→tsumo/kan/riichi/discard→call skeleton; both front-ends are adapters over it, owning only I/O, powers, draw model and settlement |
 | Hand transition | `engine/match-flow.js` | `handOutcome` (canonical) and `postHandFlow` (adapter); dealer repeat, honba, kyoku |
 | Score arithmetic | `engine/match-flow.js` | `winPayments`, `manganPayment`, `nagashiPayments`, `notenPayments` |
 | Abort switch | `engine/match-flow.js` | `abortEnabled` (`RULES.aborts` / `RULES.serverAborts`) |
@@ -130,11 +130,10 @@ resolves early on a ron, while the CLI asks them in seat order. The adapter must
    expiry), `kanOptions` (own kan), `callCandidates` (ron/pon/daiminkan/chi) and
    `arbitrateCalls` (priority). Both drivers call it. What remains is the scheduling
    itself: phase 4.
-4. **Shared driver.** One `playHand(adapter)` and two thin adapters. **Both front-ends now
-   use `playHand`** for the hand-level loop. `engine/hand-driver.js` also owns the per-turn
-   skeleton (`playTurn`), which the server uses; the CLI still supplies its per-turn body
-   inline through `cliPlayTurn`, so moving that body onto `playTurn` is the last phase-4
-   step.
+4. **Shared driver.** One `playHand(adapter)` and two thin adapters. **Done:** both
+   front-ends use `playHand` *and* `playTurn`. `game.js` supplies `cliAdapter` (prompts,
+   `powerDraw`, printing, settlement shape) and `Table` supplies the server adapter
+   (events, timers, power hooks, wire settlement). What remains is phase 5 cleanup.
 5. **Delete the old loops** and the parity guards that existed only to keep them honest.
 
 Phases 1–3 are incremental and reviewable. Phase 4 is the 2–3 day rewrite; it should be its

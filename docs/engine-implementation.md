@@ -372,9 +372,10 @@ implemented on both front-ends; each side gates its detections through
 ## 9. How it glues together (read order)
 
 1. `engine/tiles.js` + `engine/rng.js` + `engine/scoring.js`: stateless facts.
-2. `engine/game.js` `main()`: match loop → kyoku setup → turn loop → per-turn
+2. `engine/game.js` `main()`: match loop → kyoku setup → `cliAdapter` over
+   `engine/hand-driver.js` (`playHand` / `playTurn`) → per-turn
    kan/tsumo/discard/ron/calls → settlement → rotation. Start here for the
-   full rules picture.
+   full rules picture, then read `hand-driver.js` for the shared skeleton.
 3. `engine/helpers.js`: same pure rules, importable by the server.
 4. `engine/core.js` + `engine/powers/dynamicPool.js`: stateful pool version of
    deal/draw/slots with audit.
