@@ -3,60 +3,17 @@
 // WebSocket hub at /ws speaking protocol v6. See README.md.
 
 const http = require('http');
-const fs = require('fs');
 const path = require('path');
 const { WebSocketServer } = require('ws');
 const P = require('./protocol');
 const { Room } = require('./room');
+const { createStaticHandler } = require('./static');
 
 const PORT = parseInt(process.env.PORT || '24141', 10);
 const PUBLIC = path.join(__dirname, 'public');
 
-const MIME = {
-  '.html': 'text/html; charset=utf-8',
-  '.js': 'text/javascript; charset=utf-8',
-  '.wasm': 'application/wasm',
-  '.png': 'image/png',
-  '.ico': 'image/x-icon',
-  '.json': 'application/json',
-  '.css': 'text/css',
-  '.svg': 'image/svg+xml',
-};
-
 // ------------------------------------------------------------- static HTTP
-const server = http.createServer((req, res) => {
-  let urlPath;
-  try {
-    urlPath = decodeURIComponent((req.url || '/').split('?')[0]);
-  } catch {
-    res.writeHead(400);
-    res.end('bad request');
-    return;
-  }
-  if (urlPath === '/' || urlPath === '') urlPath = '/index.html';
-  const filePath = path.normalize(path.join(PUBLIC, urlPath));
-  if (!filePath.startsWith(PUBLIC)) {
-    res.writeHead(403);
-    res.end('forbidden');
-    return;
-  }
-  fs.readFile(filePath, (err, data) => {
-    if (err) {
-      if (err.code === 'ENOENT' || err.code === 'EISDIR') {
-        res.writeHead(404);
-        res.end('not found');
-        return;
-      }
-      console.error('[bridge] static read error:', filePath, err.message);
-      res.writeHead(500);
-      res.end('internal error');
-      return;
-    }
-    const ext = path.extname(filePath).toLowerCase();
-    res.writeHead(200, { 'Content-Type': MIME[ext] || 'application/octet-stream' });
-    res.end(data);
-  });
-});
+const server = http.createServer(createStaticHandler(PUBLIC));
 
 // ------------------------------------------------------------------- WS hub
 const wss = new WebSocketServer({ server, path: '/ws' });
