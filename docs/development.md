@@ -45,13 +45,13 @@ If you only want the offline engine: `npm ci && npm run test:engine`.
 | Command | What it does |
 |---|---|
 | `npm test` | everything CI runs: engine + server + dev scripts + client build |
-| `npm run test:engine` | 437 engine unit tests + the 48-check rule selftest |
-| `npm run test:server` | 136 server tests: protocol codec, handshake, full bridge matches, yaku translation, settlement, validation, call-window |
-| `npm run test:scripts` | 6 tests for the dev scripts (`check-links.mjs`) |
+| `npm run test:engine` | 446 engine unit tests + the 48-check rule selftest |
+| `npm run test:server` | 144 server tests: protocol codec, handshake, full bridge matches, static HTTP handler, yaku translation, settlement, validation, call-window |
+| `npm run test:scripts` | 10 tests for the dev scripts (`check-links.mjs`, `release-check.mjs`) |
 | `npm run test:client` | 244 client tests (Vitest + jsdom) + `tsc` type-check + production build |
 | `npm run links` | verify every relative markdown link resolves |
 | `npm run smoke` | one short deterministic hand; proves the CLI arg parser works |
-| `npm run check` | `format:check` + `lint` + `test` + `links` |
+| `npm run check` | `format:check` + `lint` + `test` + `release:check` + `links` |
 
 You can still run a single package directly:
 
@@ -222,13 +222,14 @@ built-in runner (`node:test` + `node:assert/strict`) — no Jest/Mocha/Vitest de
 
 ```bash
 npm test              # everything CI runs
-npm run test:engine   # 437 unit tests + 48 selftest checks
-npm run test:server   # 136 server tests
-npm run test:scripts  # 6 dev-script tests
+npm run test:engine   # 446 unit tests + 48 selftest checks
+npm run test:server   # 144 server tests
+npm run test:scripts  # 10 dev-script tests
 npm run test:client   # 244 client tests + tsc + production build
+npm run release:check # one workspace version + matching CHANGELOG section
 npm run links         # markdown link check
 npm run smoke         # one short deterministic hand
-npm run check         # format:check + lint + test + links
+npm run check         # format:check + lint + test + release:check + links
 ```
 
 Per package: `npm test --workspace engine`, `npm test --workspace server`,
@@ -246,11 +247,11 @@ Raw invocations, if you need them: `node --test tests/*.test.js` (engine),
 
 | Layer | Command | Scope |
 | --- | --- | --- |
-| Engine unit tests | `npm run test:engine` | 30 files, 437 tests. Per-character rosters, `dynamicPool`, `trajectoryPlanner`, `flowManager`, `nodokaEval`, `core` phases, scoring/tiles/rng, `invariants`, `replay`, plus `crossCharacter` (multi-seat power interaction), `edge` (bug-hunting), and **`offline-rules`** (the `game.js`-only layer: CLI arg parsing plus its bare-flag guards, `buildWall`, `countVisible`, `powerDraw`, bot decision injection). **`main-orchestration`** characterises `main()` itself — the 630-line turn loop that had no direct coverage: per-hand terminal shape, conservation including the table carry, abort-settlement rules, exhaustive-draw exchange, dealer continuation, and final standings. **`turn-core`** pins the shared single-turn decisions (turn start and tenhou window, discard/first-lap/ippatsu bookkeeping, own-kan availability, call candidates, call priority). **`rules-config-parity`** asserts `rules-config.js` is imported *and referenced* — it was dead documentation for its whole life — and fails if either front-end reintroduces a literal copy of the start score, riichi stake, honba math or noten schedule. |
+| Engine unit tests | `npm run test:engine` | 31 files, 446 tests. Per-character rosters, `dynamicPool`, `trajectoryPlanner`, `flowManager`, `nodokaEval`, `core` phases, scoring/tiles/rng, `invariants`, `replay`, plus `crossCharacter` (multi-seat power interaction), `edge` (bug-hunting), and **`offline-rules`** (the `game.js`-only layer: CLI arg parsing plus its bare-flag guards, `buildWall`, `countVisible`, `powerDraw`, bot decision injection). **`main-orchestration`** characterises `main()` itself — the match setup, the CLI adapter over the shared turn driver, and the output shape that had no direct coverage: per-hand terminal shape, conservation including the table carry, abort-settlement rules, exhaustive-draw exchange, dealer continuation, and final standings. **`turn-core`** pins the shared single-turn decisions (turn start and tenhou window, discard/first-lap/ippatsu bookkeeping, own-kan availability, call candidates, call priority). **`hand-driver`** pins the shared hand-level turn order and per-turn skeleton (`playHand` / `playTurn`). **`rules-config-parity`** asserts `rules-config.js` is imported *and referenced* — it was dead documentation for its whole life — and fails if either front-end reintroduces a literal copy of the start score, riichi stake, honba math or noten schedule. |
 | Engine rule selftest | `node engine/game.js --selftest=1` | 48 in-engine checks covering yaku, fu, dora, aborts, kuikae, oka/uma, invariants. |
 | Server E2E | `npm run test:server` | Six files. `bridge.test.js` spawns the real server, connects a mock protocol-v6 client over `ws`, and plays full matches to `GameOver`; also covers the handshake (including `VersionMismatch` rejection), the red-dora tile codec, the turn clock, and **score conservation** on every `RoundWon` snapshot and the final total. `yaku-map.test.js` covers the riichi-lib → protocol `Kind` translation, cross-checked against the enums recovered from the vendored WASM client. `settlement.test.js` drives `finishHand` headlessly and deterministically over exhaustive draws (0/2/3/4 tenpai), tsumo, single and double ron, and match teardown — the layer where riichi sticks were being lost. `validation.test.js` pins `classifyHumanKan`, `validateAct`, `botDecision`, `doOwnKan` and `turnClockFor`: ankan/kakan detection, both riichi-kan rules, every action rejection path, and the kan choke point that refuses kakan from a riichi hand. `call-window.test.js` scripts out-of-order human responses to pin pon/ron priority and riichi-stick collection to turn order rather than arrival order. `aborts.test.js` covers the abortive draws. |
 | Client | `npm run test:client` | 244 Vitest tests under jsdom: `tile-utils` (wire index ↔ face, sorting, kuikae, dora cycle, shanten), `svg-tiles` (markup, state classes, sprite injection), `store` (RoomState, GameStarted, errors, reconnect, GameOver, calls, the turn clock), the render layer (`melds`, `discards`, `hand`, `action-bar`, `center-info`, `game-log`, `power-badge`, `saki-card`) and `socket` (connect, dispatch, send, reconnect). Then `tsc` with `strict: true` and a production build. `board.ts`, `round-modal.ts` and `lobby-view.ts` remain untested — see [`known-issues.md`](known-issues.md#ki-23). |
-| Dev scripts | `npm run test:scripts` | `scripts/check-links.test.mjs`: drives the exported `checkLinks` against fixture trees (dead vs live links, the skip list, anchor stripping, duplicate titles) and then runs it against this repository for real. |
+| Dev scripts | `npm run test:scripts` | `scripts/check-links.test.mjs` drives the exported `checkLinks` against fixture trees (dead vs live links, the skip list, anchor stripping, duplicate titles) and then runs it against this repository for real. `scripts/release-check.test.mjs` pins version consistency, changelog section extraction and tag matching. |
 | Markdown links | `npm run links` | `scripts/check-links.mjs`: every relative link in every `.md` resolves. |
 | CLI smoke | `npm run smoke` | Plays one hand and greps for a discard, catching the arg-parser class of bug where the engine silently completes zero hands. |
 
@@ -303,9 +304,45 @@ Closing the duplication itself would mean extracting a rule layer shared with
 | Question | File |
 | --- | --- |
 | How does a hand actually play out? | `engine/core.js` (header documents the canonical 4-phase draw step) |
-| How does a networked hand play out? | `server/table.js` — `Table`, the hand driver (`server/room.js` owns the lobby and seats) |
+| How does a networked hand play out? | `server/table.js` — `Table`, the hand driver and adapter (`server/room.js` owns the lobby and seats; `server/table-calls.js` owns the call window) |
 | How do character powers hook in? | `engine/powers/index.js` — `PowerDispatcher`, and each `engine/powers/rosters/*.js` |
 | How is the wall sampled? | `engine/powers/dynamicPool.js` |
 | What is the wire format? | `server/protocol.js` (encode/decode) + `web-client/src/net/protocol-types.ts` (types) |
 | What does the client hold in memory? | `web-client/src/state/store.ts` |
 | How do I add a character? | [`conventions.md`](conventions.md#adding-a-character) |
+
+---
+
+## 8. Releasing
+
+The workspace has **one version**. `package.json`, `engine/package.json`,
+`server/package.json` and `web-client/package.json` must agree, and `CHANGELOG.md`
+must have a section for that version:
+
+```bash
+npm run release:check                  # what CI runs on every push
+node scripts/release-check.mjs --notes # print the current release notes
+```
+
+To cut a release:
+
+1. Add an entry to `CHANGELOG.md` (`## [X.Y.Z] - YYYY-MM-DD`, Keep a Changelog
+   headings: Added / Changed / Fixed / Removed).
+2. Bump every workspace version at once, without committing a tag:
+   `npm version X.Y.Z --workspaces --include-workspace-root --no-git-tag-version`
+   (this also updates `package-lock.json`).
+3. Run `npm run check`, commit, and merge to the integration branch.
+4. Tag the merge commit and push the tag:
+
+   ```bash
+   git tag -a vX.Y.Z -m "vX.Y.Z"
+   git push origin vX.Y.Z
+   ```
+
+`.github/workflows/release.yml` runs the full check, verifies the tag matches the
+package version, and publishes a GitHub Release from the changelog section. Tags are
+the source of truth; there is no npm publish step (the packages are `private`).
+
+Commit messages use the same prefixes as the changelog (`feat:`, `fix:`, `docs:`,
+`test:`, `refactor:`, `chore:`) so the history can be skimmed and grouped at release
+time. See [`conventions.md`](conventions.md#commits-and-prs).

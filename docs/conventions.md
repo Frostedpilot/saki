@@ -20,7 +20,8 @@ run directly on Node.
 
 ### `'use strict'`
 
-Present at the top of every file in `server/` (`index.js`, `room.js`, `table.js`, `protocol.js`,
+Present at the top of every file in `server/` (`index.js`, `room.js`, `table.js`,
+`table-calls.js`, `table-powers.js`, `hook-utils.js`, `phases.js`, `protocol.js`,
 `helpers.js`, `yaku-map.js`) and in `engine/rules-config.js`, but **not** consistently
 in `engine/` (`game.js`, `core.js`, `tiles.js` omit it). Node defaults to sloppy
 mode for CommonJS, so this is a real behavioural difference, not decoration. Prefer
@@ -130,12 +131,12 @@ logic lives in `engine/tiles.js`, `engine/scoring.js`, `engine/rng.js` and
 > `game.js` kept private copies annotated "keep in sync" — that arrangement let the
 > engine's own tests reach into `server/`, and it has been undone.
 
-**What is still duplicated** is the per-hand *orchestration*: `game.js`'s `main()` and
-`table.js`'s `Table` each drive a hand independently (`declareRiichi`, `collectRon`,
-call-window arbitration, settlement). They are now covered by
-`engine/tests/main-orchestration.test.js`, which is characterisation rather than a spec: it pins
-current behaviour so a consolidation has something to fail against. See
-[`known-issues.md`](known-issues.md#ki-04) before touching them.
+**What used to be duplicated** was the per-hand *orchestration*: `game.js`'s `main()`
+and `table.js`'s `Table` each drove a hand independently. That shared skeleton now
+lives in `engine/hand-driver.js` (`playHand` / `playTurn`), and each front-end is an
+adapter that owns only I/O, powers and settlement shape. They are still covered by
+`engine/tests/main-orchestration.test.js`, which pins the CLI's observable behaviour.
+See [`known-issues.md`](known-issues.md#ki-04) before changing the adapter boundary.
 
 ### 4.4 Rules are data
 
@@ -173,8 +174,9 @@ see [`development.md`](development.md#5-testing)).
   `TemplateResult`. No class components, no hooks, no VDOM library.
 - One component per file in `src/components/`, exported as `renderX`.
 - `src/state/store.ts` is the single store. Components receive state and emit intents;
-  outbound protocol calls live on the store. Do not open a second WebSocket or stash
-  game state in a component.
+  outbound protocol calls live on the store. Server events are applied by
+  `src/state/events.ts` (`applyGameEvent`), which mutates the store but owns no socket.
+  Do not open a second WebSocket or stash game state in a component.
 - `src/net/socket.ts` owns reconnection and connection status. Components read status
   from the store, they do not manage sockets.
 - SCSS in `src/styles/`; `main.scss` `@use`s the others and holds the design tokens.
@@ -310,3 +312,21 @@ table if the character uses a new primitive.
 - **Do not add a client test framework without also wiring it into CI.**
   `npm run test:client` runs Vitest and `tsc`, and `npm test` at the root includes
   it. A test runner that CI does not call is not a test runner.
+
+---
+
+## 9. Commits and PRs
+
+- **Prefix the subject with the change type**: `feat:`, `fix:`, `docs:`, `test:`,
+  `refactor:`, `chore:`. Audit work may use the issue id (`KI-04: …`), but keep the
+  conventional prefix when there is no issue. Avoid subjects like `update` — they make
+  the changelog and `git log` useless.
+- **One logical change per commit.** A refactor and a behaviour change do not share a
+  commit, because the refactor's "no behaviour change" claim is only checkable alone.
+- **State the verification in the body** when the change is not obvious: which suite
+  ran, and for output-affecting changes the seeds/fixtures compared.
+- **Do not rewrite published history.** Add a follow-up commit instead of amending or
+  force-pushing. Unpublished work may still be corrected.
+- **A version bump must include a `CHANGELOG.md` section** for that version and keep
+  all four `package.json` files in step; `npm run release:check` enforces both. See
+  [`development.md` §8](development.md#8-releasing).

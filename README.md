@@ -82,7 +82,8 @@ all-true. Per-rule detail:
 ```
 saki/
 ├── engine/                  core rules + power framework (no I/O, no network)
-│   ├── game.js              offline reference game + CLI + --selftest rule checker
+│   ├── game.js              offline reference game + CLI match loop
+│   ├── selftest.js          the 48 deterministic rule checks behind --selftest
 │   ├── cli.js               single-hand scorer (node cli.js eval <hand>)
 │   ├── core.js              modular match core used by the server
 │   ├── helpers.js           shared rule helpers (waits/furiten/bots/aborts/oka-uma)
@@ -91,6 +92,7 @@ saki/
 │   ├── rng.js               deterministic seeded RNG (mulberry32)
 │   ├── rules-config.js      rules as data (shared by game.js and table.js)
 │   ├── match-flow.js        shared hand-transition table (dealer/honba/kyoku/noten/han floor)
+│   ├── hand-driver.js       shared hand/turn driver (`playHand` / `playTurn`)
 │   ├── turn-core.js         shared single-turn decisions (turn start, discard, kan, calls)
 │   ├── invariants.js        per-turn tile-conservation checks
 │   ├── replay.js            deterministic action journal + verifier
@@ -104,17 +106,24 @@ saki/
 │   │   ├── nodokaEval.js    "Nodocchi" EV / tenpai evaluator
 │   │   ├── mjaiAdapter.js   pluggable evaluator interface (MJAI bots)
 │   │   └── rosters/         one file per character power (8 shipped)
-│   └── tests/               30 *.test.js, node:test
+│   └── tests/               31 *.test.js, node:test
 │
 ├── scripts/
-│   └── check-links.mjs      markdown link checker (npm run links)
+│   ├── check-links.mjs      markdown link checker (npm run links)
+│   └── release-check.mjs    version + changelog gate (npm run release:check)
 │
-├── .github/workflows/ci.yml  engine + server + client build + link check
+├── .github/workflows/       ci.yml (every push) + release.yml (v* tags)
+│
+├── CHANGELOG.md             Keep a Changelog, one entry per release
 │
 ├── server/                  WebSocket bridge (node:http + ws)
 │   ├── index.js             static host for public/ + WebSocketServer at /ws
 │   ├── room.js              Room: lobby, seats, power assignment
-│   ├── table.js             Table: the hand driver  <- largest file
+│   ├── table.js             Table: the hand driver and server adapter
+│   ├── table-calls.js       call window: ron/pon/kan/chi, open calls
+│   ├── table-powers.js      power activation, tier arming, HUD broadcast
+│   ├── hook-utils.js        defensive character-hook calls (warnOnce/callHook)
+│   ├── phases.js            Table's async phase names
 │   ├── rosters.js           power roster registry, loaded defensively
 │   ├── protocol.js          protocol v6 JSON codec
 │   ├── yaku-map.js          riichi lib yaku names -> protocol Kind/DoraLabel
@@ -124,7 +133,8 @@ saki/
 ├── web-client/              Vite + lit-html + strict TypeScript client
 │   └── src/
 │       ├── main.ts          entry: GameSocket -> GameStore -> screens
-│       ├── state/store.ts   the single reactive store (largest client file)
+│       ├── state/store.ts   the reactive store (state + outbound commands)
+│       ├── state/events.ts  wire-event reducer (server event -> store state)
 │       ├── net/             socket.ts (reconnect) + protocol-types.ts (wire types)
 │       ├── tiles/           tile model helpers + FluffyStuff SVG rendering
 │       ├── components/      11 lit-html render modules
@@ -146,10 +156,11 @@ via Node's built-in test runner.
 
 ```bash
 npm test              # everything CI runs
-npm run test:engine   # 437 tests + 48 rule checks
-npm run test:server   # 136 server tests
-npm run test:scripts  # 6 dev-script tests
+npm run test:engine   # 446 tests + 48 rule checks
+npm run test:server   # 144 server tests
+npm run test:scripts  # 10 dev-script tests
 npm run test:client   # 244 client tests + tsc type-check
+npm run release:check # version + changelog consistency
 npm run links         # markdown link check
 npm run smoke         # one short deterministic hand
 ```
@@ -158,6 +169,16 @@ npm run smoke         # one short deterministic hand
 > works, `node --test tests/` throws `Cannot find module` on Node 22. The `npm test`
 > scripts are set up correctly. History in
 > [`docs/known-issues.md`](docs/known-issues.md#ki-01).
+
+---
+
+## Releases
+
+One version across the workspace. A release is a `vX.Y.Z` tag with a matching
+[`CHANGELOG.md`](CHANGELOG.md) section; `npm run release:check` fails if the manifests
+disagree or the section is missing. Pushing the tag runs the full check and publishes a
+GitHub Release (`.github/workflows/release.yml`). The step-by-step flow is in
+[`docs/development.md` §8](docs/development.md#8-releasing).
 
 ---
 

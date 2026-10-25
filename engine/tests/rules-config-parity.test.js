@@ -27,20 +27,19 @@ const { RULES } = require('../rules-config');
 const ROOT = path.join(__dirname, '..', '..');
 const GAME_JS = fs.readFileSync(path.join(ROOT, 'engine', 'game.js'), 'utf8');
 const TABLE_JS = fs.readFileSync(path.join(ROOT, 'server', 'table.js'), 'utf8');
+const TABLE_CALLS_JS = fs.readFileSync(path.join(ROOT, 'server', 'table-calls.js'), 'utf8');
+const HAND_DRIVER_JS = fs.readFileSync(path.join(ROOT, 'engine', 'hand-driver.js'), 'utf8');
 const HELPERS_JS = fs.readFileSync(path.join(ROOT, 'engine', 'helpers.js'), 'utf8');
 
 // These snippets are regex metacharacter soup (`+`, `*`, `[`, `.`), so they must be
 // escaped wholesale rather than searched for literally.
 const escapeRe = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
-// `selftest()` is a fixture body: it legitimately contains literal score arrays and
-// payments, because asserting the numbers is the point of it. Scanning it for
-// "hardcoded 25000" produces nothing but false positives, so it is cut out before
-// the settlement paths are checked. Everything else in the file is live code.
-const GAME_SETTLEMENT = GAME_JS.replace(
-  /async function selftest[\s\S]*?\nasync function main/,
-  '\nasync function main'
-);
+// The selftest fixture body now lives in `engine/selftest.js` and is not scanned
+// here: it legitimately contains literal score arrays and payments, because
+// asserting the numbers is the point of it. Everything left in `game.js` after the
+// extraction is live code, so it is scanned whole.
+const GAME_SETTLEMENT = GAME_JS;
 
 // ------------------------------------------------------------ the values
 
@@ -141,10 +140,10 @@ test('suufon-renda is checked after the call window in both drivers', () => {
   // on the 4th discard left the full accumulator armed for a later quiet
   // discard. Pin both halves.
   const suufonAt = GAME_JS.indexOf('SUUFON-RENDA');
-  const calledAt = GAME_JS.indexOf('if (called) continue;');
   const chiAt = GAME_JS.indexOf('CHI ${disc}');
-  assert.ok(suufonAt > 0 && calledAt > 0 && chiAt > 0, 'expected the sites in engine/game.js');
-  assert.ok(suufonAt > calledAt, 'game.js must check suufon after the pon/kan window');
+  const callWindowAt = GAME_JS.indexOf('async resolveCallWindow(');
+  assert.ok(suufonAt > 0 && chiAt > 0 && callWindowAt > 0, 'expected the sites in engine/game.js');
+  assert.ok(suufonAt > callWindowAt, 'game.js must check suufon inside the shared call window');
   assert.ok(suufonAt > chiAt, 'game.js must check suufon after the chi window');
   assert.match(TABLE_JS, /ctx\.callsMade === 0 && firstLap\.length === 4/);
 });
@@ -257,9 +256,19 @@ test('both front-ends route single-turn decisions through turn-core', () => {
     assert.match(src, /require\(['"][^'"]*turn-core['"]\)/, `${name} should import turn-core`);
     assert.match(src, /TC\.beginTurn\(/, `${name} should use TC.beginTurn`);
     assert.match(src, /TC\.resolveDiscard\(/, `${name} should use TC.resolveDiscard`);
-    assert.match(src, /TC\.kanOptions\(/, `${name} should use TC.kanOptions`);
-    assert.match(src, /TC\.callCandidates\(/, `${name} should use TC.callCandidates`);
   }
-  assert.match(TABLE_JS, /TC\.arbitrateCalls\(/, 'server/table.js should use TC.arbitrateCalls');
+  // The call window moved to server/table-calls.js (KI-11), so its candidates
+  // and arbitration are pinned there rather than in the Table class.
+  assert.match(TABLE_CALLS_JS, /require\(['"][^'"]*turn-core['"]\)/, 'table-calls.js should import turn-core');
+  assert.match(TABLE_CALLS_JS, /TC\.callCandidates\(/, 'table-calls.js should use TC.callCandidates');
+  // Own-kan and the turn skeleton live in hand-driver now; both front-ends
+  // reach TC.kanOptions through HD.playTurn.
+  assert.match(HAND_DRIVER_JS, /TC\.kanOptions\(/, 'engine/hand-driver.js should use TC.kanOptions');
+  assert.match(GAME_JS, /HD\.playTurn\(/, 'engine/game.js should use the shared HD.playTurn');
+  assert.match(TABLE_JS, /require\(['"][^'"]*hand-driver['"]\)/, 'server/table.js should use hand-driver');
+  assert.match(GAME_JS, /require\(['"][^'"]*hand-driver['"]\)/, 'engine/game.js should use hand-driver');
+  assert.match(GAME_JS, /HD\.playHand\(/, 'engine/game.js should use HD.playHand');
+  assert.match(TABLE_JS, /HD\.playHand\(/, 'server/table.js should use HD.playHand');
+  assert.match(TABLE_CALLS_JS, /TC\.arbitrateCalls\(/, 'server/table-calls.js should use TC.arbitrateCalls');
   assert.doesNotMatch(TABLE_JS, /this\.ponOptions\s*\(/, 'server/table.js must not keep a local ponOptions');
 });

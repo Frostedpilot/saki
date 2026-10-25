@@ -40,8 +40,7 @@ server reuses identical waits/furiten/bot/kuikae code.
 
 `engine/game.js` **imports** these from `./tiles` (it no longer duplicates them —
 that dedup was completed; see `architecture-comparison.md` §5). `engine/cli.js`
-still re-declares `KINDS` and re-implements its own `buildWall` locally, which is
-a genuine (small) duplication. Behavior is the same.
+keeps no copy of them: it is a 38-line `eval`-only wrapper around `riichi`.
 
 ### 1.2 RNG — `engine/rng.js`
 
@@ -356,13 +355,14 @@ implemented on both front-ends; each side gates its detections through
   `--closed-only=1`, `--riichi-always=1`, `--demo-abort=NAME`.
   Parsed by the `args` block near the top of `game.js`; the accepted
   `--powers` keys are the `POWERS` array.
-- `node game.js --selftest=1` runs `selftest()` — 48 deterministic checks
-  covering ippatsu, chankan, rinshan, haitei/houtei, double riichi, ura/kan
-  dora, waits/furiten, double/triple ron eligibility, kyuushu counts, all abort
-  helpers, riichi gate, nagashi, kuikae bans, ankan wait preservation, oka/uma.
-  It prints `SELFTEST PASS (48 checks)`.
-- `node cli.js eval/play/demo` is a smaller single-player sandbox with the same
-  tile/shanten/scoring hacks.
+- `node game.js --selftest=1` runs `selftest()` from `engine/selftest.js` — 48
+  deterministic checks covering ippatsu, chankan, rinshan, haitei/houtei, double
+  riichi, ura/kan dora, waits/furiten, double/triple ron eligibility, kyuushu counts,
+  all abort helpers, riichi gate, nagashi, kuikae bans, ankan wait preservation,
+  oka/uma. It prints `SELFTEST PASS (48 checks)`. The checks were extracted from
+  `game.js` (KI-11); the entry point is now only the match loop and its adapter.
+- `node cli.js eval <hand>` scores one hand through the `riichi` package; it is the
+  only mode left (`play`/`demo` belonged to the removed standalone engine).
 - `npm test` runs `tests/*.test.js` (conservation, determinism, slots, flow)
   plus the selftest. See `docs/development.md` §5 — the test script needs the
   glob form, not a bare directory.
@@ -372,9 +372,10 @@ implemented on both front-ends; each side gates its detections through
 ## 9. How it glues together (read order)
 
 1. `engine/tiles.js` + `engine/rng.js` + `engine/scoring.js`: stateless facts.
-2. `engine/game.js` `main()`: match loop → kyoku setup → turn loop → per-turn
+2. `engine/game.js` `main()`: match loop → kyoku setup → `cliAdapter` over
+   `engine/hand-driver.js` (`playHand` / `playTurn`) → per-turn
    kan/tsumo/discard/ron/calls → settlement → rotation. Start here for the
-   full rules picture.
+   full rules picture, then read `hand-driver.js` for the shared skeleton.
 3. `engine/helpers.js`: same pure rules, importable by the server.
 4. `engine/core.js` + `engine/powers/dynamicPool.js`: stateful pool version of
    deal/draw/slots with audit.
