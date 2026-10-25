@@ -59,7 +59,7 @@ Status tags: **[FIXED]** landed — see §5. **[OPEN]** still true.
 2. **Black-box scoring.** *Partly fixed.* String-built input to `riichi` + `syanten`
    with `^` ranges. Correct until the lib changes — mitigated by exact version pins and
    `engine/tests/rules.test.js` (27 tests). Still thin: no exhaustive yaku/fu corpus,
-   and `game.js` `selftest()` is 48 ad-hoc checks rather than a fixture suite.
+   and `engine/selftest.js` is 48 ad-hoc checks rather than a fixture suite.
 3. **Furiten bug class.** **[FIXED]** This was a live bug: `me.tempFuriten=false` ran
    on every own draw, so a riichi passer could ron again later in the round. Guarded
    with `if (!me.riichi && !me.doubleRiichi)`, via `engine/helpers.js`

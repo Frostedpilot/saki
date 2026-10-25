@@ -34,14 +34,11 @@ const HELPERS_JS = fs.readFileSync(path.join(ROOT, 'engine', 'helpers.js'), 'utf
 // escaped wholesale rather than searched for literally.
 const escapeRe = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
-// `selftest()` is a fixture body: it legitimately contains literal score arrays and
-// payments, because asserting the numbers is the point of it. Scanning it for
-// "hardcoded 25000" produces nothing but false positives, so it is cut out before
-// the settlement paths are checked. Everything else in the file is live code.
-const GAME_SETTLEMENT = GAME_JS.replace(
-  /async function selftest[\s\S]*?\nasync function main/,
-  '\nasync function main'
-);
+// The selftest fixture body now lives in `engine/selftest.js` and is not scanned
+// here: it legitimately contains literal score arrays and payments, because
+// asserting the numbers is the point of it. Everything left in `game.js` after the
+// extraction is live code, so it is scanned whole.
+const GAME_SETTLEMENT = GAME_JS;
 
 // ------------------------------------------------------------ the values
 

@@ -82,7 +82,8 @@ all-true. Per-rule detail:
 ```
 saki/
 ├── engine/                  core rules + power framework (no I/O, no network)
-│   ├── game.js              offline reference game + CLI + --selftest rule checker
+│   ├── game.js              offline reference game + CLI match loop
+│   ├── selftest.js          the 48 deterministic rule checks behind --selftest
 │   ├── cli.js               single-hand scorer (node cli.js eval <hand>)
 │   ├── core.js              modular match core used by the server
 │   ├── helpers.js           shared rule helpers (waits/furiten/bots/aborts/oka-uma)
