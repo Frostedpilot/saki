@@ -226,7 +226,7 @@ The following modular structure is what actually exists today. Note that rosters
 ```
 engine/
 ├── game.js                  # Core Riichi game loop & state machine
-├── cli.js                   # eval / play / demo harness
+├── cli.js                   # single-hand `eval` scorer (wrapper over riichi)
 ├── core.js                  # Modular match core (createMatchState, executeDrawStep, ...)
 ├── tiles.js                 # 34 kinds -> 37 pool kinds -> 136 tiles
 ├── rng.js                   # mulberry32 + RNG wrapper

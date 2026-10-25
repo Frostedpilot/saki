@@ -54,6 +54,8 @@ power framework); the 2026-10 audit is closed.
   seeds into the correct slot; aka waits are counted once.
 - A malformed frame or a throwing character hook can no longer kill the process or
   brick the room.
+- The static HTTP handler distinguishes a missing path (`404`) from an unreadable file
+  (logged `500`), and rejects malformed URLs and paths escaping `server/public/`.
 - The client reconnects without losing its seat, and no longer mis-translates
   `NotInTurn` / `CallWindowClosed` errors.
 

@@ -50,12 +50,13 @@ branches; draft up front (`draft_saki_card`, `after_saki_start`).
 
 Status tags: **[FIXED]** landed — see §5. **[OPEN]** still true.
 
-1. **Duplicated truth.** *Partly fixed.* `engine/game.js` now imports from
-   `engine/tiles.js` instead of re-implementing it (Phase 2). Still duplicated:
-   `engine/cli.js` re-declares `KINDS` and its own `buildWall`; `engine/helpers.js`
-   re-extracts helper logic from `game.js`; `server/table.js` `Table` mirrors the turn
-   loop as events. Drift remains possible between `cli.js` and `tiles.js`, and between
-   the offline and server rule paths (different abort configuration).
+1. **Duplicated truth.** **[FIXED]** `engine/game.js` imports `engine/tiles.js`;
+   `engine/cli.js` is now only an `eval` wrapper over the `riichi` package (no local
+   tile helpers); the waits/furiten/abort/nagashi/kuikae helpers exist once in
+   `engine/helpers.js`; and both front-ends are adapters over the shared
+   `engine/hand-driver.js` (`playHand`/`playTurn`), so the turn order cannot drift.
+   What stays separate is deliberate — I/O, the draw model, powers and the settlement
+   shape — and is recorded in [`turn-loop-merge.md`](turn-loop-merge.md).
 2. **Black-box scoring.** *Partly fixed.* String-built input to `riichi` + `syanten`
    with `^` ranges. Correct until the lib changes — mitigated by exact version pins and
    `engine/tests/rules.test.js` (27 tests). Still thin: no exhaustive yaku/fu corpus,
@@ -91,9 +92,9 @@ It is less reliable as a runtime for us (new stack, own matcher bugs to own).
   - Still open: the offline turn loop does not thread an `RNG` through state the way `core.createMatchState` does, so the two layers still derive reproducibility differently.
 
 ### Phase 2: Deduplication & Single Source of Truth
-- **Eliminate Tile/Wall Duplicate Code**: ✅ done for `game.js`, ⚠️ open for `cli.js`
+- **Eliminate Tile/Wall Duplicate Code**: ✅ done
   - Removed the redundant `KINDS`, `norm`, `same`, `toCounts`, `toHandStr`, and `DORA_NEXT` from `engine/game.js`; it now imports from `engine/tiles.js`.
-  - Still open: `engine/cli.js` re-declares `KINDS` and its own `buildWall`.
+  - `engine/cli.js` is now a 38-line `eval`-only wrapper over `riichi`; its copy of `KINDS`/`buildWall` and the fourth `powerDraw` were deleted (KI-05).
 - **Harmonize Rule Helpers**: ✅ done
   - Canonical copies of the abort/nagashi/waits/kuikae helpers live in `engine/helpers.js`.
   - Call candidacy and priority are shared in `engine/turn-core.js`
@@ -131,10 +132,10 @@ It is less reliable as a runtime for us (new stack, own matcher bugs to own).
   `seed=7/kyoku=1` reproduces byte-identical results. *(Offline loop still does not
   thread an `RNG` through state like `core.js` does — see §3.4.)*
 - Phase 2: `game.js` tile/scoring helpers deleted, imported from
-  `engine/tiles.js` + `engine/scoring.js`; abort helpers annotated with
-  canonical copies in `engine/helpers.js` (`isSuufonRenda`,
-  `isSuukaikanAbort`, `isNagashi` added + exported). *(`cli.js` still duplicates
-  `KINDS` and `buildWall`.)*
+  `engine/tiles.js` + `engine/scoring.js`; abort helpers canonical in
+  `engine/helpers.js` (`isSuufonRenda`, `isSuukaikanAbort`, `isNagashi`
+  added + exported). `cli.js` was reduced to an `eval`-only wrapper, so its
+  duplicate tile helpers and `powerDraw` copy are gone.
 - Phase 3: exact pins (`riichi 1.2.0`, `syanten 1.6.0`, engine + server);
   corpus in `engine/tests/rules.test.js` (27 tests: yaku, fu, dora/aka,
   flags, shibari, waits, aborts, kuikae, ankan, nagashi, oka/uma).
@@ -145,6 +146,6 @@ It is less reliable as a runtime for us (new stack, own matcher bugs to own).
 - Phase 5: `engine/replay.js` (journal + `verifyJournal` via `core.js`);
   covered in `rules.test.js` incl. tamper rejection. *(No persistence to disk.)*
 - Full suite: `node --test tests/*.test.js` **446 pass / 0 fail** + `game.js --selftest`
-  **48 checks**; server `npm test` **136 pass / 0 fail**; dev scripts `npm run test:scripts`
+  **48 checks**; server `npm test` **144 pass / 0 fail**; dev scripts `npm run test:scripts`
   **10 pass**. (Use the glob form — a bare
   directory argument is rejected by Node 22; see `docs/development.md` §5.)

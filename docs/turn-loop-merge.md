@@ -83,10 +83,10 @@ declarer-discard model through `turn-core.resolveDiscard`: the declaring discard
 does not clear ippatsu, the declarer's next discard does, and any call clears it earlier
 (`clearAllIppatsu`). This is a rule change, not a mechanical extraction.
 
-## If the merge is attempted: required adapter
+## The adapter boundary that was adopted
 
-A shared driver would look like `playHand(adapter, matchState)`, where the adapter owns all
-I/O and the environment:
+The pre-merge design sketch was `playHand(adapter, matchState)`, with the adapter owning
+all I/O and the environment:
 
 ```
 deal()                         -> initial hands, dead wall, indicators
@@ -99,14 +99,16 @@ settle(outcome)                -> applied scores
 now() / wait(ms)               -> void          (bot pacing, turn clock)
 ```
 
-The shared module would own: turn order, draw → kan/tsumo/riichi/discard, the ron window
-and its seat ordering, the call-priority arbitration, kan/rinshan bookkeeping, abort
-checks, and the hand outcome. The adapter would own every `await`, every message, and the
-power/draw model.
+What shipped is finer-grained than that sketch — `playTurn` calls adapter hooks such as
+`checkKyuushu`, `startTurn`, `drawTurn`, `chooseTurnAction`, `executeDiscard`,
+`resolveCallWindow` and `settle` — but the split is the same. The shared module owns:
+turn order, draw → kan/tsumo/riichi/discard, the ron window and its seat ordering, the
+call-priority arbitration, kan/rinshan bookkeeping, abort checks, and the hand outcome.
+The adapter owns every `await`, every message, and the power/draw model.
 
-The hard part is the **concurrent call window**: the server polls all candidates at once and
-resolves early on a ron, while the CLI asks them in seat order. The adapter must expose a
-`promptMany(seats, request)` primitive for both.
+The hard part was the **concurrent call window**: the server polls all candidates at once and
+resolves early on a ron, while the CLI asks them in seat order. Each adapter exposes that as
+`resolveCallWindow`, so the shared driver never needs to know which model is underneath.
 
 ## Phased plan (each phase keeps the suite green)
 

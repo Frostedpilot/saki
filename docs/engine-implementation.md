@@ -40,8 +40,7 @@ server reuses identical waits/furiten/bot/kuikae code.
 
 `engine/game.js` **imports** these from `./tiles` (it no longer duplicates them —
 that dedup was completed; see `architecture-comparison.md` §5). `engine/cli.js`
-still re-declares `KINDS` and re-implements its own `buildWall` locally, which is
-a genuine (small) duplication. Behavior is the same.
+keeps no copy of them: it is a 38-line `eval`-only wrapper around `riichi`.
 
 ### 1.2 RNG — `engine/rng.js`
 
@@ -362,8 +361,8 @@ implemented on both front-ends; each side gates its detections through
   all abort helpers, riichi gate, nagashi, kuikae bans, ankan wait preservation,
   oka/uma. It prints `SELFTEST PASS (48 checks)`. The checks were extracted from
   `game.js` (KI-11); the entry point is now only the match loop and its adapter.
-- `node cli.js eval/play/demo` is a smaller single-player sandbox with the same
-  tile/shanten/scoring hacks.
+- `node cli.js eval <hand>` scores one hand through the `riichi` package; it is the
+  only mode left (`play`/`demo` belonged to the removed standalone engine).
 - `npm test` runs `tests/*.test.js` (conservation, determinism, slots, flow)
   plus the selftest. See `docs/development.md` §5 — the test script needs the
   glob form, not a bare directory.

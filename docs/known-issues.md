@@ -270,9 +270,9 @@ had copied the key list without the display layer.
 
 - `toki` and `teru` removed from `POWERS`; an unknown key is now a **hard error**
   listing the valid keys, instead of a silent fallback to `none`.
-- `engine/cli.js` cut from 204 lines to 47: only `eval` survives, which needs nothing
-  but the `riichi` package. That removed the third copy of the tile helpers *and* the
-  fourth copy of `powerDraw`.
+- `engine/cli.js` cut from 204 lines to an `eval`-only wrapper (now 38 lines): only
+  `eval` survives, which needs nothing but the `riichi` package. That removed the third
+  copy of the tile helpers *and* the fourth copy of `powerDraw`.
 - `engine/tests/offline-rules.test.js` asserts `toki`/`teru` are absent from `POWERS`,
   so they cannot quietly return.
 - `game.js`'s header now says plainly that `--powers` drives the inline rig and **not**
@@ -421,7 +421,7 @@ rather than a diagnostic. All are now either logged or rejected outright:
 | `engine/powers/index.js` hook calls | every hook wrapped in `try/catch` with no log | warns **once per hook name** (rate-limited: `drawWeight` fires on every draw) |
 | `server/room.js` `SAKI_POWER_SEATS` | `.filter(...)` silently dropped bad values | names each rejected entry and why: `ignoring 9 (seat must be 0-3), x (not a number)` |
 | `server/index.js` `Hello` | answered `Welcome` **without validating `protocol_version`** | rejects an explicit mismatch with `Error{code:'VersionMismatch'}`; omitting the field is still accepted, since it's optional |
-| `server/public/` HTTP handler | any read error → `404 not found` | ⚠️ still open — a permissions problem looks like a missing route |
+| `server/public/` HTTP handler | any read error → `404 not found` | `server/static.js` maps `ENOENT`/`EISDIR`/`ENOTDIR` to 404 and everything else (`EACCES`, `EIO`, …) to a logged `500`; URL-decode failures and paths escaping `public/` are rejected before the read. Covered by `server/test/static.test.js` |
 
 The hook-level `try/catch` is defensible — a cosmetic aura must not break a game — and
 is retained. What was wrong was the *silence*: a power could be fully broken and the
@@ -1386,8 +1386,9 @@ The 8-implemented / ~20-design-intent split is now stated in a banner at the top
 
 1. *"game.js and cli.js duplicate these helpers locally instead of importing
    tiles.js"* — was false for `game.js`. **Fixed**: the doc now says `game.js` imports
-   from `./tiles` (that dedup completed) and flags `cli.js` as the one remaining
-   duplicate, which is true.
+   from `./tiles` (that dedup completed). It then still flagged `cli.js` as the one
+   remaining duplicate; that copy was subsequently deleted too (KI-05), and the doc
+   now describes `cli.js` as an `eval`-only wrapper.
 2. *"temp furiten currently clears even in riichi"* / *"known bug: standard riichi
    rules require furiten to persist permanently"* — **fixed** at `game.js:518` and
    `room.js:754` (`H.clearTempFuritenOnDraw`), pinned by
@@ -1401,8 +1402,8 @@ The 8-implemented / ~20-design-intent split is now stated in a banner at the top
 - *"server npm test — 2 pass"* → **94**.
 - §3 listed the furiten bug as a live risk while §5 listed it fixed. **Fixed** — §3
   items now carry **[FIXED]** / **[OPEN]** / *partly* tags, and §4's phases are marked
-  ✅ / ⚠️ with the residual work named (e.g. `cli.js` still duplicates `KINDS`;
-  nothing persists replay journals to disk).
+  ✅ / ⚠️ with the residual work named (at the time, `cli.js` still duplicated
+  `KINDS`; nothing persists replay journals to disk).
 - §4 Phase 3 named a fixture directory `engine/tests/rules/`; what shipped is the file
   `engine/tests/rules.test.js`. **Fixed** — the status now notes the substitution.
 - The `rules.test.js` (27) and `furiten-riichi.test.js` (5) counts were already correct
