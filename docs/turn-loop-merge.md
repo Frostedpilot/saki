@@ -1,11 +1,11 @@
 # Turn-loop merge (KI-04, audit item 23)
 
-**Status: deterministic layers merged, and the pure single-turn decisions (turn start,
-discard bookkeeping, own kan, call candidates, call priority) are now shared; interactive
-scheduling is not merged, on purpose.** The *rule* layer — including the canonical
-hand→next-hand outcome — is shared. The *interactive turn scheduling* is not. This document
-records the exact boundary, the divergences that make a naive merge unsafe, and the phased
-plan if it is ever attempted.
+**Status: merged.** Every deterministic layer is shared, including the pure single-turn
+decisions (turn start, discard bookkeeping, own kan, call candidates, call priority) and
+the interactive scheduling itself: both front-ends are adapters over `playHand` /
+`playTurn`. What remains front-end-specific is I/O, the draw model, character powers and
+the settlement shape. This document records the boundary, the intentional divergences
+that made a naive merge unsafe, and how the port was phased.
 
 ## What "shared" means today
 
@@ -24,22 +24,20 @@ everything below. A change here cannot land in one side only:
 | Numeric config | `engine/rules-config.js` | both front-ends read it; pinned by `rules-config-parity.test.js` |
 | Conservation | `engine/invariants.js` | wanpai-aware audit (server only, behind `SAKI_INVARIANTS`) |
 
-What is **not** shared is the loop that asks "whose turn is it, what may they do, and what
-happens next". That loop is a *driver*, not a rule. The pure decisions inside it are shared
-(`turn-core`); the scheduling is not:
+What each adapter still owns is the transport- and presentation-specific half of the same
+skeleton:
 
-- **Offline (`game.js main()`)** — a synchronous `while`, with human decisions read from
-  `readline` via `await ask(...)`, a pre-shuffled wall array drawn from the tail, and the
-  legacy inline `powerDraw` rig.
-- **Network (`table.js Table`)** — an async phase machine (`TURN_ACT → CALL_WINDOW →
-  CALL_DISCARD → ROUND_END`) whose decisions arrive as WebSocket actions through
-  `request()`/`submitAction()`, a `DynamicPool` weighted draw, and the
-  `engine/powers` dispatcher.
+- **Offline (`game.js cliAdapter`)** — prompts via `readline`/`ask`, the legacy inline
+  `powerDraw` rig, printing, and the match-log settlement shape.
+- **Network (`table.js Table`)** — the async phase machine around the driver
+  (`TURN_ACT → CALL_WINDOW → CALL_DISCARD → ROUND_END`), WebSocket actions through
+  `request()`/`submitAction()`, a `DynamicPool` weighted draw, the `engine/powers`
+  dispatcher, timers and the wire settlement shape.
 
-Merging those two drivers means inventing a third abstraction that both a CLI and a
-WebSocket server drive. That is a rewrite of roughly 500 lines on each side, and the two
-sides disagree on rules in ways that are currently **intentional**. It is not a mechanical
-extraction.
+That is a deliberate boundary, not unfinished work. Collapsing the adapters further would
+mean pretending a blocking CLI and an awaited network phase machine are the same control
+model. The port was still a substantial rewrite (roughly 500 lines per side), which is why
+it was staged behind the characterisation net.
 
 ## Intentional divergences (do not "fix" one side blindly)
 
@@ -133,23 +131,24 @@ resolves early on a ron, while the CLI asks them in seat order. The adapter must
 4. **Shared driver.** One `playHand(adapter)` and two thin adapters. **Done:** both
    front-ends use `playHand` *and* `playTurn`. `game.js` supplies `cliAdapter` (prompts,
    `powerDraw`, printing, settlement shape) and `Table` supplies the server adapter
-   (events, timers, power hooks, wire settlement). What remains is phase 5 cleanup.
-5. **Clean up the old shape.** The inline loops are already gone — phase 4d replaced
-   the CLI turn body with `cliAdapter`. The source-scan guards stay, but their job has
-   narrowed: they pin each adapter to `turn-core` / `hand-driver` instead of checking
-   two copies against each other.
+   (events, timers, power hooks, wire settlement).
+5. **Clean up the old shape.** The inline loops are gone — phase 4d replaced the CLI turn
+   body with `cliAdapter`. The source-scan guards stay, but their job has narrowed: they
+   pin each adapter to `turn-core` / `hand-driver` instead of checking two copies against
+   each other.
 
-Phases 1–3 are incremental and reviewable. Phase 4 is the 2–3 day rewrite; it should be its
-own branch, and it will almost certainly change at least one rule.
+Phases 1–3 were incremental and reviewable. Phase 4 was the 2–3 day rewrite; it landed
+on its own branch and, in the event, changed no rule — the only behavioural difference
+found was hand-index preservation in the CLI's discard.
 
 ## Decision
 
-The deterministic layers are merged, including the hand outcome, the single-turn decisions
-and the ippatsu rule. The interactive drivers are deliberately separate: they encode
-genuinely different control models (blocking CLI vs awaited network phases) and a few
-still-different rules (powers). Unifying the scheduling for its own sake would add a third
-abstraction and risk rule regressions with no player-visible benefit. If a specific
-divergence is wrong, fix that rule in both front-ends — that is the high-value work, and it
-is what the parity guards in `engine/tests/rules-config-parity.test.js` protect.
+Everything deterministic is merged: the hand outcome, the single-turn decisions, the
+ippatsu rule and the turn scheduling itself. The adapters stay separate because they
+encode genuinely different control models (blocking CLI vs awaited network phases) and a
+few declared differences (powers, draw model, settlement shape). If a specific divergence
+is wrong, fix that rule in `turn-core` / `hand-driver` / `match-flow` rather than in one
+adapter — the parity guards in `engine/tests/rules-config-parity.test.js` and the
+`hand-driver` tests protect that boundary.
 
 See also: [KI-04](known-issues.md#ki-04), [conventions §4.3](conventions.md).

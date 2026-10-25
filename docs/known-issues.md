@@ -111,9 +111,11 @@ on two seeded 4-hand matches before and after, plus the 48-check selftest.
 
 ---
 
-## <a id="ki-04"></a>KI-04 🟡 Two rule front-ends that diverge (shared rules now deduplicated)
+## <a id="ki-04"></a>KI-04 ✅ FIXED — Two rule front-ends that diverge (now one shared rule layer and turn driver)
 
-The same rules are implemented twice, and the two copies disagree:
+The same rules used to be implemented twice, and the two copies disagreed. The rule
+functions, the numeric configuration and the turn skeleton are now shared; only I/O,
+the draw model, character powers and the settlement shape remain front-end-specific.
 
 | | Offline — `engine/game.js` | Network — `engine/core.js` + `server/table.js` |
 | --- | --- | --- |
@@ -123,15 +125,16 @@ The same rules are implemented twice, and the two copies disagree:
 | Nagashi mangan, oka/uma | yes | nagashi yes (shared payout); oka/uma is client-side standings over raw wire scores |
 | Character powers | **inline `powerDraw()`, not the roster framework** | full `PowerDispatcher` + `rosters/` |
 
-**Still open.** A rule fixed in `game.js` is not automatically fixed in `table.js`. This
-has already happened: the permanent-riichi-furiten bug existed on both sides and needed
-two fixes plus a regression suite. The divergence is declared in
-`engine/rules-config.js` (`RULES.aborts` vs `RULES.serverAborts`), and both front-ends now
-read their set through `engine/match-flow.js` `abortEnabled` — so flipping one of those
-flags is the single switch for that abort. Both sets enable all five, so the switch is
+**Closed.** A rule fixed in `game.js` no longer needs a second fix in `table.js`, because
+the rule itself lives in `engine/turn-core.js`, `engine/helpers.js` or
+`engine/match-flow.js`. The permanent-riichi-furiten bug, which needed two fixes plus a
+regression suite, is the example that motivated this. The remaining per-front-end
+switches are declared in `engine/rules-config.js` (`RULES.aborts` vs
+`RULES.serverAborts`), and both front-ends read their set through
+`engine/match-flow.js` `abortEnabled`. Both sets enable all five, so the switch is
 behaviour-neutral today; it exists so the two sides *can* differ without forking a loop.
 
-**Reduced, not closed.** The *shared rule functions* are no longer duplicated —
+**Consolidated.** The *shared rule functions* are not duplicated —
 `engine/helpers.js` is now the single definition for waits, furiten, bot decisions,
 abort conditions and oka/uma, and `engine/match-flow.js` the single definition for the
 hand outcome (`handOutcome`, with `postHandFlow` as the server adapter), the score
@@ -157,8 +160,9 @@ it earlier. Phase 4 is merged: both front-ends are adapters over
 `playHand` and `playTurn`, so turn order, the draw → tsumo/kan/riichi/discard →
 call-window skeleton and the settlement hand-off have one definition. The CLI still
 owns its prompts, `powerDraw` and printing; the server owns its events, timers and
-power hooks. Phase 5 is now cleanup: retire the source-scan guards that only existed
-to keep the two inline loops honest. The boundary and the intentional divergences are
+power hooks. Phase 5 retired the prose that still described two inline loops; the
+source-scan guards in `rules-config-parity.test.js` stay — they are what stops the
+old duplication coming back. The boundary and the intentional divergences are
 recorded in [`turn-loop-merge.md`](turn-loop-merge.md).
 
 ### `rules-config.js` was dead, and is now live
@@ -221,8 +225,9 @@ like one task and is not:
   `PowerDispatcher` + `rosters/`.
 
 None of these is accidental any more; they are declared. The residual risk is that a
-*new* rule gets added to one side only — which is what the parity test now catches for
-the numbers, and what still needs discipline for the orchestration.
+*new* rule gets added to one adapter instead of the shared core — which is what the
+parity test catches for the numbers and the `hand-driver` tests catch for the turn
+order. The adapters themselves are deliberately allowed to differ.
 
 `engine/cli.js` also re-declared `KINDS` and re-implemented `buildWall`; that copy is
 now gone (see KI-05).
@@ -235,11 +240,12 @@ or rewriting both front-ends at once with a weak safety net.
 
 **Item 21 supplied that net** — 12 characterisation tests in
 `engine/tests/main-orchestration.test.js`, plus a golden match fingerprint — which is
-what made starting this safe. It is still *characterisation*, not a suite written against
-intended rules: it pins current behaviour, so a consolidation has something to fail
-against, but it will not tell you the current behaviour is right. Both are worse than the status quo, so this stays open
-until `main()`'s closure logic is characterised. The 19 duplicated helpers *were* worth
-removing immediately because the selftest covered them well.
+what made starting the port safe. It is still *characterisation*, not a suite written
+against intended rules: it pins current behaviour, so a regression fails loudly, but it
+will not tell you the current behaviour is right. The 19 duplicated helpers *were* worth
+removing immediately because the selftest covered them well. The phase 4 port added
+`engine/tests/hand-driver.test.js` (9 tests) and kept the CLI byte-identical across
+seeds 1, 2, 3, 7, 42, 99 and 123, so the move is pinned from both ends.
 
 ---
 
@@ -271,9 +277,9 @@ had copied the key list without the display layer.
 - `game.js`'s header now says plainly that `--powers` drives the inline rig and **not**
   the roster framework, with a pointer to the server for that.
 
-**Still true (part of KI-04):** `game.js --powers X` does not exercise a roster. The
-Flow gauge, tiers, `PowerDispatcher`, `dynamicPool` reservations and `awakening.js` are
-reachable only via `server/table.js` and the engine unit tests.
+**Still true (a declared KI-04 divergence):** `game.js --powers X` does not exercise a
+roster. The Flow gauge, tiers, `PowerDispatcher`, `dynamicPool` reservations and
+`awakening.js` are reachable only via `server/table.js` and the engine unit tests.
 
 ---
 
@@ -1194,11 +1200,11 @@ The server side is unchanged — resume is still genuinely unsupported, now hone
 
 | File | Lines | Concern |
 | --- | --- | --- |
-| `server/table.js` | **1695** | `Table` — the entire hand driver. Split out of `room.js`, which was **1800** with `Room` in it |
-| `web-client/src/state/store.ts` | **1198** | All game state *and* all outbound protocol calls in one class |
-| `engine/game.js` | **898** | Game loop, bot AI, power rig, and the 48-check selftest (was 1006; 131 lines of duplicated helpers removed) |
-| `engine/powers/rosters/kiyosumi.js` | 571 | One character's full skill tree |
-| `engine/tests/crossCharacter.test.js` | 578 | — |
+| `server/table.js` | **2372** | `Table` — the server turn adapter, event surface, timers and hand driver |
+| `engine/game.js` | **1587** | CLI adapter, prompts, bot AI, power rig and the 48-check selftest |
+| `web-client/src/state/store.ts` | **1334** | All game state *and* all outbound protocol calls in one class |
+| `engine/powers/rosters/kiyosumi.js` | 732 | One character's full skill tree |
+| `engine/tests/crossCharacter.test.js` | 679 | — |
 
 `room.js` was the direct cause of several items above: the roster registry, the env-var
 parsing, the bot pacing and the rule divergence all lived together with no seam. It is
@@ -1209,8 +1215,12 @@ neither has to require the other) — which makes KI-04 tractable. **Partly reso
 the split was purely mechanical: both class bodies were moved by line range and
 verified byte-identical, with all 1740 original substantive lines accounted for.
 
-Remaining size is deliberate — `table.js` is still only safe to shrink by extracting the
-rule layer (item 23), which is behaviour-changing and not yet characterised (item 21).
+Remaining size is deliberate — the last safe shrink was the rule layer (item 23), which is
+now shared through `turn-core.js`, `helpers.js` and `match-flow.js` and characterised by
+`main-orchestration` and `hand-driver`. Both `table.js` and `game.js` are now mostly
+adapter code: the server's WebSocket/event/timer surface and the CLI's prompts, printing
+and selftest. The next reductions are therefore mechanical extractions (the CLI selftest,
+the server's event handlers) rather than behaviour changes.
 
 ---
 
@@ -1631,7 +1641,7 @@ Docs are consistent and CI is green. These are the remaining **code** items:
 | 20 | ~~Cover `botDecision` and the `doOwnKan` choke point~~ | ✅ done | KI-15 |
 | 21 | ~~Characterise `game.js` `main()` orchestration (12 tests)~~ | ✅ done | KI-18 |
 | 22 | ~~Client tests: Vitest + jsdom (225 tests)~~ | ✅ done | KI-07, KI-23, KI-24 |
-| 23 | ~~Share rule constants via rules-config + parity guard; sweep found KI-19/20/21~~ (orchestration merge still open, see KI-04) | partly done | KI-04, KI-19, KI-20, KI-21 |
+| 23 | ~~Share rule constants via rules-config + parity guard; sweep found KI-19/20/21; merge the offline and server turn loops onto `engine/hand-driver.js`~~ | ✅ done | KI-04, KI-19, KI-20, KI-21 |
 | 24 | ~~Split `Table` out of `server/room.js`~~ | ✅ done | KI-11 |
 | 25 | ~~2026-10 audit Phase 0–1: malformed-frame crash, hook bricking, abort fall-through, CPU chi, furiten, `onTurnEnd`, kakan tag, kan-dora seeding, aka double-count, format gate~~ | ✅ done | Part C |
 | 26 | ~~2026-10 audit Phase 2: client ankan river-pop + call-log crash, `engine` manifest~~ | ✅ done | Part C (A-13–A-15) |
@@ -1654,12 +1664,13 @@ Docs are consistent and CI is green. These are the remaining **code** items:
 | 43 | ~~KI-04 phase 4b: share the per-turn skeleton — `hand-driver.playTurn` owns draw → tsumo/kan/riichi/discard → call window; `Table.playTurn` is now a thin adapter, and the server's diagnostic/power hooks moved behind it~~ | ✅ done | KI-04 |
 | 44 | ~~KI-04 phase 4c: wire the CLI onto the shared hand loop — `game.js` wraps its turn body in `cliPlayTurn` and calls `hand-driver.playHand`, so both front-ends use the same hand-level adapter contract~~ | ✅ done | KI-04 |
 | 45 | ~~KI-04 phase 4d: port the CLI per-turn body onto `hand-driver.playTurn` — `game.js` implements the adapter surface (draw, scoring, turn action, kan, discard, call window), so both front-ends share the full turn skeleton; the CLI output is byte-identical across seeds~~ | ✅ done | KI-04 |
+| 46 | ~~KI-04 phase 5: retire the stale "two inline loops" prose in `game.js`, `docs/turn-loop-merge.md`, `docs/conventions.md` and `docs/architecture-comparison.md`; close the issue~~ | ✅ done | KI-04 |
 
-Item **23** is now *partly* done — the shared rules and single-turn decisions live in one
-place with parity tests — but merging the two orchestration loops is still open. **21** was its prerequisite
-and is done: `main()` now has 12 characterisation tests, so that rewrite would have a net
-under it which it did not have before. It is still the largest remaining piece of work
-here.
+Item **23** is **done** — the shared rules and single-turn decisions live in one place with
+parity tests, and the two orchestration loops were merged onto `engine/hand-driver.js` in
+phases 4a–4d. **21** was its prerequisite and is done too: `main()` now has 12
+characterisation tests plus the golden fingerprint, and the CLI output stayed
+byte-identical across seven seeds during the port.
 
 **The method that found KI-13 and KI-14 is cheaper than any refactor here.** Neither
 bug was on this register. Both came from two questions: *which source file has no test
