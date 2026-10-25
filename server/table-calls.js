@@ -1,3 +1,4 @@
+'use strict';
 // The call window for Table: ron/pon/kan/chi arbitration, the open-call and
 // post-call-discard paths, and the recursive re-check after a call. Extracted
 // from table.js (KI-11). It drives the Table through its public methods and the

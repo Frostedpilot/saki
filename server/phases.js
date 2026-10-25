@@ -1,3 +1,4 @@
+'use strict';
 // Phase names for Table's async state machine. Shared with table-calls.js so a
 // call-window file does not have to import the whole Table class (KI-11).
 const PHASE = {

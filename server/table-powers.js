@@ -1,3 +1,4 @@
+'use strict';
 // Power activation, tier arming, HUD broadcasting and the settlement hook for
 // `Table`. Extracted from table.js (KI-11): this is the whole client-facing
 // power subsystem, and it needs only a narrow slice of the Table — ctx,

@@ -1196,31 +1196,44 @@ The server side is unchanged — resume is still genuinely unsupported, now hone
 
 ---
 
-## <a id="ki-11"></a>KI-11 🟡 Very large files carrying whole subsystems
+## <a id="ki-11"></a>KI-11 ✅ FIXED — very large files that carried whole subsystems now have seams
 
 | File | Lines | Concern |
 | --- | --- | --- |
-| `server/table.js` | **2372** | `Table` — the server turn adapter, event surface, timers and hand driver |
-| `engine/game.js` | **1587** | CLI adapter, prompts, bot AI, power rig and the 48-check selftest |
-| `web-client/src/state/store.ts` | **1334** | All game state *and* all outbound protocol calls in one class |
+| `server/table.js` | **1721** | `Table` — the server turn adapter, event surface and hand driver |
+| `engine/game.js` | **1379** | CLI adapter, prompts, bot AI and power rig |
+| `web-client/src/state/store.ts` | **845** | Reactive game state and the outbound command methods |
 | `engine/powers/rosters/kiyosumi.js` | 732 | One character's full skill tree |
 | `engine/tests/crossCharacter.test.js` | 679 | — |
+
+The three files that were carrying separable subsystems have been split. Each split
+was mechanical (move code, keep the public method as a delegator) and is pinned by the
+existing suites:
+
+| New module | Lines | What moved out |
+| --- | --- | --- |
+| `engine/selftest.js` | 232 | the 48 deterministic rule checks behind `--selftest` |
+| `server/table-powers.js` | 319 | power activation, tier arming, HUD broadcast, settlement hook |
+| `server/table-calls.js` | 385 | the call window (ron/pon/kan/chi, open calls, post-call discard) |
+| `server/hook-utils.js` | 28 | `warnOnce` / `callHook` (shared by the Table and powers) |
+| `server/phases.js` | 12 | the `PHASE` names (used by the Table and calls) |
+| `web-client/src/state/events.ts` | 492 | the wire-event reducer (`handleGameEvent`) |
+
+`store.ts` still owns the outbound `send()` calls, but they are now one-line command
+methods over shared state; the 470-line reducer that made it hard to read is gone.
+`table.js` and `game.js` are adapter code at this point — the server's WebSocket, timer
+and event surface versus the CLI's prompts, printing and settlement shape — which is the
+boundary [KI-04](#ki-04) deliberately kept. The two remaining large files are a single
+character's skill tree and one cross-character test suite; neither hides a second
+subsystem.
 
 `room.js` was the direct cause of several items above: the roster registry, the env-var
 parsing, the bot pacing and the rule divergence all lived together with no seam. It is
 now split into three modules — `room.js` (`Room`: lobby, seats, power assignment),
 `table.js` (`Table`: the hand driver) and `rosters.js` (the registry both share, so
-neither has to require the other) — which makes KI-04 tractable. **Partly resolved:**
-`table.js` is still large, but it is now one coherent subsystem rather than two, and
-the split was purely mechanical: both class bodies were moved by line range and
-verified byte-identical, with all 1740 original substantive lines accounted for.
-
-Remaining size is deliberate — the last safe shrink was the rule layer (item 23), which is
-now shared through `turn-core.js`, `helpers.js` and `match-flow.js` and characterised by
-`main-orchestration` and `hand-driver`. Both `table.js` and `game.js` are now mostly
-adapter code: the server's WebSocket/event/timer surface and the CLI's prompts, printing
-and selftest. The next reductions are therefore mechanical extractions (the CLI selftest,
-the server's event handlers) rather than behaviour changes.
+neither has to require the other) — which made KI-04 tractable. That first split was
+purely mechanical: both class bodies were moved by line range and verified
+byte-identical, with all 1740 original substantive lines accounted for.
 
 ---
 
@@ -1665,6 +1678,10 @@ Docs are consistent and CI is green. These are the remaining **code** items:
 | 44 | ~~KI-04 phase 4c: wire the CLI onto the shared hand loop — `game.js` wraps its turn body in `cliPlayTurn` and calls `hand-driver.playHand`, so both front-ends use the same hand-level adapter contract~~ | ✅ done | KI-04 |
 | 45 | ~~KI-04 phase 4d: port the CLI per-turn body onto `hand-driver.playTurn` — `game.js` implements the adapter surface (draw, scoring, turn action, kan, discard, call window), so both front-ends share the full turn skeleton; the CLI output is byte-identical across seeds~~ | ✅ done | KI-04 |
 | 46 | ~~KI-04 phase 5: retire the stale "two inline loops" prose in `game.js`, `docs/turn-loop-merge.md`, `docs/conventions.md` and `docs/architecture-comparison.md`; close the issue~~ | ✅ done | KI-04 |
+| 47 | ~~KI-11: extract the 48-check rule selftest to `engine/selftest.js`; `game.js` becomes the entry point and CLI adapter only~~ | ✅ done | KI-11 |
+| 48 | ~~KI-11: extract the server power subsystem to `server/table-powers.js` and the defensive hook policy to `server/hook-utils.js`~~ | ✅ done | KI-11 |
+| 49 | ~~KI-11: extract the server call window to `server/table-calls.js` and the phase names to `server/phases.js`; re-pin the parity guards~~ | ✅ done | KI-11 |
+| 50 | ~~KI-11: extract the client wire-event reducer to `state/events.ts`; close the item~~ | ✅ done | KI-11 |
 
 Item **23** is **done** — the shared rules and single-turn decisions live in one place with
 parity tests, and the two orchestration loops were merged onto `engine/hand-driver.js` in

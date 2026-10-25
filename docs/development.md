@@ -303,7 +303,7 @@ Closing the duplication itself would mean extracting a rule layer shared with
 | Question | File |
 | --- | --- |
 | How does a hand actually play out? | `engine/core.js` (header documents the canonical 4-phase draw step) |
-| How does a networked hand play out? | `server/table.js` — `Table`, the hand driver (`server/room.js` owns the lobby and seats) |
+| How does a networked hand play out? | `server/table.js` — `Table`, the hand driver and adapter (`server/room.js` owns the lobby and seats; `server/table-calls.js` owns the call window) |
 | How do character powers hook in? | `engine/powers/index.js` — `PowerDispatcher`, and each `engine/powers/rosters/*.js` |
 | How is the wall sampled? | `engine/powers/dynamicPool.js` |
 | What is the wire format? | `server/protocol.js` (encode/decode) + `web-client/src/net/protocol-types.ts` (types) |

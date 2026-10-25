@@ -116,7 +116,11 @@ saki/
 ├── server/                  WebSocket bridge (node:http + ws)
 │   ├── index.js             static host for public/ + WebSocketServer at /ws
 │   ├── room.js              Room: lobby, seats, power assignment
-│   ├── table.js             Table: the hand driver  <- largest file
+│   ├── table.js             Table: the hand driver and server adapter
+│   ├── table-calls.js       call window: ron/pon/kan/chi, open calls
+│   ├── table-powers.js      power activation, tier arming, HUD broadcast
+│   ├── hook-utils.js        defensive character-hook calls (warnOnce/callHook)
+│   ├── phases.js            Table's async phase names
 │   ├── rosters.js           power roster registry, loaded defensively
 │   ├── protocol.js          protocol v6 JSON codec
 │   ├── yaku-map.js          riichi lib yaku names -> protocol Kind/DoraLabel
@@ -126,7 +130,8 @@ saki/
 ├── web-client/              Vite + lit-html + strict TypeScript client
 │   └── src/
 │       ├── main.ts          entry: GameSocket -> GameStore -> screens
-│       ├── state/store.ts   the single reactive store (largest client file)
+│       ├── state/store.ts   the reactive store (state + outbound commands)
+│       ├── state/events.ts  wire-event reducer (server event -> store state)
 │       ├── net/             socket.ts (reconnect) + protocol-types.ts (wire types)
 │       ├── tiles/           tile model helpers + FluffyStuff SVG rendering
 │       ├── components/      11 lit-html render modules

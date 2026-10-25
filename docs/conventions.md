@@ -20,7 +20,8 @@ run directly on Node.
 
 ### `'use strict'`
 
-Present at the top of every file in `server/` (`index.js`, `room.js`, `table.js`, `protocol.js`,
+Present at the top of every file in `server/` (`index.js`, `room.js`, `table.js`,
+`table-calls.js`, `table-powers.js`, `hook-utils.js`, `phases.js`, `protocol.js`,
 `helpers.js`, `yaku-map.js`) and in `engine/rules-config.js`, but **not** consistently
 in `engine/` (`game.js`, `core.js`, `tiles.js` omit it). Node defaults to sloppy
 mode for CommonJS, so this is a real behavioural difference, not decoration. Prefer
@@ -173,8 +174,9 @@ see [`development.md`](development.md#5-testing)).
   `TemplateResult`. No class components, no hooks, no VDOM library.
 - One component per file in `src/components/`, exported as `renderX`.
 - `src/state/store.ts` is the single store. Components receive state and emit intents;
-  outbound protocol calls live on the store. Do not open a second WebSocket or stash
-  game state in a component.
+  outbound protocol calls live on the store. Server events are applied by
+  `src/state/events.ts` (`applyGameEvent`), which mutates the store but owns no socket.
+  Do not open a second WebSocket or stash game state in a component.
 - `src/net/socket.ts` owns reconnection and connection status. Components read status
   from the store, they do not manage sockets.
 - SCSS in `src/styles/`; `main.scss` `@use`s the others and holds the design tokens.

@@ -1,3 +1,4 @@
+'use strict';
 // A character hook that throws must not break the match, but it must not be
 // silent either: a power that is quietly inert looks identical to a power that
 // simply has no effect this hand. Warn once per call site so a per-tick hook
