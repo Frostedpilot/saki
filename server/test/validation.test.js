@@ -547,6 +547,62 @@ test('doOwnKan allows the same kakan when not in riichi', async () => {
   assert.equal(me.melds[0].tiles.length, 4);
 });
 
+test('doOwnKan sends the human an authoritative hand after an ankan', async () => {
+  const t = makeTable();
+  const sent = [];
+  t.room.sendTo = (seat, ev) => sent.push({ seat, ev });
+  t.discardAfterCall = async () => null;
+  t.ctx.dead = ['5z', '1p', '2p', '3p'];
+
+  const me = t.ctx.players[0];
+  me.isCpu = false;
+  me.hand = ['1m', '1m', '1m', '1m', '2p', '3p', '4p', '6s', '7s', '8s', '9s', '1z', '2z', '3z'];
+
+  const out = await t.doOwnKan(0, me, { kind: 'ankan', tile: '1m' });
+
+  assert.equal(out.end, false);
+  assert.equal(me.hand.length, 11, '10 concealed tiles plus the rinshan draw');
+  const updates = sent.filter(({ ev }) => ev.Event && ev.Event.HandUpdated);
+  assert.equal(updates.length, 1, 'the client must receive the post-kan hand');
+  assert.equal(updates[0].seat, 0);
+  const hand = updates[0].ev.Event.HandUpdated.hand;
+  assert.equal(hand.length, 10, 'the update precedes the rinshan draw, like open calls');
+  const kanIndex = P.sakiToTile('1m').index;
+  assert.equal(
+    hand.filter((tile) => tile.index === kanIndex).length,
+    0,
+    'the four kan tiles are gone from the concealed hand'
+  );
+});
+
+test('doOwnKan sends the human an authoritative hand after a kakan', async () => {
+  const t = makeTable();
+  const sent = [];
+  t.room.sendTo = (seat, ev) => sent.push({ seat, ev });
+  t.discardAfterCall = async () => null;
+  t.ctx.dead = ['9p', '1p', '2p', '3p'];
+
+  const me = t.ctx.players[0];
+  me.isCpu = false;
+  me.hand = ['3m', '2p', '3p', '4p', '6s', '7s', '8s', '9s', '1z', '2z', '5z', '6z', '3m'];
+  me.melds = [ponMeld('3m')];
+
+  const out = await t.doOwnKan(0, me, { kind: 'kakan', tile: '3m' });
+
+  assert.equal(out.end, false);
+  assert.equal(me.hand.length, 13, '12 concealed tiles plus the rinshan draw');
+  const updates = sent.filter(({ ev }) => ev.Event && ev.Event.HandUpdated);
+  assert.equal(updates.length, 1, 'the client must receive the post-kan hand');
+  const hand = updates[0].ev.Event.HandUpdated.hand;
+  assert.equal(hand.length, 12, 'the update precedes the rinshan draw, like open calls');
+  const kanIndex = P.sakiToTile('3m').index;
+  assert.equal(
+    hand.filter((tile) => tile.index === kanIndex).length,
+    1,
+    'only the fourth copy left the hand; the pon tiles are already in the meld'
+  );
+});
+
 test('doOwnKan warns and returns a chombo outcome for a declaration flagged chombo', async () => {
   const t = makeTable();
   const me = t.ctx.players[0];

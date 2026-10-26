@@ -62,3 +62,5 @@ power framework); the 2026-10 audit is closed.
   (logged `500`), and rejects malformed URLs and paths escaping `server/public/`.
 - The client reconnects without losing its seat, and no longer mis-translates
   `NotInTurn` / `CallWindowClosed` errors.
+- An ankan or kakan now sends the authoritative post-kan hand to the client, so
+  the kan tiles stop lingering in hand and later discards/riichi stay in sync.

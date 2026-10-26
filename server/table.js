@@ -1360,6 +1360,14 @@ class Table {
         })
       );
     }
+    // The client cannot infer which tiles left the concealed hand for an own
+    // kan (ankan removes four, kakan removes the fourth copy), so send the
+    // authoritative hand before the rinshan draw. Open calls do the same in
+    // table-calls.js; without this the client keeps rendering the kan tiles in
+    // hand and later discards/riichi selections drift out of sync.
+    if (!me.isCpu) {
+      this.room.sendTo(seat, P.event(P.evHandUpdated({ hand: P.tilesToProtocol(sortHand([...me.hand])) })));
+    }
     ctx.callsMade++;
     H.clearAllIppatsu(ctx.players);
     ctx.kansBy[seat]++;

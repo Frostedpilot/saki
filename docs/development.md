@@ -46,7 +46,7 @@ If you only want the offline engine: `npm ci && npm run test:engine`.
 |---|---|
 | `npm test` | everything CI runs: engine + server + dev scripts + client build |
 | `npm run test:engine` | 475 engine unit tests + the 48-check rule selftest |
-| `npm run test:server` | 148 server tests: protocol codec, handshake, full bridge matches, static HTTP handler, yaku translation, settlement, validation, call-window, journal |
+| `npm run test:server` | 150 server tests: protocol codec, handshake, full bridge matches, static HTTP handler, yaku translation, settlement, validation, call-window, journal |
 | `npm run test:scripts` | 9 tests for the dev scripts (`check-links.mjs`, `verify-journal.mjs`) |
 | `npm run test:client` | 244 client tests (Vitest + jsdom) + `tsc` type-check + production build |
 | `npm run links` | verify every relative markdown link resolves |
@@ -232,7 +232,7 @@ built-in runner (`node:test` + `node:assert/strict`) — no Jest/Mocha/Vitest de
 ```bash
 npm test              # everything CI runs
 npm run test:engine   # 475 unit tests + 48 selftest checks
-npm run test:server   # 148 server tests
+npm run test:server   # 150 server tests
 npm run test:scripts  # 9 dev-script tests
 npm run test:client   # 244 client tests + tsc + production build
 npm run links         # markdown link check
