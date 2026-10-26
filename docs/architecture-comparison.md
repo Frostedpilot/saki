@@ -57,10 +57,12 @@ Status tags: **[FIXED]** landed — see §5. **[OPEN]** still true.
    `engine/hand-driver.js` (`playHand`/`playTurn`), so the turn order cannot drift.
    What stays separate is deliberate — I/O, the draw model, powers and the settlement
    shape — and is recorded in [`turn-loop-merge.md`](turn-loop-merge.md).
-2. **Black-box scoring.** *Partly fixed.* String-built input to `riichi` + `syanten`
-   with `^` ranges. Correct until the lib changes — mitigated by exact version pins and
-   `engine/tests/rules.test.js` (27 tests). Still thin: no exhaustive yaku/fu corpus,
-   and `engine/selftest.js` is 48 ad-hoc checks rather than a fixture suite.
+2. **Black-box scoring.** *Mitigated.* String-built input to `riichi` + `syanten`
+   with `^` ranges. Correct until the lib changes — mitigated by exact version pins,
+   `engine/tests/rules.test.js` (36 tests) and `engine/tests/scoring-corpus.test.js`
+   (24 table-driven yaku/yakuman/fu fixtures, including the 20/30/40/50/60-fu
+   boundaries). `engine/selftest.js` remains 48 ad-hoc checks rather than a fixture
+   suite.
 3. **Furiten bug class.** **[FIXED]** This was a live bug: `me.tempFuriten=false` ran
    on every own draw, so a riichi passer could ron again later in the round. Guarded
    with `if (!me.riichi && !me.doubleRiichi)`, via `engine/helpers.js`
@@ -104,9 +106,9 @@ It is less reliable as a runtime for us (new stack, own matcher bugs to own).
 
 ### Phase 3: Exact Pinning & Comprehensive Scoring Test Corpus
 - **Pin Dependencies**: ✅ done — exact versions (`riichi` `1.2.0`, `syanten` `1.6.0`) in both `engine/package.json` and `server/package.json`.
-- **Expand Test Vectors**: ⚠️ partly done
-  - Landed as `engine/tests/rules.test.js` (27 tests: yaku, fu, dora/aka, flags, shibari, waits, aborts, kuikae, ankan, nagashi, oka/uma). **Note:** this shipped as a *file*, not the `engine/tests/rules/` fixture directory originally planned.
-  - Coverage gaps remain: no structured fixtures, and no double-ron honba/riichi-stick allocation cases.
+- **Expand Test Vectors**: ✅ done
+  - Landed as `engine/tests/rules.test.js` (36 tests: yaku, fu, dora/aka, flags, shibari, waits, aborts, kuikae, ankan, nagashi, oka/uma) plus `engine/tests/scoring-corpus.test.js` (24 table-driven fixtures: standard yaku, yakuman, and the 20/30/40/50/60-fu boundaries) and double-ron settlement cases in `server/test/settlement.test.js` (each winner is paid, the riichi pot and honba are not duplicated).
+  - **Note:** this shipped as files, not the `engine/tests/rules/` fixture directory originally planned.
 
 ### Phase 4: Match Loop & Architecture Unification
 - **Align Server & Offline Turn Loop**: ✅ done
@@ -140,8 +142,9 @@ It is less reliable as a runtime for us (new stack, own matcher bugs to own).
   added + exported). `cli.js` was reduced to an `eval`-only wrapper, so its
   duplicate tile helpers and `powerDraw` copy are gone.
 - Phase 3: exact pins (`riichi 1.2.0`, `syanten 1.6.0`, engine + server);
-  corpus in `engine/tests/rules.test.js` (27 tests: yaku, fu, dora/aka,
-  flags, shibari, waits, aborts, kuikae, ankan, nagashi, oka/uma).
+  `engine/tests/rules.test.js` (36 tests: yaku, fu, dora/aka, flags, shibari,
+  waits, aborts, kuikae, ankan, nagashi, oka/uma) and the
+  `engine/tests/scoring-corpus.test.js` fixture corpus (24 cases).
 - Phase 4: `engine/rules-config.js` (RULES defaults; server aborts gated off),
   `engine/invariants.js` (conservation, dead wall, hand size, scores), and the
   shared turn driver `engine/hand-driver.js` (`playHand` / `playTurn`) that both
