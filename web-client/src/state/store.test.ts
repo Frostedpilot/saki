@@ -10,75 +10,7 @@
 // handlers is enough and keeps these tests about the store, not the transport.
 
 import { describe, test, expect, beforeEach, afterEach, vi } from 'vitest';
-import { GameStore } from './store';
-
-// ---------------------------------------------------------------- fake socket
-
-type MessageHandler = (msg: any) => void;
-type StatusHandler = (s: 'connecting' | 'connected' | 'disconnected') => void;
-
-class FakeSocket {
-  public onMessageHandler: MessageHandler | null = null;
-  public onStatusHandler: StatusHandler | null = null;
-  public sent: any[] = [];
-  public sentRaw: any[] = [];
-
-  public onMessage(h: MessageHandler) {
-    this.onMessageHandler = h;
-    return () => {
-      this.onMessageHandler = null;
-    };
-  }
-  public onStatus(h: StatusHandler) {
-    this.onStatusHandler = h;
-    return () => {
-      this.onStatusHandler = null;
-    };
-  }
-
-  // Outbound calls the store makes; recorded, not asserted on here.
-  public hello() {
-    this.sent.push(['hello']);
-  }
-  public joinRoom() {
-    this.sent.push(['joinRoom']);
-  }
-  public ready() {
-    this.sent.push(['ready']);
-  }
-  public discard() {
-    this.sent.push(['discard']);
-  }
-  public call() {
-    this.sent.push(['call']);
-  }
-  public riichi() {
-    this.sent.push(['riichi']);
-  }
-  public tsumo() {
-    this.sent.push(['tsumo']);
-  }
-  public powerAction() {
-    this.sent.push(['powerAction']);
-  }
-  public send(m: any) {
-    this.sentRaw.push(m);
-  }
-
-  // Test drivers.
-  public emit(msg: any) {
-    this.onMessageHandler?.(msg);
-  }
-  public status(s: StatusHandler extends never ? never : any) {
-    this.onStatusHandler?.(s);
-  }
-}
-
-function makeStore() {
-  const socket = new FakeSocket();
-  const store = new GameStore(socket as any);
-  return { store, socket };
-}
+import { makeStore } from './test-harness';
 
 // A 14-tile GameStarted payload.
 const gameStarted = (over: Record<string, any> = {}) => ({

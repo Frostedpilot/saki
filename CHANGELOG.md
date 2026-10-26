@@ -28,6 +28,10 @@ power framework); the 2026-10 audit is closed.
   two large binaries.
 - The missing server rules: all five abortive draws, nagashi mangan, agari-yame and the
   chombo-as-penalty flow.
+- Interaction-contract suites: `server/test/action-events.test.js` pins the wire order
+  and exact contents of every call/kan, and `web-client/src/state/interactions.test.ts`
+  replays those sequences through the reducer (hand authority, kan melds, riichi
+  tsumogiri and hand/meld conservation).
 
 ### Changed
 

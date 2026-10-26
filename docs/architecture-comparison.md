@@ -153,6 +153,6 @@ It is less reliable as a runtime for us (new stack, own matcher bugs to own).
   covered in `rules.test.js` incl. tamper rejection, `server/test/journal.test.js`
   and the `verify-journal.mjs` CLI. *(Opt-in disk persistence: `SAKI_JOURNAL_DIR`.)*
 - Full suite: `node --test tests/*.test.js` **475 pass / 0 fail** + `game.js --selftest`
-  **48 checks**; server `npm test` **150 pass / 0 fail**; dev scripts `npm run test:scripts`
+  **48 checks**; server `npm test` **160 pass / 0 fail**; dev scripts `npm run test:scripts`
   **13 pass**. (Use the glob form — a bare
   directory argument is rejected by Node 22; see `docs/development.md` §5.)

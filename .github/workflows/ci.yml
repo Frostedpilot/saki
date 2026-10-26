@@ -47,7 +47,7 @@ jobs:
       - name: Engine tests
         run: npm run test:engine
 
-      # 150 server tests, including a headless end-to-end match: it spawns the
+      # 160 server tests, including a headless end-to-end match: it spawns the
       # bridge, drives a full game over a real WebSocket, asserts through GameOver.
       - name: Server end-to-end tests
         run: npm run test:server
