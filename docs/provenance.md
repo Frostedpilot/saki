@@ -1,5 +1,7 @@
 # Vendored assets and their provenance
 
+> **This repository is private.**
+
 Three groups of files in this repo are **not built from source that lives here**. This
 page records where each came from, what proves it, and — where the answer is unknown —
 says so plainly instead of guessing.
@@ -91,8 +93,6 @@ The date closes the window from both sides: `assets/web/index.html` was last cha
   (`ac68faa20` 2026-05-25)**, and embedded paths (`/home/laffey/.cargo/registry/…`) show
   a Linux local build. A rebuild on a different rustc or home directory will produce
   different bytes and therefore different filenames.
-- **The upstream licence and redistribution terms remain unknown** — see
-  [`known-issues.md`](known-issues.md#ki-12).
 
 ### Protocol version
 
@@ -130,10 +130,10 @@ If you build on a different toolchain, expect different content hashes.
 client's tile renderer.
 
 No provenance metadata survives in the file — it opens directly with
-`<svg xmlns="http://www.w3.org/2000/svg" style="display:none">`, with no XML comment,
-`dc:rights`, or licence header.
+`<svg xmlns="http://www.w3.org/2000/svg" style="display:none">`, with no XML comment or
+rights metadata.
 
-**Unknown:** which upstream revision this was converted from, and under what terms.
+**Unknown:** which upstream revision this was converted from.
 
 ---
 
@@ -141,8 +141,7 @@ No provenance metadata survives in the file — it opens directly with
 
 **23,088,574 bytes.** Official *Saki* character card art, used for player avatars.
 
-**Unknown:** source and redistribution terms. If this art is not yours to redistribute,
-it is the single largest legal exposure in the repo.
+**Unknown:** source.
 
 ---
 
@@ -184,11 +183,8 @@ checkout passes `lfs: true` for the same reason.
 ## Summary of what is *not* recorded anywhere in git
 
 1. the upstream revision for `fluffy-stuff.svg`
-2. the source and terms for `sakicardsv13.png`
-3. any licence for the repo as a whole
+2. the source for `sakicardsv13.png`
 
 The prebuilt WASM client used to be item 1; it is now pinned to
 `3af1e3bd18` in §1. Items 1–2 are recoverable by re-deriving from upstream and
-re-recording here. Item 3 is a deliberate decision, not an open item: the repo carries
-**no LICENSE** — see [KI-12](known-issues.md#ki-12), which also explains why the vendored
-art makes a code license only a partial answer.
+re-recording here.

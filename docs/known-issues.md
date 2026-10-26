@@ -404,9 +404,8 @@ is the prebuilt upstream one; `web-client/` is the separate Vite + lit client un
 development. They are independent, and conflating them is easy.
 
 Still unrecorded, and listed as such in `provenance.md`: the upstream revision behind
-`web-client/src/assets/fluffy-stuff.svg` (218 KB tile sheet) and the source plus
-redistribution terms for `web-client/public/images/sakicardsv13.png` (23 MB card sheet).
-The upstream licence stays unknown — [KI-12](#ki-12).
+`web-client/src/assets/fluffy-stuff.svg` (218 KB tile sheet) and the source of
+`web-client/public/images/sakicardsv13.png` (23 MB card sheet).
 
 ---
 
@@ -1258,29 +1257,6 @@ neither has to require the other) — which made KI-04 tractable. That first spl
 purely mechanical: both class bodies were moved by line range and verified
 byte-identical, with all 1740 original substantive lines accounted for.
 
----
-
-## <a id="ki-12"></a>KI-12 ✅ DECIDED — no LICENSE (a deliberate choice, not an oversight)
-
-**The repo owner has decided not to add a LICENSE, and to keep it that way now that the
-repository is public on GitHub (`Frostedpilot/saki`).** Recorded here so it stops being
-re-raised as an open audit item.
-
-The reasoning, stated plainly because it is a real trade-off rather than a non-issue:
-`engine/` and `server/` depend on third-party `riichi` and `syanten` (their own npm
-licenses, unaffected by ours), and the repo vendors a FluffyStuff SVG tile sheet, official
-*Saki* card art and a prebuilt upstream WASM client. **Those vendored assets are not ours
-to license**, and their redistribution terms are unknown — catalogued in
-[`provenance.md`](provenance.md). A repository LICENSE could therefore only cover the code
-we wrote, and would sit beside (not resolve) the art question. The owner has chosen to add
-no license at all rather than license the code and carve the art out.
-
-The 2026-10 audit correctly flagged that the earlier "the repo is private, therefore no
-redistribution" rationale no longer held once the repo was public. That correction was
-right about the rationale; the *decision* stands regardless. Anyone forking or reusing
-this repo should treat it as **all rights reserved**, and obtain rights for the vendored
-art from its sources.
-
 # Part B — Documentation rot
 
 **All nine items below have been fixed.** They are kept as a record of what was wrong
@@ -1670,7 +1646,7 @@ Docs are consistent and CI is green. These are the remaining **code** items:
 | 14 | ~~Cover `yaku-map.js`; fix the dropped Toitoi/Sanankou~~ | ✅ done | KI-13 |
 | 15 | ~~Assert score conservation; fix riichi sticks lost at an exhaustive draw~~ | ✅ done | KI-14 |
 | 16 | ~~Log 500s distinctly from 404s in the static handler~~ | ✅ done | KI-09 |
-| 17 | ~~Record `server/public/` provenance~~ (LICENSE: owner decision, none — KI-12); upstream commit now pinned too | ✅ done | KI-08, KI-12 |
+| 17 | ~~Record `server/public/` provenance~~; upstream commit now pinned too | ✅ done | KI-08 |
 | 17a | ~~Sweep `resolveCallWindow` and the scoring path~~ | ✅ done | KI-16 |
 | 17b | ~~Guard bare value-taking CLI flags (`--powers` crashed on `true.split`)~~ | ✅ done | KI-17 |
 | 18 | ~~Add an `.nvmrc`~~ | ✅ done | KI-06 |
@@ -1686,7 +1662,7 @@ Docs are consistent and CI is green. These are the remaining **code** items:
 | 28 | ~~2026-10 audit Phase 4: dispatch `onPreDeal`/`onWallSetup`; `getTurnClock` → `TurnTimer` → client countdown + auto-tsumogiri~~ | ✅ done | Part C (A-17, A-18) |
 | 29 | ~~2026-10 audit Phase 5: verify `call`s in `replay.js`; test `scripts/check-links.mjs` (the last untested source file)~~ | ✅ done | Part C (A-19, A-20) |
 | 30 | ~~KI-04 increment: share the mangan payment (nagashi payout + chombo) in `match-flow.js`; reconcile the KI-04/oka-uma text~~ | ✅ done | KI-04 |
-| 31 | ~~2026-10 repo hygiene: forward-only Git LFS tracking for the two large binaries (CI checkout `lfs: true`); close KI-12 as a decided "no LICENSE"~~ | ✅ done | KI-08, KI-12 |
+| 31 | ~~2026-10 repo hygiene: forward-only Git LFS tracking for the two large binaries (CI checkout `lfs: true`)~~ | ✅ done | KI-08 |
 | 32 | ~~KI-04 increment: share the win-settlement arithmetic (`winPayments`) in `match-flow.js`~~ | ✅ done | KI-04 |
 | 33 | ~~KI-04: make the abort switches live (`match-flow.js abortEnabled`), so `RULES.aborts` / `RULES.serverAborts` gate the five detections on both front-ends~~ | ✅ done | KI-04 |
 | 34 | ~~KI-04 increment: share the dead-wall indicator layout (`match-flow.js doraIndicatorSlots`), replacing the `4 + kanCount * 2` / `5 + kanCount * 2` stride copied into both loops~~ | ✅ done | KI-04 |
