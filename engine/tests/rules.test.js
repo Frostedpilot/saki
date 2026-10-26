@@ -11,6 +11,7 @@ const { RULES } = require('../rules-config');
 const { checkConservation, assertDeadWall, assertScoresConserved } = require('../invariants');
 const core = require('../core');
 const replay = require('../replay');
+const { fullCounts } = require('../tiles');
 
 const C = (o) => ({
   dora: [],
@@ -509,6 +510,29 @@ test('replay: a daiminkan plus a rinshan replacement draw', () => {
   assert.equal(r.draws, 5); // seat 1's draw + 3 for the kan + the rinshan
 });
 
+test('replay: a wanpai swap moves a live tile into a rinshan slot', () => {
+  const { seed } = seedWithTile(1);
+  const s = core.createMatchState({ seed });
+  core.setupDeadWall(s);
+  core.dealHands(s);
+  const displaced = s.deadWall[0];
+  const live = Object.keys(s.pool.counts).find((k) => k !== displaced);
+  assert.ok(live, 'need a live tile that is not the displaced wanpai tile');
+  const exhausted = Object.keys(fullCounts()).find((k) => !s.pool.counts[k]);
+  assert.ok(exhausted, 'need a kind with no live copies for the negative case');
+
+  const j = blankJournal(seed);
+  replay.record(j, null, 'swap', { slot: 0, tile: live });
+  replay.record(j, 0, 'rinshan', live);
+  const r = replay.verifyJournal(j);
+  assert.equal(r.draws, 1);
+
+  // Swapping in a tile the pool does not hold is not a legal swap.
+  const bad = blankJournal(seed);
+  replay.record(bad, null, 'swap', { slot: 0, tile: exhausted });
+  assert.throws(() => replay.verifyJournal(bad), new RegExp(`swap-in ${exhausted} not live`));
+});
+
 test('replay: a call that could not have happened throws', () => {
   const { seed, t } = seedWithTile(4);
 
@@ -539,7 +563,7 @@ test('replay: a call that could not have happened throws', () => {
   {
     const j = blankJournal(seed);
     replay.record(j, 0, 'rinshan', t);
-    assert.throws(() => replay.verifyJournal(j), /not in the dead wall/);
+    assert.throws(() => replay.verifyJournal(j), /not wanpai slot 0/);
   }
   // An unknown kind and a malformed payload.
   {

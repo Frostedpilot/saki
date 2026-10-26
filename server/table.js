@@ -35,6 +35,8 @@ const HD = require('../engine/hand-driver');
 // the Table in `hook-utils.js` / `table-powers.js` (KI-11).
 const { warnOnce } = require('./hook-utils');
 const Powers = require('./table-powers');
+const Journal = require('./journal');
+const replay = require('../engine/replay');
 
 const KIND_ORDER = {};
 KINDS.forEach((k, i) => {
@@ -107,6 +109,22 @@ class Table {
     this.flowGauges = [50, 50, 50, 50];
     this.phase = PHASE.LOBBY;
     this.activeSeat = -1;
+    // Opt-in audit trail (SAKI_JOURNAL_DIR). Allocated on the first hand.
+    this.journalDir = Journal.journalDir();
+    this.journal = null;
+    this.journalFile = null;
+  }
+
+  recordJournal(seat, type, payload) {
+    if (this.journal) replay.record(this.journal, seat, type, payload);
+  }
+
+  // Write the match's journal once. Safe to call at any point; repeated calls
+  // return the same path instead of rewriting.
+  flushJournal() {
+    if (!this.journal || !this.journalDir || this.journalFile) return this.journalFile;
+    this.journalFile = Journal.writeJournal(this.journalDir, this.journal);
+    return this.journalFile;
   }
 
   setArmedTier(seat, tier) {
@@ -376,6 +394,8 @@ class Table {
     }
     this.broadcastMessage(P.gameOver([...this.scores]));
     console.log(`[bridge] ${code}: game over scores=${this.scores.join('/')}`);
+    const journal = this.flushJournal();
+    if (journal) console.log(`[bridge] ${code}: journal written to ${journal}`);
     this.room.afterGameOver();
   }
 
@@ -385,7 +405,10 @@ class Table {
     const bakazeNum = H.bakazeOf(kyoku);
 
     const seed = (this.seed + kyoku * 7919 + this.honba * 104729 + dealer * 131071) >>> 0;
+    if (this.journalDir && !this.journal) this.journal = replay.createJournal(this.seed);
+    if (this.journal) replay.startKyoku(this.journal, seed);
     const state = core.createMatchState({ seed });
+    state.onDeadWallSwap = (slot, tile) => this.recordJournal(null, 'swap', { slot, tile });
     state.enableAwakening = true;
     state.powers = new PowerDispatcher();
     state.powersState = this.persistentPowerState;
@@ -828,7 +851,9 @@ class Table {
   }
 
   async drawTurn(seat) {
-    return core.executeDrawStep(seat, this.ctx.state);
+    const drawn = core.executeDrawStep(seat, this.ctx.state);
+    if (drawn !== null) this.recordJournal(seat, 'draw', drawn);
+    return drawn;
   }
 
   onWallExhausted() {
@@ -1074,6 +1099,7 @@ class Table {
     }
     me.lastDrawn = null;
     me.discards.push(removed);
+    this.recordJournal(seat, 'discard', removed);
     this.assertConserved(`after seat ${seat} discarded ${removed}`);
     // Suufon-renda accumulator and ippatsu expiry: shared bookkeeping.
     const discard = TC.resolveDiscard({
@@ -1307,6 +1333,7 @@ class Table {
       if (i < 0 || !pm) return { end: false, next: (seat + 1) % 4 };
       pm.tiles.push(me.hand.splice(i, 1)[0]);
       pm.type = 'kakan';
+      this.recordJournal(seat, 'call', { kind: 'kakan', tiles: [...pm.tiles] });
       this.broadcast(
         P.evPlayerCalled({
           player: P.seatWind(seat, ctx.dealer),
@@ -1323,6 +1350,7 @@ class Table {
         tiles.push(me.hand.splice(i, 1)[0]);
       }
       me.melds.push({ tiles, open: false, type: 'ankan' });
+      this.recordJournal(seat, 'call', { kind: 'ankan', tiles: [...tiles] });
       this.broadcast(
         P.evPlayerCalled({
           player: P.seatWind(seat, ctx.dealer),
@@ -1359,6 +1387,7 @@ class Table {
 
     const rt = ctx.dead[ctx.rinshanIdx++];
     if (rt === undefined) return { end: true, winner: -1, winBy: null };
+    this.recordJournal(seat, 'rinshan', rt);
     me.hand.push(rt);
     me.lastDrawn = rt;
     H.clearTempFuritenOnDraw(me); // a kan draw is still a draw

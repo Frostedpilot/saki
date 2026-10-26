@@ -73,9 +73,10 @@ Status tags: **[FIXED]** landed — see §5. **[OPEN]** still true.
    replaces global `Math.random`: the match owns one `RNG`, passed to the wall
    shuffle, the offline power rig (`ctx.rng`) and the bot brains, the same way
    `core.createMatchState` threads one through state.
-5. **No replay log.** *Partly fixed.* `engine/replay.js` implements the journal and
-   verifier, but matches are not persisted — nothing writes a journal to disk, so real
-   disputes are still not reproducible. Reference has log/supervision
+5. **No replay log.** ✅ done — `engine/replay.js` implements the journal and
+   verifier, and `server/journal.js` writes one per match when `SAKI_JOURNAL_DIR` is
+   set. `scripts/verify-journal.mjs` replays a file through `core.js`. The writer is
+   opt-in, so normal matches still do no file I/O. Reference has log/supervision
    (`log/`, `application.ex`).
 
 Reference is more accurate as a spec: one interpreter, explicit `define_mod`
@@ -121,7 +122,7 @@ It is less reliable as a runtime for us (new stack, own matcher bugs to own).
 - **Per-Turn Invariant Assertions**: ✅ done — `engine/invariants.js` (conservation via `DynamicPool.audit`, dead wall length, hand size, zero-sum scores).
 
 ### Phase 5: Deterministic Replay & Audit Journaling
-- **Action Journaling**: ⚠️ partly done — `engine/replay.js` provides `record`/`verifyJournal` and replays through `core.js`, covered in `rules.test.js` including tamper rejection. **Nothing writes journals to disk**, so this is a capability, not a feature in use.
+- **Action Journaling**: ✅ done — `engine/replay.js` provides `record`/`verifyJournal` and replays through `core.js`; the server writes a journal per match when `SAKI_JOURNAL_DIR` is set (`server/journal.js`), and `scripts/verify-journal.mjs` checks one offline. Covered in `rules.test.js` (tamper rejection, wanpai swaps), `server/test/journal.test.js` (a real hand and a powered match) and `scripts/verify-journal.test.mjs`.
 - **Replay runner**: ✅ done — `engine/replay.js`.
 
 ## 5. Implementation status
@@ -146,8 +147,9 @@ It is less reliable as a runtime for us (new stack, own matcher bugs to own).
   shared turn driver `engine/hand-driver.js` (`playHand` / `playTurn`) that both
   front-ends adapt.
 - Phase 5: `engine/replay.js` (journal + `verifyJournal` via `core.js`);
-  covered in `rules.test.js` incl. tamper rejection. *(No persistence to disk.)*
-- Full suite: `node --test tests/*.test.js` **473 pass / 0 fail** + `game.js --selftest`
-  **48 checks**; server `npm test` **145 pass / 0 fail**; dev scripts `npm run test:scripts`
-  **10 pass**. (Use the glob form — a bare
+  covered in `rules.test.js` incl. tamper rejection, `server/test/journal.test.js`
+  and the `verify-journal.mjs` CLI. *(Opt-in disk persistence: `SAKI_JOURNAL_DIR`.)*
+- Full suite: `node --test tests/*.test.js` **475 pass / 0 fail** + `game.js --selftest`
+  **48 checks**; server `npm test` **148 pass / 0 fail**; dev scripts `npm run test:scripts`
+  **13 pass**. (Use the glob form — a bare
   directory argument is rejected by Node 22; see `docs/development.md` §5.)

@@ -208,6 +208,7 @@ async function doOpenCall(table, q, from, tile, kind) {
   ctx.players[from].discards.pop();
   tiles.push(tile);
   qp.melds.push({ tiles, open: true, type: kind === 'daiminkan' ? 'kan' : 'pon' });
+  table.recordJournal(q, 'call', { kind, tiles: [...tiles], from, called: tile });
   table.broadcast(
     P.evPlayerCalled({
       player: P.seatWind(q, ctx.dealer),
@@ -243,6 +244,7 @@ async function doOpenCall(table, q, from, tile, kind) {
     ctx.revealKanDora();
     const rt = ctx.dead[ctx.rinshanIdx++];
     if (rt !== undefined) {
+      table.recordJournal(q, 'rinshan', rt);
       qp.hand.push(rt);
       qp.lastDrawn = rt;
       H.clearTempFuritenOnDraw(qp); // a kan draw is still a draw
@@ -350,6 +352,7 @@ async function doOpenChi(table, q, from, tile, chosen) {
   if (tiles.length !== 3) return null; // shouldn't happen (validated)
   ctx.players[from].discards.pop();
   qp.melds.push({ tiles, open: true, type: 'chi' });
+  table.recordJournal(q, 'call', { kind: 'chi', tiles: [...tiles], from, called: tile });
   table.broadcast(
     P.evPlayerCalled({
       player: P.seatWind(q, ctx.dealer),

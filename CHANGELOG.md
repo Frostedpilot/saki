@@ -17,7 +17,10 @@ power framework); the 2026-10 audit is closed.
   reactive store and the socket, plus a strict `tsc` gate and production build.
 - CI for engine, server, scripts and client, with ESLint, Prettier, markdown link
   checking and a CLI smoke test.
-- Deterministic action journal and verifier (`engine/replay.js`).
+- Deterministic action journal and verifier (`engine/replay.js`), an opt-in
+  on-disk writer for the bridge (`SAKI_JOURNAL_DIR`) and a
+  `scripts/verify-journal.mjs` replayer that proves every draw, discard, call and
+  wanpai swap was legal.
 - Seeded RNG (`--seed`) with reproducible matches and a golden CLI fingerprint test.
 - A table-driven scoring corpus (24 fixtures) pinning every standard yaku, yakuman
   stacking and the 20/30/40/50/60-fu boundaries, plus a double-ron settlement case

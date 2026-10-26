@@ -19,6 +19,7 @@
     "test:scripts": "node --test scripts/*.test.mjs",
     "test:client": "npm test --workspace web-client && npm run build --workspace web-client",
     "links": "node scripts/check-links.mjs",
+    "verify:journal": "node scripts/verify-journal.mjs",
     "smoke": "node engine/game.js --seed 42 --kyoku 1",
     "lint": "eslint engine server scripts web-client/src eslint.config.mjs",
     "format": "prettier --write engine server scripts web-client/src web-client/*.ts web-client/*.html .github/workflows/*.yml eslint.config.mjs",

@@ -45,8 +45,8 @@ If you only want the offline engine: `npm ci && npm run test:engine`.
 | Command | What it does |
 |---|---|
 | `npm test` | everything CI runs: engine + server + dev scripts + client build |
-| `npm run test:engine` | 473 engine unit tests + the 48-check rule selftest |
-| `npm run test:server` | 145 server tests: protocol codec, handshake, full bridge matches, static HTTP handler, yaku translation, settlement, validation, call-window |
+| `npm run test:engine` | 475 engine unit tests + the 48-check rule selftest |
+| `npm run test:server` | 148 server tests: protocol codec, handshake, full bridge matches, static HTTP handler, yaku translation, settlement, validation, call-window, journal |
 | `npm run test:scripts` | 10 tests for the dev scripts (`check-links.mjs`, `release-check.mjs`) |
 | `npm run test:client` | 244 client tests (Vitest + jsdom) + `tsc` type-check + production build |
 | `npm run links` | verify every relative markdown link resolves |
@@ -206,11 +206,20 @@ Read by the server (`server/index.js`, `server/table.js`). Mirrored in the
 | `SAKI_RIICHI_FORCE` | unset | `1` forces bots to riichi at a `0.45` probability gate instead of normal evaluation |
 | `SAKI_SEED` | unset | Pins the match seed (any integer) so a match is reproducible; a non-numeric value warns and falls back to random |
 | `SAKI_INVARIANTS` | unset | `1` turns on the tile-conservation assertion (`Table.assertConserved`): the hand driver throws if the 136 tiles stop adding up. Development only — never set it in production |
+| `SAKI_JOURNAL_DIR` | unset | Writes one replay journal per match to this directory (`match-<seed>.json`). Verify with `npm run verify:journal -- <file>`. Off by default; no file I/O otherwise |
 
 Example — instant CPU games with no powers:
 
 ```bash
 BOT_DELAY_MS=0 SAKI_POWER_SEATS="" node server/index.js
+```
+
+Journal every match into `./journals/`, then replay one to prove it was legal:
+
+```bash
+SAKI_JOURNAL_DIR=./journals node server/index.js
+npm run verify:journal -- journals/match-12345.json
+# OK journals/match-12345.json: 214 draws, 233 discards, 19 calls
 ```
 
 ---
@@ -222,13 +231,14 @@ built-in runner (`node:test` + `node:assert/strict`) — no Jest/Mocha/Vitest de
 
 ```bash
 npm test              # everything CI runs
-npm run test:engine   # 473 unit tests + 48 selftest checks
-npm run test:server   # 145 server tests
-npm run test:scripts  # 10 dev-script tests
+npm run test:engine   # 475 unit tests + 48 selftest checks
+npm run test:server   # 148 server tests
+npm run test:scripts  # 13 dev-script tests
 npm run test:client   # 244 client tests + tsc + production build
 npm run release:check # one workspace version + matching CHANGELOG section
 npm run links         # markdown link check
 npm run smoke         # one short deterministic hand
+npm run verify:journal -- <file>  # replay a recorded match journal
 npm run check         # format:check + lint + test + release:check + links
 ```
 
@@ -247,7 +257,7 @@ Raw invocations, if you need them: `node --test tests/*.test.js` (engine),
 
 | Layer | Command | Scope |
 | --- | --- | --- |
-| Engine unit tests | `npm run test:engine` | 32 files, 473 tests. Per-character rosters, `dynamicPool`, `trajectoryPlanner`, `flowManager`, `nodokaEval`, `core` phases, scoring/tiles/rng, **`scoring-corpus`** (a table-driven yaku/fu corpus: one fixture per standard yaku plus the 20/30/40/50/60-fu boundaries), `invariants`, `replay`, plus `crossCharacter` (multi-seat power interaction), `edge` (bug-hunting), and **`offline-rules`** (the `game.js`-only layer: CLI arg parsing plus its bare-flag guards, `buildWall`, `countVisible`, `powerDraw`, bot decision injection). **`main-orchestration`** characterises `main()` itself — the match setup, the CLI adapter over the shared turn driver, and the output shape that had no direct coverage: per-hand terminal shape, conservation including the table carry, abort-settlement rules, exhaustive-draw exchange, dealer continuation, and final standings. **`turn-core`** pins the shared single-turn decisions (turn start and tenhou window, discard/first-lap/ippatsu bookkeeping, own-kan availability, call candidates, call priority). **`hand-driver`** pins the shared hand-level turn order and per-turn skeleton (`playHand` / `playTurn`). **`rules-config-parity`** asserts `rules-config.js` is imported *and referenced* — it was dead documentation for its whole life — and fails if either front-end reintroduces a literal copy of the start score, riichi stake, honba math or noten schedule. |
+| Engine unit tests | `npm run test:engine` | 32 files, 475 tests. Per-character rosters, `dynamicPool`, `trajectoryPlanner`, `flowManager`, `nodokaEval`, `core` phases, scoring/tiles/rng, **`scoring-corpus`** (a table-driven yaku/fu corpus: one fixture per standard yaku plus the 20/30/40/50/60-fu boundaries), `invariants`, `replay`, plus `crossCharacter` (multi-seat power interaction), `edge` (bug-hunting), and **`offline-rules`** (the `game.js`-only layer: CLI arg parsing plus its bare-flag guards, `buildWall`, `countVisible`, `powerDraw`, bot decision injection). **`main-orchestration`** characterises `main()` itself — the match setup, the CLI adapter over the shared turn driver, and the output shape that had no direct coverage: per-hand terminal shape, conservation including the table carry, abort-settlement rules, exhaustive-draw exchange, dealer continuation, and final standings. **`turn-core`** pins the shared single-turn decisions (turn start and tenhou window, discard/first-lap/ippatsu bookkeeping, own-kan availability, call candidates, call priority). **`hand-driver`** pins the shared hand-level turn order and per-turn skeleton (`playHand` / `playTurn`). **`rules-config-parity`** asserts `rules-config.js` is imported *and referenced* — it was dead documentation for its whole life — and fails if either front-end reintroduces a literal copy of the start score, riichi stake, honba math or noten schedule. |
 | Engine rule selftest | `node engine/game.js --selftest=1` | 48 in-engine checks covering yaku, fu, dora, aborts, kuikae, oka/uma, invariants. |
 | Server E2E | `npm run test:server` | Six files. `bridge.test.js` spawns the real server, connects a mock protocol-v6 client over `ws`, and plays full matches to `GameOver`; also covers the handshake (including `VersionMismatch` rejection), the red-dora tile codec, the turn clock, and **score conservation** on every `RoundWon` snapshot and the final total. `yaku-map.test.js` covers the riichi-lib → protocol `Kind` translation, cross-checked against the enums recovered from the vendored WASM client. `settlement.test.js` drives `finishHand` headlessly and deterministically over exhaustive draws (0/2/3/4 tenpai), tsumo, single and double ron, and match teardown — the layer where riichi sticks were being lost. `validation.test.js` pins `classifyHumanKan`, `validateAct`, `botDecision`, `doOwnKan` and `turnClockFor`: ankan/kakan detection, both riichi-kan rules, every action rejection path, and the kan choke point that refuses kakan from a riichi hand. `call-window.test.js` scripts out-of-order human responses to pin pon/ron priority and riichi-stick collection to turn order rather than arrival order. `aborts.test.js` covers the abortive draws. |
 | Client | `npm run test:client` | 244 Vitest tests under jsdom: `tile-utils` (wire index ↔ face, sorting, kuikae, dora cycle, shanten), `svg-tiles` (markup, state classes, sprite injection), `store` (RoomState, GameStarted, errors, reconnect, GameOver, calls, the turn clock), the render layer (`melds`, `discards`, `hand`, `action-bar`, `center-info`, `game-log`, `power-badge`, `saki-card`) and `socket` (connect, dispatch, send, reconnect). Then `tsc` with `strict: true` and a production build. `board.ts`, `round-modal.ts` and `lobby-view.ts` remain untested — see [`known-issues.md`](known-issues.md#ki-23). |

@@ -4,20 +4,27 @@
 // was live, every meld could have been built from the tiles it claims, and
 // conservation holds at every step.
 //
-// NOTE: experimental, tests-only — no production writer calls
-// createJournal/record yet. Journal action grammar (see `record`):
+// The bridge server is the production writer: with SAKI_JOURNAL_DIR set,
+// server/journal.js records a match and writes it to disk, and
+// scripts/verify-journal.mjs replays the file. Journal action grammar (see
+// `record`):
 //   ['kyoku',   index, kyokuSeed]
 //   ['draw',    seat, tile]            — a live-wall draw
 //   ['rinshan', seat, tile]            — a replacement draw, taken from the wanpai
+//   ['swap',    null, { slot, tile }]  — a power moved a live tile into a wanpai slot
 //   ['discard', seat, tile]
 //   ['call',    seat, { kind, tiles, from, called }]
 // `kind` is chi|pon|daiminkan (open: `from` owns the river, `called` is their
 // last discard, `tiles` includes it) or ankan|kakan (from own hand; `tiles` is
 // the 4-tile meld, and a kakan upgrades an existing pon of `tiles[0]`).
+// A `swap` is the Slot Reserver primitive (`core.sampleRinshan`): the live tile
+// leaves the pool and the displaced wanpai tile returns to it, so a later
+// `rinshan` is verifiable.
 // Tiles are exact strings, so a journal that spells an aka as '5m' verifies
 // against a '5m', not the red '0m'.
 const core = require('./core');
 const { assertDeadWall } = require('./invariants');
+const { norm } = require('./tiles');
 
 function createJournal(initialSeed) {
   return { initialSeed, kyokuSeeds: [], actions: [] };
@@ -71,7 +78,7 @@ function applyCall(payload, seat, hands, rivers, melds) {
   }
   if (kind === 'kakan') {
     if (tiles.length !== 4) throw new Error(`replay: kakan needs 4 tiles (seat ${seat})`);
-    const pon = melds[seat].find((m) => m.length === 3 && m.every((t) => t === tiles[0]));
+    const pon = melds[seat].find((m) => m.length === 3 && m.every((t) => norm(t) === norm(tiles[0])));
     if (!pon) throw new Error(`replay: kakan ${tiles[0]} with no pon meld (seat ${seat})`);
     takeFromHand(tiles[3]);
     pon.push(tiles[3]);
@@ -111,22 +118,43 @@ function verifyKyoku(kyokuSeed, actions) {
   let draws = 0,
     discards = 0,
     calls = 0;
-  for (const [type, seat, payload] of actions) {
+  // Wanpai slots are fixed indices: a rinshan draw takes deadWall[rinshanIdx]
+  // and leaves the array intact (the tile is now in a hand), exactly like
+  // engine/core.js and Table.ctx.dead. Splicing here would shift every later
+  // slot and make a subsequent power swap target the wrong tile.
+  let rinshanIdx = 0;
+  for (let ai = 0; ai < actions.length; ai++) {
+    const [type, seat, payload] = actions[ai];
+    const at = ` (action ${ai})`;
     if (type === 'kyoku') continue;
     if (type === 'draw') {
-      if (!state.pool.get(payload)) throw new Error(`replay: draw ${payload} not live (seat ${seat})`);
+      if (!state.pool.get(payload)) throw new Error(`replay: draw ${payload} not live (seat ${seat})${at}`);
       state.pool.decrement(payload);
       hands[seat].push(payload);
       draws++;
     } else if (type === 'rinshan') {
-      const i = state.deadWall.indexOf(payload);
-      if (i < 0) throw new Error(`replay: rinshan ${payload} not in the dead wall (seat ${seat})`);
-      state.deadWall.splice(i, 1);
+      if (rinshanIdx >= state.deadWall.length) {
+        throw new Error(`replay: rinshan ${payload} past the wanpai (seat ${seat})${at}`);
+      }
+      if (state.deadWall[rinshanIdx] !== payload) {
+        throw new Error(`replay: rinshan ${payload} is not wanpai slot ${rinshanIdx} (seat ${seat})${at}`);
+      }
+      rinshanIdx++;
       hands[seat].push(payload);
       draws++;
+    } else if (type === 'swap') {
+      const { slot, tile } = payload || {};
+      if (!Number.isInteger(slot) || slot < rinshanIdx || slot >= state.deadWall.length) {
+        throw new Error(`replay: bad wanpai slot ${slot}${at}`);
+      }
+      if (!state.pool.get(tile)) throw new Error(`replay: swap-in ${tile} not live${at}`);
+      const displaced = state.deadWall[slot];
+      state.pool.decrement(tile);
+      state.deadWall[slot] = tile;
+      state.pool.counts[displaced] = (state.pool.counts[displaced] || 0) + 1;
     } else if (type === 'discard') {
       const i = hands[seat].indexOf(payload);
-      if (i < 0) throw new Error(`replay: discard ${payload} not in hand (seat ${seat})`);
+      if (i < 0) throw new Error(`replay: discard ${payload} not in hand (seat ${seat})${at}`);
       hands[seat].splice(i, 1);
       rivers[seat].push(payload);
       discards++;
@@ -138,11 +166,11 @@ function verifyKyoku(kyokuSeed, actions) {
       ...hands.map((h) => [...h]),
       ...melds.map((m) => m.flat()),
       ...rivers.map((r) => [...r]),
-      state.deadWall,
+      state.deadWall.slice(rinshanIdx),
     ];
     const problems = state.pool.audit(parts);
     if (problems.length) {
-      throw new Error(`replay: conservation broke after ${type} (seat ${seat}): ${problems.join('; ')}`);
+      throw new Error(`replay: conservation broke after ${type} (seat ${seat})${at}: ${problems.join('; ')}`);
     }
   }
   return { draws, discards, calls };

@@ -1,6 +1,13 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
-const { createMatchState, setupDeadWall, dealHands, executeDrawStep } = require('../core');
+const {
+  createMatchState,
+  setupDeadWall,
+  dealHands,
+  executeDrawStep,
+  exchangeDeadWallSlot,
+  sampleRinshan,
+} = require('../core');
 const { PowerDispatcher } = require('../powers/index');
 
 test('Phase 0/1: fresh state has 136, dead wall 14, hands 13 each', () => {
@@ -12,6 +19,22 @@ test('Phase 0/1: fresh state has 136, dead wall 14, hands 13 each', () => {
   dealHands(s);
   for (const p of s.players) assert.equal(p.hand.length, 13);
   assert.equal(s.pool.total(), 70); // 136 - 14 - 52
+});
+
+test('dead-wall swaps notify the journal hook', () => {
+  const s = createMatchState({ seed: 1 });
+  setupDeadWall(s);
+  dealHands(s);
+  const swaps = [];
+  s.onDeadWallSwap = (slot, tile) => swaps.push([slot, tile]);
+
+  const live = Object.keys(s.pool.counts)[0];
+  assert.equal(exchangeDeadWallSlot(s, 0, live), true);
+  assert.deepEqual(swaps[0], [0, live]);
+
+  const sampled = sampleRinshan(s, 1, () => 1);
+  assert.ok(sampled);
+  assert.deepEqual(swaps[1], [1, sampled]);
 });
 
 test('Phase 0/1 lifecycle: onPreDeal and onWallSetup fire around the wall setup', () => {

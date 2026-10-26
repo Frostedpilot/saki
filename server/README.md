@@ -128,6 +128,7 @@ Read by `index.js` and `room.js`; see `docs/development.md` §4 for full detail.
 | `SAKI_RIICHI_FORCE` | unset | `1` forces bot riichi at a fixed 0.45 probability gate |
 | `SAKI_SEED` | unset | Pins the match seed (any integer) so a match is reproducible. Used by the E2E test, which runs a fixed seed by default; override with `BRIDGE_TEST_SEED`. A non-numeric value warns and falls back to a random seed. |
 | `SAKI_INVARIANTS` | unset | `1` turns on the tile-conservation assertion (`Table.assertConserved`): the hand driver throws if the 136 tiles stop adding up. Development only — never set it in production. |
+| `SAKI_JOURNAL_DIR` | unset | Writes one replay journal per match to this directory (`match-<seed>.json`). Verify with `npm run verify:journal -- <file>`. Off by default. |
 
 ## Human disconnect
 

@@ -191,10 +191,9 @@ function seedKanDora(state, kanCount = 1, seat = 0) {
     }
   }
   if (best === null) return null;
+  const { exchangeDeadWallSlot } = require('../../core');
   const old = state.deadWall[idx];
-  state.pool.decrement(best);
-  state.deadWall[idx] = best;
-  state.pool.counts[old] = (state.pool.counts[old] || 0) + 1;
+  if (!exchangeDeadWallSlot(state, idx, best)) return null;
   return { index: idx, from: old, to: best, dora: norm(DORA_NEXT(best)) };
 }
 

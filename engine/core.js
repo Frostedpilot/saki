@@ -88,6 +88,7 @@ function exchangeDeadWallSlot(state, slotIdx, tile) {
   const old = state.deadWall[slotIdx];
   state.deadWall[slotIdx] = tile;
   state.pool.counts[old] = (state.pool.counts[old] || 0) + 1;
+  if (typeof state.onDeadWallSwap === 'function') state.onDeadWallSwap(slotIdx, tile);
   return true;
 }
 
@@ -102,6 +103,7 @@ function sampleRinshan(state, slotIdx, weightOf) {
   const old = state.deadWall[slotIdx];
   state.deadWall[slotIdx] = t;
   state.pool.counts[old] = (state.pool.counts[old] || 0) + 1;
+  if (typeof state.onDeadWallSwap === 'function') state.onDeadWallSwap(slotIdx, t);
   return t;
 }
 
