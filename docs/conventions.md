@@ -327,6 +327,3 @@ table if the character uses a new primitive.
   ran, and for output-affecting changes the seeds/fixtures compared.
 - **Do not rewrite published history.** Add a follow-up commit instead of amending or
   force-pushing. Unpublished work may still be corrected.
-- **A version bump must include a `CHANGELOG.md` section** for that version and keep
-  all four `package.json` files in step; `npm run release:check` enforces both. See
-  [`development.md` §8](development.md#8-releasing).

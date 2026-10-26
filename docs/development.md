@@ -47,11 +47,11 @@ If you only want the offline engine: `npm ci && npm run test:engine`.
 | `npm test` | everything CI runs: engine + server + dev scripts + client build |
 | `npm run test:engine` | 475 engine unit tests + the 48-check rule selftest |
 | `npm run test:server` | 148 server tests: protocol codec, handshake, full bridge matches, static HTTP handler, yaku translation, settlement, validation, call-window, journal |
-| `npm run test:scripts` | 10 tests for the dev scripts (`check-links.mjs`, `release-check.mjs`) |
+| `npm run test:scripts` | 9 tests for the dev scripts (`check-links.mjs`, `verify-journal.mjs`) |
 | `npm run test:client` | 244 client tests (Vitest + jsdom) + `tsc` type-check + production build |
 | `npm run links` | verify every relative markdown link resolves |
 | `npm run smoke` | one short deterministic hand; proves the CLI arg parser works |
-| `npm run check` | `format:check` + `lint` + `test` + `release:check` + `links` |
+| `npm run check` | `format:check` + `lint` + `test` + `links` |
 
 You can still run a single package directly:
 
@@ -233,13 +233,12 @@ built-in runner (`node:test` + `node:assert/strict`) — no Jest/Mocha/Vitest de
 npm test              # everything CI runs
 npm run test:engine   # 475 unit tests + 48 selftest checks
 npm run test:server   # 148 server tests
-npm run test:scripts  # 13 dev-script tests
+npm run test:scripts  # 9 dev-script tests
 npm run test:client   # 244 client tests + tsc + production build
-npm run release:check # one workspace version + matching CHANGELOG section
 npm run links         # markdown link check
 npm run smoke         # one short deterministic hand
 npm run verify:journal -- <file>  # replay a recorded match journal
-npm run check         # format:check + lint + test + release:check + links
+npm run check         # format:check + lint + test + links
 ```
 
 Per package: `npm test --workspace engine`, `npm test --workspace server`,
@@ -261,7 +260,7 @@ Raw invocations, if you need them: `node --test tests/*.test.js` (engine),
 | Engine rule selftest | `node engine/game.js --selftest=1` | 48 in-engine checks covering yaku, fu, dora, aborts, kuikae, oka/uma, invariants. |
 | Server E2E | `npm run test:server` | Six files. `bridge.test.js` spawns the real server, connects a mock protocol-v6 client over `ws`, and plays full matches to `GameOver`; also covers the handshake (including `VersionMismatch` rejection), the red-dora tile codec, the turn clock, and **score conservation** on every `RoundWon` snapshot and the final total. `yaku-map.test.js` covers the riichi-lib → protocol `Kind` translation, cross-checked against the enums recovered from the vendored WASM client. `settlement.test.js` drives `finishHand` headlessly and deterministically over exhaustive draws (0/2/3/4 tenpai), tsumo, single and double ron, and match teardown — the layer where riichi sticks were being lost. `validation.test.js` pins `classifyHumanKan`, `validateAct`, `botDecision`, `doOwnKan` and `turnClockFor`: ankan/kakan detection, both riichi-kan rules, every action rejection path, and the kan choke point that refuses kakan from a riichi hand. `call-window.test.js` scripts out-of-order human responses to pin pon/ron priority and riichi-stick collection to turn order rather than arrival order. `aborts.test.js` covers the abortive draws. |
 | Client | `npm run test:client` | 244 Vitest tests under jsdom: `tile-utils` (wire index ↔ face, sorting, kuikae, dora cycle, shanten), `svg-tiles` (markup, state classes, sprite injection), `store` (RoomState, GameStarted, errors, reconnect, GameOver, calls, the turn clock), the render layer (`melds`, `discards`, `hand`, `action-bar`, `center-info`, `game-log`, `power-badge`, `saki-card`) and `socket` (connect, dispatch, send, reconnect). Then `tsc` with `strict: true` and a production build. `board.ts`, `round-modal.ts` and `lobby-view.ts` remain untested — see [`known-issues.md`](known-issues.md#ki-23). |
-| Dev scripts | `npm run test:scripts` | `scripts/check-links.test.mjs` drives the exported `checkLinks` against fixture trees (dead vs live links, the skip list, anchor stripping, duplicate titles) and then runs it against this repository for real. `scripts/release-check.test.mjs` pins version consistency, changelog section extraction and tag matching. |
+| Dev scripts | `npm run test:scripts` | `scripts/check-links.test.mjs` drives the exported `checkLinks` against fixture trees (dead vs live links, the skip list, anchor stripping, duplicate titles) and then runs it against this repository for real; `scripts/verify-journal.test.mjs` pins the journal CLI's exit codes and output. |
 | Markdown links | `npm run links` | `scripts/check-links.mjs`: every relative link in every `.md` resolves. |
 | CLI smoke | `npm run smoke` | Plays one hand and greps for a discard, catching the arg-parser class of bug where the engine silently completes zero hands. |
 
@@ -321,38 +320,3 @@ Closing the duplication itself would mean extracting a rule layer shared with
 | What does the client hold in memory? | `web-client/src/state/store.ts` |
 | How do I add a character? | [`conventions.md`](conventions.md#adding-a-character) |
 
----
-
-## 8. Releasing
-
-The workspace has **one version**. `package.json`, `engine/package.json`,
-`server/package.json` and `web-client/package.json` must agree, and `CHANGELOG.md`
-must have a section for that version:
-
-```bash
-npm run release:check                  # what CI runs on every push
-node scripts/release-check.mjs --notes # print the current release notes
-```
-
-To cut a release:
-
-1. Add an entry to `CHANGELOG.md` (`## [X.Y.Z] - YYYY-MM-DD`, Keep a Changelog
-   headings: Added / Changed / Fixed / Removed).
-2. Bump every workspace version at once, without committing a tag:
-   `npm version X.Y.Z --workspaces --include-workspace-root --no-git-tag-version`
-   (this also updates `package-lock.json`).
-3. Run `npm run check`, commit, and merge to the integration branch.
-4. Tag the merge commit and push the tag:
-
-   ```bash
-   git tag -a vX.Y.Z -m "vX.Y.Z"
-   git push origin vX.Y.Z
-   ```
-
-`.github/workflows/release.yml` runs the full check, verifies the tag matches the
-package version, and publishes a GitHub Release from the changelog section. Tags are
-the source of truth; there is no npm publish step (the packages are `private`).
-
-Commit messages use the same prefixes as the changelog (`feat:`, `fix:`, `docs:`,
-`test:`, `refactor:`, `chore:`) so the history can be skimmed and grouped at release
-time. See [`conventions.md`](conventions.md#commits-and-prs).

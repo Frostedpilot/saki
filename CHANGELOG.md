@@ -1,13 +1,11 @@
 # Changelog
 
-All notable changes to this project are recorded here. The format is based on
-[Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses one
-workspace version (`package.json`, `engine/`, `server/`, `web-client/`) with `vX.Y.Z`
-Git tags. `node scripts/release-check.mjs` enforces the match.
+All notable changes to this project are recorded here for development history. The
+project is private and has no release process.
 
-## [1.0.0] - 2026-10-25
+## 1.0.0 — 2026-10-25
 
-First tagged release. The engine, bridge server and web client are feature-complete
+First full snapshot. The engine, bridge server and web client are feature-complete
 for the implemented rules (four-player riichi, East and South rounds, the six-primitive
 power framework); the 2026-10 audit is closed.
 
@@ -30,8 +28,6 @@ power framework); the 2026-10 audit is closed.
   two large binaries.
 - The missing server rules: all five abortive draws, nagashi mangan, agari-yame and the
   chombo-as-penalty flow.
-- Release hygiene: one workspace version, this changelog, `scripts/release-check.mjs`
-  and a tag-triggered release workflow.
 
 ### Changed
 
@@ -66,5 +62,3 @@ power framework); the 2026-10 audit is closed.
   (logged `500`), and rejects malformed URLs and paths escaping `server/public/`.
 - The client reconnects without losing its seat, and no longer mis-translates
   `NotInTurn` / `CallWindowClosed` errors.
-
-[1.0.0]: https://github.com/Frostedpilot/saki/releases/tag/v1.0.0

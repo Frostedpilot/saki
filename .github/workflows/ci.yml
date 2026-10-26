@@ -42,23 +42,18 @@ jobs:
       - name: Lint and formatting
         run: npm run lint --silent && npm run format:check --silent
 
-      # One workspace version and a CHANGELOG entry for it. A version bump
-      # without release notes fails here rather than at tag time.
-      - name: Release metadata
-        run: npm run release:check --silent
-
-      # 446 engine unit tests + 48 in-engine rule checks. The glob form is
+      # 475 engine unit tests + 48 in-engine rule checks. The glob form is
       # required: a bare directory argument is rejected by Node 22.
       - name: Engine tests
         run: npm run test:engine
 
-      # 136 server tests, including a headless end-to-end match: it spawns the
+      # 148 server tests, including a headless end-to-end match: it spawns the
       # bridge, drives a full game over a real WebSocket, asserts through GameOver.
       - name: Server end-to-end tests
         run: npm run test:server
 
-      # The dev scripts need tests too — check-links.mjs is what decides whether
-      # the "links" step below passes.
+      # The dev scripts need tests too — check-links.mjs decides whether the
+      # "links" step below passes, and verify-journal.mjs replays journals.
       - name: Dev-script tests
         run: npm run test:scripts
 

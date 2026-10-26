@@ -106,15 +106,15 @@ saki/
 │   │   ├── nodokaEval.js    "Nodocchi" EV / tenpai evaluator
 │   │   ├── mjaiAdapter.js   pluggable evaluator interface (MJAI bots)
 │   │   └── rosters/         one file per character power (8 shipped)
-│   └── tests/               31 *.test.js, node:test
+│   └── tests/               32 *.test.js, node:test
 │
 ├── scripts/
 │   ├── check-links.mjs      markdown link checker (npm run links)
-│   └── release-check.mjs    version + changelog gate (npm run release:check)
+│   └── verify-journal.mjs   replay a recorded match journal
 │
-├── .github/workflows/       ci.yml (every push) + release.yml (v* tags)
+├── .github/workflows/       ci.yml (every push)
 │
-├── CHANGELOG.md             Keep a Changelog, one entry per release
+├── CHANGELOG.md             development record
 │
 ├── server/                  WebSocket bridge (node:http + ws)
 │   ├── index.js             static host for public/ + WebSocketServer at /ws
@@ -158,9 +158,8 @@ via Node's built-in test runner.
 npm test              # everything CI runs
 npm run test:engine   # 475 tests + 48 rule checks
 npm run test:server   # 148 server tests
-npm run test:scripts  # 13 dev-script tests
+npm run test:scripts  # 9 dev-script tests
 npm run test:client   # 244 client tests + tsc type-check
-npm run release:check # version + changelog consistency
 npm run links         # markdown link check
 npm run smoke         # one short deterministic hand
 ```
@@ -169,16 +168,6 @@ npm run smoke         # one short deterministic hand
 > works, `node --test tests/` throws `Cannot find module` on Node 22. The `npm test`
 > scripts are set up correctly. History in
 > [`docs/known-issues.md`](docs/known-issues.md#ki-01).
-
----
-
-## Releases
-
-One version across the workspace. A release is a `vX.Y.Z` tag with a matching
-[`CHANGELOG.md`](CHANGELOG.md) section; `npm run release:check` fails if the manifests
-disagree or the section is missing. Pushing the tag runs the full check and publishes a
-GitHub Release (`.github/workflows/release.yml`). The step-by-step flow is in
-[`docs/development.md` §8](docs/development.md#8-releasing).
 
 ---
 
@@ -206,7 +195,7 @@ GitHub Release (`.github/workflows/release.yml`). The step-by-step flow is in
 An active personal project in a **private repository**. CI runs on every push (`npm ci`,
 format check, lint, the full test suite, a CLI smoke check and the link check), and all of
 it is reproducible locally with one command (`npm run check`). The engine is a single npm
-workspace. Still missing: a release process.
+workspace. There is no release process.
 
 Character coverage is the main remaining gap: **8 powers implemented out of ~28
 documented**. The structural risks that are still open, and the documentation-rot

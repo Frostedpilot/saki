@@ -52,7 +52,7 @@ literally for Node to expand — so this also works under bash and zsh):
 | `cd server && npm test` | 3 pass | **0** |
 
 At the time, the remaining problem was that **nothing ran these tests automatically**; that
-gap is now closed by CI and the release workflow (see [KI-06](#ki-06)).
+gap is now closed by CI (see [KI-06](#ki-06)).
 
 ---
 
@@ -284,10 +284,10 @@ roster. The Flow gauge, tiers, `PowerDispatcher`, `dynamicPool` reservations and
 
 ---
 
-## <a id="ki-06"></a>KI-06 ✅ FIXED — CI, linting, formatting, Node pin and a release process
+## <a id="ki-06"></a>KI-06 ✅ FIXED — CI, linting, formatting and Node pin
 
 - **CI: ✅ added.** `.github/workflows/ci.yml` runs on push and PR: `npm ci`, ESLint +
-  Prettier `format:check`, release metadata, engine tests, server E2E, client
+  Prettier `format:check`, engine tests, server E2E, client
   type-check + build, a CLI smoke check, and the markdown link checker. The full test
   suite (engine, server, dev scripts, client) plus the 48-check selftest now run
   automatically.
@@ -301,18 +301,14 @@ roster. The Flow gauge, tiers, `PowerDispatcher`, `dynamicPool` reservations and
 - **Node version: ✅ pinned.** `"engines": { "node": ">=22" }` in all three
   `package.json`s plus the root, CI runs Node 22 explicitly, and a root `.nvmrc`
   pins `22` for version managers.
-- **Versions and releases: ✅ added.** All four manifests share one version (`1.0.0`),
-  `CHANGELOG.md` is Keep-a-Changelog, and `scripts/release-check.mjs`
-  (`npm run release:check`) fails if the versions disagree or the changelog has no
-  section for the current version. `.github/workflows/release.yml` runs on a `vX.Y.Z`
-  tag, re-runs the full check, verifies the tag against the package version, and
-  publishes a GitHub Release from the changelog section. The flow is documented in
-  [`development.md` §8](development.md#8-releasing).
+- **Versioning: ✅ one version across the workspace.** All four manifests share one
+  version (`1.0.0`); `CHANGELOG.md` records the development history. This is a private
+  repository with no release process.
 - **Commit messages: ✅ convention recorded.** Subjects use `feat:` / `fix:` / `docs:` /
   `test:` / `refactor:` / `chore:` (or an audit id), one logical change per commit, and
   no rewriting of published history — see
-  [`conventions.md` §9](conventions.md#commits-and-prs). Enforcement is social plus the
-  changelog gate, not a commit hook: a hook is easy to bypass and adds a dependency for
+  [`conventions.md` §9](conventions.md#commits-and-prs). Enforcement is social, not a
+  commit hook: a hook is easy to bypass and adds a dependency for
   little value at this team size.
 
 ---
@@ -1682,8 +1678,8 @@ Docs are consistent and CI is green. These are the remaining **code** items:
 | 48 | ~~KI-11: extract the server power subsystem to `server/table-powers.js` and the defensive hook policy to `server/hook-utils.js`~~ | ✅ done | KI-11 |
 | 49 | ~~KI-11: extract the server call window to `server/table-calls.js` and the phase names to `server/phases.js`; re-pin the parity guards~~ | ✅ done | KI-11 |
 | 50 | ~~KI-11: extract the client wire-event reducer to `state/events.ts`; close the item~~ | ✅ done | KI-11 |
-| 51 | ~~KI-06: one workspace version + `CHANGELOG.md` + `scripts/release-check.mjs` (version/section/tag consistency, tested); close the CI/version gap~~ | ✅ done | KI-06 |
-| 52 | ~~KI-06: tag-driven release workflow (`.github/workflows/release.yml`), changelog notes and the release/commit conventions in `development.md` §8 / `conventions.md` §9~~ | ✅ done | KI-06 |
+| 51 | ~~KI-06: one workspace version + `CHANGELOG.md`; close the CI/version gap~~ | ✅ done | KI-06 |
+| 52 | ~~KI-06: commit conventions in `development.md` / `conventions.md`~~ | ✅ done | KI-06 |
 | 53 | ~~KI-08: pin `server/public/` to upstream `3af1e3bd18` from byte-identical companion files, prove protocol v6 from the upstream source, and record the exact rebuild recipe~~ | ✅ done | KI-08 |
 
 Item **23** is **done** — the shared rules and single-turn decisions live in one place with
